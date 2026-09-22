@@ -411,7 +411,17 @@ void RB_T_FillDepthBuffer( const drawSurf_t *surf ) {
 			}
 			qglColor4fv( color );
 
-			qglAlphaFunc( GL_GREATER, regs[ pStage->alphaTestRegister ] );
+			// A binary alpha test discards every MSAA sample together, leaving
+			// texture-defined edges (mats, grilles, etc.) visibly stepping.
+			// Let alpha select depth samples for standard cutouts. Later passes
+			// inherit this coverage through their equal-depth test. Preserve
+			// authored nonstandard thresholds and animated alpha modulation.
+			const bool alphaCoverage = r_multiSamples.GetInteger() > 1 &&
+				regs[ pStage->alphaTestRegister ] == 0.5f && color[3] == 1.0f;
+			qglAlphaFunc( GL_GREATER, alphaCoverage ? 0.0f : regs[ pStage->alphaTestRegister ] );
+			if ( alphaCoverage ) {
+				qglEnable( GL_SAMPLE_ALPHA_TO_COVERAGE );
+			}
 
 			// bind the texture
 			pStage->texture.image->Bind();
@@ -422,6 +432,9 @@ void RB_T_FillDepthBuffer( const drawSurf_t *surf ) {
 			// draw it
 			RB_DrawElementsWithCounters( tri );
 
+			if ( alphaCoverage ) {
+				qglDisable( GL_SAMPLE_ALPHA_TO_COVERAGE );
+			}
 			RB_FinishStageTexturing( pStage, surf, ac );
 		}
 		qglDisable( GL_ALPHA_TEST );
