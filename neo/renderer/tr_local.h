@@ -1288,6 +1288,7 @@ RENDER
 */
 
 void RB_EnterWeaponDepthHack();
+void RB_SetMaterialPolygonOffset( const idMaterial *material );
 void RB_EnterModelDepthHack( float depth );
 void RB_LeaveDepthHack();
 void RB_DrawElementsImmediate( const srfTriangles_t *tri );

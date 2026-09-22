@@ -170,9 +170,21 @@ void RB_T_RenderTriangleSurface( const drawSurf_t *surf ) {
 
 /*
 ===============
-RB_EnterWeaponDepthHack
+RB_SetMaterialPolygonOffset
 ===============
 */
+void RB_SetMaterialPolygonOffset( const idMaterial *material ) {
+	float units = r_offsetUnits.GetFloat() * material->GetPolygonOffset();
+	// Blended decals can lie exactly on an alpha-tested, depth-writing decal.
+	// Give the overlay a distinct bias so rounding between their triangles
+	// cannot alternately reject it. Keep depth prepass/lighting offsets equal
+	// for opaque and perforated materials, including lit floor decals.
+	if ( material->Coverage() == MC_TRANSLUCENT ) {
+		units *= 1.01f;
+	}
+	qglPolygonOffset( r_offsetFactor.GetFloat(), units );
+}
+
 void RB_EnterWeaponDepthHack() {
 	qglDepthRange( 0, backEnd.worldDepthNear > 0.0f ? backEnd.worldDepthNear : 0.5f );
 
@@ -749,7 +761,7 @@ void RB_CreateSingleDrawInteractions( const drawSurf_t *surf, void (*DrawInterac
 	// black prepass visible (for example textures/decals/doormat).
 	if ( surfaceShader->TestMaterialFlag( MF_POLYGONOFFSET ) ) {
 		qglEnable( GL_POLYGON_OFFSET_FILL );
-		qglPolygonOffset( r_offsetFactor.GetFloat(), r_offsetUnits.GetFloat() * surfaceShader->GetPolygonOffset() );
+		RB_SetMaterialPolygonOffset( surfaceShader );
 	}
 
 	// hack depth range if needed

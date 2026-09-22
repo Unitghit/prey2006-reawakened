@@ -345,7 +345,7 @@ void RB_T_FillDepthBuffer( const drawSurf_t *surf ) {
 	// set polygon offset if necessary
 	if ( shader->TestMaterialFlag(MF_POLYGONOFFSET) ) {
 		qglEnable( GL_POLYGON_OFFSET_FILL );
-		qglPolygonOffset( r_offsetFactor.GetFloat(), r_offsetUnits.GetFloat() * shader->GetPolygonOffset() );
+		RB_SetMaterialPolygonOffset( shader );
 	}
 
 	// subviews will just down-modulate the color buffer by overbright
@@ -682,7 +682,7 @@ void RB_STD_T_RenderShaderPasses( const drawSurf_t *surf ) {
 	// set polygon offset if necessary
 	if ( shader->TestMaterialFlag(MF_POLYGONOFFSET) ) {
 		qglEnable( GL_POLYGON_OFFSET_FILL );
-		qglPolygonOffset( r_offsetFactor.GetFloat(), r_offsetUnits.GetFloat() * shader->GetPolygonOffset() );
+		RB_SetMaterialPolygonOffset( shader );
 	}
 
 	if ( surf->space->weaponDepthHack ) {
