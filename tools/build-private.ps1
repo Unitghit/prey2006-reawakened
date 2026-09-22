@@ -11,10 +11,10 @@ cmake -S "$projectRoot/PreyConfigurator/native" -B "$projectRoot/PreyConfigurato
 Check 'Settings configure'
 cmake --build "$projectRoot/PreyConfigurator/native/build" --config Release --parallel $Jobs
 Check 'Settings build'
-$settings=Join-Path $projectRoot 'PreyConfigurator/native/build/Release/Prey Settings.exe'
+$settings=Join-Path $projectRoot 'PreyConfigurator/native/build/Release/Prey2006 Reawakened Launcher.exe'
 $verify=Start-Process -FilePath $settings -ArgumentList ('--root "'+$projectRoot+'" --verify') -WindowStyle Hidden -PassThru -Wait
 if($verify.ExitCode -ne 0){throw 'Settings verification failed'}
-Copy-Item -LiteralPath $settings -Destination "$stage/Prey Settings.exe" -Force
+Copy-Item -LiteralPath $settings -Destination "$stage/Prey2006 Reawakened Launcher.exe" -Force
 # Copy only runtime libraries built from this source checkout.
 foreach($spec in @(@('SDL2.dll','libs/SDL2/Release/SDL2.dll'),@('OpenAL32.dll','libs/OpenalSoft/Release/OpenAL32.dll'))) {
     Copy-Item -LiteralPath (Join-Path "$projectRoot/build/engine" $spec[1]) -Destination (Join-Path "$stage/engine" $spec[0]) -Force

@@ -107,7 +107,7 @@ struct App {
     void Status(const std::wstring& text) { statusText=text;SetWindowTextW(status,text.c_str());Layout(); }
     int Content(int width,bool place) {
         int y=0,inner=std::max(D(100),width-D(24));
-        int headerHeight=Measure(L"Prey 2006 Settings",heading,width).cy;
+        int headerHeight=Measure(L"Prey2006 Reawakened Launcher",heading,width).cy;
         if(place) MoveWindow(title,0,y,width,headerHeight,TRUE);
         y+=headerHeight+D(12);
         size_t i=0;
@@ -217,7 +217,7 @@ struct App {
     void Verify(const fs::path& output);
 };
 
-static void Report(HWND owner,const std::exception& e) {MessageBoxW(owner,Wide(e.what()).c_str(),L"Prey Settings",MB_OK|MB_ICONERROR);}
+static void Report(HWND owner,const std::exception& e) {MessageBoxW(owner,Wide(e.what()).c_str(),L"Prey2006 Reawakened Launcher",MB_OK|MB_ICONERROR);}
 static LRESULT CALLBACK ComboProc(HWND h,UINT msg,WPARAM wp,LPARAM lp,UINT_PTR,DWORD_PTR data) {
     auto app=reinterpret_cast<App*>(data);
     if(msg==WM_MOUSEWHEEL) {SendMessageW(h,CB_SHOWDROPDOWN,FALSE,0);app->Wheel(wp);return 0;}
@@ -281,13 +281,13 @@ static LRESULT CALLBACK MainProc(HWND h,UINT msg,WPARAM wp,LPARAM lp) {
     return DefWindowProcW(h,msg,wp,lp);
 }
 void App::Create() {
-    window=CreateWindowExW(WS_EX_CONTROLPARENT,MainClass,L"Prey 2006 Settings",WS_OVERLAPPEDWINDOW|WS_CLIPCHILDREN,CW_USEDEFAULT,CW_USEDEFAULT,760,780,nullptr,nullptr,instance,this);
+    window=CreateWindowExW(WS_EX_CONTROLPARENT,MainClass,L"Prey2006 Reawakened Launcher",WS_OVERLAPPEDWINDOW|WS_CLIPCHILDREN,CW_USEDEFAULT,CW_USEDEFAULT,760,780,nullptr,nullptr,instance,this);
     if(!window) throw std::runtime_error("Cannot create settings window");
     page=CreateWindowExW(WS_EX_CONTROLPARENT,PageClass,L"Settings",WS_CHILD|WS_VISIBLE|WS_CLIPCHILDREN|WS_VSCROLL,0,0,1,1,window,nullptr,instance,this);
     if(!page) throw std::runtime_error("Cannot create settings page");
     tooltip=CreateWindowExW(WS_EX_TOPMOST,TOOLTIPS_CLASSW,nullptr,WS_POPUP|TTS_ALWAYSTIP,0,0,0,0,window,nullptr,instance,nullptr);
     SendMessageW(tooltip,TTM_SETMAXTIPWIDTH,0,500);SendMessageW(tooltip,TTM_SETDELAYTIME,TTDT_AUTOPOP,20000);
-    title=Control(L"STATIC",L"Prey 2006 Settings",SS_NOPREFIX,page);
+    title=Control(L"STATIC",L"Prey2006 Reawakened Launcher",SS_NOPREFIX,page);
     for(size_t i=0;i<Options().size();++i) {
         const auto& s=Options()[i];
         if(groups.empty() || groups.back().name!=s.group) groups.push_back({s.group,Control(L"STATIC",s.group,SS_NOPREFIX,page),{}});

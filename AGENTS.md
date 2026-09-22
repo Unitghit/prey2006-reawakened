@@ -6,4 +6,4 @@ All automated game tests must use an isolated profile and +set s_volume_dB -60. 
 
 Expose optional features through PreyConfigurator. Do not publish releases or change repository visibility without an explicit user request. Private source updates are the current workflow.
 
-The runtime layout is engine/ for binaries and game data, userdata/ for saves and configuration, and Prey Settings.exe at the package root. Do not introduce absolute developer paths.
+The runtime layout is engine/ for binaries and game data, userdata/ for saves and configuration, and Prey2006 Reawakened Launcher.exe at the package root. Do not introduce absolute developer paths.
