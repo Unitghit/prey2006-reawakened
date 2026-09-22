@@ -35,6 +35,7 @@ void hhEntitySpawner::Spawn( void ) {
 		
 		kv = spawnArgs.MatchPrefix("ent_", kv);
 	}
+	if (!gameLocal.isMultiplayer && cvarSystem->GetCVarBool("com_assetPreload")) gameLocal.CacheDictionaryMedia(&entSpawnArgs);
 }
 
 void hhEntitySpawner::Save(idSaveGame *savefile) const {
@@ -49,6 +50,10 @@ void hhEntitySpawner::Restore( idRestoreGame *savefile ) {
 	savefile->ReadDict( &entSpawnArgs );
 	savefile->ReadInt( maxSpawnCount );
 	savefile->ReadInt( currSpawnCount );
+	if (!gameLocal.isMultiplayer && cvarSystem->GetCVarBool("com_assetPreload")) {
+		gameLocal.FindEntityDef(entDefName, false);
+		gameLocal.CacheDictionaryMedia(&entSpawnArgs);
+	}
 }
 
 //

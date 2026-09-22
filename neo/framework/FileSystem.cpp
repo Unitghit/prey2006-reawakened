@@ -30,6 +30,7 @@ If you have questions concerning this license or the applicable additional terms
 #pragma hdrstop
 
 #include "Unzip.h"
+#include "HitchTrace.h"
 
 #ifdef WIN32
 	#include <io.h>	// for _read
@@ -389,6 +390,7 @@ public:
 
 private:
 	friend int				BackgroundDownloadThread( void *pexit );
+	friend void FS_PreloadPump();
 
 	searchpath_t *			searchPaths;
 	int						readCount;			// total bytes read
@@ -490,6 +492,8 @@ idCVar	idFileSystemLocal::fs_searchAddons( "fs_searchAddons", "0", CVAR_SYSTEM |
 
 idFileSystemLocal	fileSystemLocal;
 idFileSystem *		fileSystem = &fileSystemLocal;
+
+#include "AssetPreload.h"
 
 /*
 ================
@@ -1047,6 +1051,7 @@ timestamp can be NULL if not required
 ============
 */
 int idFileSystemLocal::ReadFile( const char *relativePath, void **buffer, ID_TIME_T *timestamp ) {
+	idHitchScope hitch( "read_file", relativePath );
 	idFile *	f;
 	byte *		buf;
 	int			len;
@@ -2433,6 +2438,8 @@ void idFileSystemLocal::Startup( void ) {
 	cmdSystem->AddCommand( "dirtree", DirTree_f, CMD_FL_SYSTEM, "lists a folder with subfolders" );
 	cmdSystem->AddCommand( "path", Path_f, CMD_FL_SYSTEM, "lists search paths" );
 	cmdSystem->AddCommand( "touchFile", TouchFile_f, CMD_FL_SYSTEM, "touches a file" );
+	cmdSystem->AddCommand( "preloadStatus", FS_PreloadStatus_f, CMD_FL_SYSTEM, "show experimental asset prefetch counters" );
+	cmdSystem->AddCommand( "preloadVerify", FS_PreloadVerify_f, CMD_FL_SYSTEM, "diagnostic: compare cached assets with normal reads (may stall)" );
 	cmdSystem->AddCommand( "touchFileList", TouchFileList_f, CMD_FL_SYSTEM, "touches a list of files" );
 
 	// print the current search paths
@@ -2956,6 +2963,8 @@ Frees all resources and closes all files
 ================
 */
 void idFileSystemLocal::Shutdown( bool reloading ) {
+	FS_PreloadStop();
+	Com_CloseHitchLog();
 	searchpath_t *sp, *next, *loop;
 
 	backgroundThread_exit = true;
@@ -3005,6 +3014,8 @@ void idFileSystemLocal::Shutdown( bool reloading ) {
 	cmdSystem->RemoveCommand( "dir" );
 	cmdSystem->RemoveCommand( "dirtree" );
 	cmdSystem->RemoveCommand( "touchFile" );
+	cmdSystem->RemoveCommand( "preloadStatus" );
+	cmdSystem->RemoveCommand( "preloadVerify" );
 
 	mapDict.Clear();
 }
@@ -3388,7 +3399,9 @@ idFileSystemLocal::OpenFileRead
 ===========
 */
 idFile *idFileSystemLocal::OpenFileRead( const char *relativePath, bool allowCopyFiles, const char* gamedir ) {
-	return OpenFileReadFlags( relativePath, FSFLAG_SEARCH_DIRS | FSFLAG_SEARCH_PAKS, NULL, allowCopyFiles, gamedir );
+	idHitchScope hitch( "open_file", relativePath );
+	idFile *file = OpenFileReadFlags( relativePath, FSFLAG_SEARCH_DIRS | FSFLAG_SEARCH_PAKS, NULL, allowCopyFiles, gamedir );
+	return FS_PreloadLookup( relativePath, file );
 }
 
 /*

@@ -28,6 +28,7 @@ If you have questions concerning this license or the applicable additional terms
 
 #include "precompiled.h"
 #pragma hdrstop
+#include "HitchTrace.h"
 
 #include "Session_local.h"
 #include "../sound/snd_local.h"
@@ -1348,6 +1349,8 @@ Exits with mapSpawned = false
 ===============
 */
 void idSessionLocal::UnloadMap() {
+	if (cvarSystem->GetCVarBool("com_hitchTrace")) common->Printf("HITCH_MAP wall=%u phase=unload map=%s\n",Sys_Milliseconds(),currentMapName.c_str());
+	FS_PreloadStop();
 	StopPlayingRenderDemo();
 
 	// end the current map in the game
@@ -1692,6 +1695,8 @@ void idSessionLocal::ExecuteMapChange( bool noFadeWipe ) {
 	// we are valid for game draws now
 	mapSpawned = true;
 	Sys_ClearEvents();
+	FS_PreloadStart( currentMapName.c_str() );
+	if (cvarSystem->GetCVarBool("com_hitchTrace")) common->Printf("HITCH_MAP wall=%u phase=ready map=%s\n",Sys_Milliseconds(),currentMapName.c_str());
 }
 
 /*
@@ -2835,6 +2840,7 @@ idSessionLocal::RunGameTic
 ================
 */
 void idSessionLocal::RunGameTic() {
+	idHitchScope hitch("game_tick", currentMapName.c_str(), true, 8.0);
 	logCmd_t	logCmd;
 	usercmd_t	cmd;
 

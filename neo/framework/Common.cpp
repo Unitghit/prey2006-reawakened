@@ -84,6 +84,8 @@ idCVar com_forceGenericSIMD( "com_forceGenericSIMD", "0", CVAR_BOOL | CVAR_SYSTE
 idCVar com_developer( "developer", "0", CVAR_BOOL|CVAR_SYSTEM|CVAR_NOCHEAT, "developer mode" );
 idCVar com_allowConsole( "com_allowConsole", "0", CVAR_BOOL | CVAR_SYSTEM | CVAR_NOCHEAT, "allow toggling console with the tilde key" );
 idCVar com_speeds( "com_speeds", "0", CVAR_BOOL|CVAR_SYSTEM|CVAR_NOCHEAT, "show engine timings" );
+idCVar com_hitchTrace( "com_hitchTrace", "0", CVAR_BOOL|CVAR_SYSTEM, "record CPU stalls in the profile diagnostics/hitches.log" );
+idCVar com_hitchThreshold( "com_hitchThreshold", "25", CVAR_FLOAT|CVAR_SYSTEM, "minimum hitch frame duration in milliseconds", 5, 1000 );
 idCVar com_showFPS( "com_showFPS", "0", CVAR_BOOL|CVAR_SYSTEM|CVAR_ARCHIVE|CVAR_NOCHEAT, "show frames rendered per second" );
 idCVar com_showMemoryUsage( "com_showMemoryUsage", "0", CVAR_BOOL|CVAR_SYSTEM|CVAR_NOCHEAT, "show total and per frame memory usage" );
 idCVar com_showAsyncStats( "com_showAsyncStats", "0", CVAR_BOOL|CVAR_SYSTEM|CVAR_NOCHEAT, "show async network stats" );
@@ -333,6 +335,14 @@ idCommonLocal::VPrintf
 A raw string should NEVER be passed as fmt, because of "%f" type crashes.
 ==================
 */
+static idFile *hitchLog = NULL;
+static bool hitchLogAttempted = false;
+void Com_CloseHitchLog() {
+	if (hitchLog) fileSystem->CloseFile(hitchLog);
+	hitchLog = NULL;
+	hitchLogAttempted = false;
+}
+
 void idCommonLocal::VPrintf( const char *fmt, va_list args ) {
 	char		msg[MAX_PRINT_MSG_SIZE];
 	int			timeLength;
@@ -361,6 +371,17 @@ void idCommonLocal::VPrintf( const char *fmt, va_list args ) {
 		Sys_Printf( "idCommon::VPrintf: truncated to %zd characters\n", strlen(msg)-1 );
 	}
 
+	// Diagnostics must not redraw loading screens or produce HUD notifications.
+	if (!idStr::Cmpn(fmt,"HITCH_",6) && com_hitchTrace.GetBool()) {
+		if (Sys_IsMainThread() && fileSystem && fileSystem->IsInitialized()) {
+			if (!hitchLogAttempted) {
+				hitchLogAttempted = true;
+				hitchLog = fileSystem->OpenFileWrite("diagnostics/hitches.log");
+			}
+			if (hitchLog && hitchLog->Length() < 16*1024*1024) hitchLog->Write(msg,strlen(msg));
+		}
+		return;
+	}
 	if ( rd_buffer ) {
 		if ( (int)( strlen( msg ) + strlen( rd_buffer ) ) > ( rd_buffersize - 1 ) ) {
 			rd_flush( rd_buffer );
@@ -2454,6 +2475,8 @@ idCommonLocal::Frame
 */
 void idCommonLocal::Frame( void ) {
 	try {
+		const bool hitchTrace = com_hitchTrace.GetBool();
+		const double hitchStart = hitchTrace ? Sys_PresentationMilliseconds() : 0.0;
 
 		// pump all the events
 		Sys_GenerateEvents();
@@ -2479,6 +2502,8 @@ void idCommonLocal::Frame( void ) {
 		com_frameTime = com_ticNumber * USERCMD_MSEC;
 
 		idAsyncNetwork::RunFrame();
+		const double hitchEvents = hitchTrace ? Sys_PresentationMilliseconds() : 0.0;
+		double hitchGame = hitchEvents;
 
 		if ( idAsyncNetwork::IsActive() ) {
 			if ( idAsyncNetwork::serverDedicated.GetInteger() != 1 ) {
@@ -2490,12 +2515,22 @@ void idCommonLocal::Frame( void ) {
 			}
 		} else {
 			session->Frame();
+			FS_PreloadPump();
+			hitchGame = hitchTrace ? Sys_PresentationMilliseconds() : 0.0;
 
 			// normal, in-sequence screen update
 			session->UpdateScreen( false );
 		}
 
 		// report timing information
+		if ( hitchTrace ) {
+			const double end = Sys_PresentationMilliseconds();
+			if ( end - hitchStart >= com_hitchThreshold.GetFloat() ) {
+				Printf("HITCH_FRAME wall=%u frame=%d total_ms=%.3f events_ms=%.3f session_ms=%.3f render_ms=%.3f map=%s\n",
+					Sys_Milliseconds(), com_frameNumber, end-hitchStart, hitchEvents-hitchStart,
+					hitchGame-hitchEvents, end-hitchGame, session->GetCurrentMapName());
+			}
+		}
 		if ( com_speeds.GetBool() ) {
 			static int	lastTime;
 			int		nowTime = Sys_Milliseconds();

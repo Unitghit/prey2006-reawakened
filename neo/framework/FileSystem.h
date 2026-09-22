@@ -29,6 +29,11 @@ If you have questions concerning this license or the applicable additional terms
 #ifndef __FILESYSTEM_H__
 #define __FILESYSTEM_H__
 
+// Engine-only experimental archive prefetch lifecycle (no game API change).
+void FS_PreloadStart( const char *map );
+void FS_PreloadStop();
+void FS_PreloadPump();
+
 /*
 ===============================================================================
 

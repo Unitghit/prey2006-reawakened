@@ -30,6 +30,7 @@ If you have questions concerning this license or the applicable additional terms
 #pragma hdrstop
 
 #include "tr_local.h"
+#include "../framework/HitchTrace.h"
 
 /*
 PROBLEM: compressed textures may break the zero clamp rule!
@@ -1640,6 +1641,7 @@ On exit, the idImage will have a valid OpenGL texture number that can be bound
 ===============
 */
 void	idImage::ActuallyLoadImage( bool checkForPrecompressed, bool fromBackEnd ) {
+	idHitchScope hitch("load_image", imgName.c_str());
 	int		width, height;
 	byte	*pic;
 

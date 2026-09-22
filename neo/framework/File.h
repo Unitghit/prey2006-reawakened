@@ -218,6 +218,7 @@ private:
 
 class idFile_InZip : public idFile {
 	friend class			idFileSystemLocal;
+	friend void FS_PreloadPump();
 
 public:
 							idFile_InZip( void );

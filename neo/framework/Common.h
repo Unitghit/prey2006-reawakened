@@ -260,6 +260,7 @@ public:
 };
 
 extern idCommon *		common;
+void Com_CloseHitchLog();
 
 // Fraction after the last simulated tick, sampled coherently with the async clock.
 float Com_PresentationFraction( int gameTic );

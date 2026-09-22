@@ -7,6 +7,7 @@ set_property(GLOBAL PROPERTY USE_FOLDERS ON)
 set(CMAKE_MODULE_PATH "${CMAKE_SOURCE_DIR}/CMakeModules")
 
 project(prey06 CXX C)
+find_package(Threads REQUIRED)
 
 # build type
 if(NOT CMAKE_BUILD_TYPE)
@@ -1447,6 +1448,7 @@ if(ENGINE)
 
 	target_link_libraries(${ENGINE_BINARY}
 		idlib
+		Threads::Threads
 		${sys_thirdparty_libs}
 		${sys_libs}
 	)
@@ -1530,6 +1532,7 @@ if(DEDICATED)
 
 	target_link_libraries(${DEDICATED_BINARY}
 		idlib
+		Threads::Threads
 		${sys_thirdparty_libs}
 		${sys_libs}
 	)

@@ -28,6 +28,7 @@ If you have questions concerning this license or the applicable additional terms
 
 #include "precompiled.h"
 #pragma hdrstop
+#include "HitchTrace.h"
 
 #include "Unzip.h"
 
@@ -1301,6 +1302,7 @@ Properly handles partial reads
 =================
 */
 int idFile_InZip::Read( void *buffer, int len ) {
+	idHitchScope hitch("archive_read", name.c_str(), Sys_IsMainThread());
 	int l = unzReadCurrentFile( z, buffer, len );
 	fileSystem->AddToReadCount( l );
 	return l;

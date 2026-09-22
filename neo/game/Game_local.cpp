@@ -30,6 +30,7 @@ If you have questions concerning this license or the applicable additional terms
 #pragma hdrstop
 
 #include "Game_local.h"
+#include "../framework/HitchTrace.h"
 //HUMANHEAD: aob
 #include "../Prey/prey_local.h"
 #include "../framework/BuildVersion.h" // HUMANHEAD mdl
@@ -2027,6 +2028,7 @@ avoid the fast pre-cache check associated with each entityDef
 ===================
 */
 void idGameLocal::CacheDictionaryMedia( const idDict *dict ) {
+	idHitchScope hitch("cache_media", dict ? dict->GetString("classname") : "");
 	const idKeyValue *kv;
 
 	if ( dict == NULL ) {
@@ -3840,6 +3842,7 @@ returning false if not found
 ===================
 */
 bool idGameLocal::SpawnEntityDef( const idDict &args, idEntity **ent, bool setDefaults, bool clientEntity, bool bIsClientReadSnapshot ) {
+	idHitchScope hitch("spawn_entity", args.GetString("classname"));
 	const char	*classname;
 	const char	*spawn;
 	idTypeInfo	*cls;

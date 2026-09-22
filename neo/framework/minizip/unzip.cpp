@@ -122,7 +122,7 @@ The file was renamed from unzip.c to unzip.cpp so we can use C++ functions from 
 #define UNZ_MAXFILENAMEINZIP (256)
 #endif
 
-#if 0 // don't use system malloc but doom3's allocator
+#if 1 // Private background archive handles must not use the engine's shared heap.
 #ifndef ALLOC
 # define ALLOC(size) (malloc(size))
 #endif
