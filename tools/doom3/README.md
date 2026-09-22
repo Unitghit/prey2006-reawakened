@@ -1,7 +1,8 @@
 # Doom 3 weapon prototype
 
-Optional additional Shotgun and Machine Gun for Prey2006 Reawakened. Press 2
-to cycle Hunter Rifle / Shotgun, or 4 to cycle Leech Gun / Machine Gun.
+Optional additional Shotgun, Machine Gun and Chaingun for Prey2006 Reawakened.
+Press 2 to cycle Hunter Rifle / Shotgun, 4 for Leech Gun / Machine Gun,
+or 5 for Autocannon / Chaingun.
 Original weapons are blue and the first addition in each slot is orange.
 Both silhouette and surrounding highlight change color. Wheel/controller
 cycling visits all available guns.
@@ -10,7 +11,7 @@ The expansion's Super Shotgun and Doom-only mode are not implemented yet.
 
 The local importer reads an original Doom 3 installation; BFG assets are not
 supported. It imports namespaced models, animations, materials, normal/specular
-maps, sounds and the Machine Gun's ammo-counter GUI. Generated retail assets
+maps, sounds and the Machine Gun and Chaingun ammo-counter GUIs. Generated retail assets
 must stay local and must not be included in source commits or releases.
 
 From a packaged Reawakened installation:
@@ -19,7 +20,7 @@ From a packaged Reawakened installation:
 python tools/doom3/import_shotgun.py "D:/Games/Doom 3" engine/base --prey-base engine/base --save-compatible
 ```
 
-The historical command name is retained. Compatible imports now install both
+The historical command name is retained. Compatible imports now install all three
 weapons. For development, pass the retail Prey base directory followed by the
 active engine's base directory using repeated `--prey-base` arguments. The
 importer validates dependencies before writing and records hashes in
@@ -30,6 +31,7 @@ Enable **Gameplay > Doom 3 weapons > Enabled (prototype)** in the launcher.
 Owning the Hunter Rifle unlocks the Shotgun. Owning the Leech Gun unlocks the
 Machine Gun, including in existing saves. Old rifle-only Machine Gun grants
 are hidden until the Leech Gun is acquired; their ammo remains stored.
+Owning the Autocannon unlocks the Chaingun, also on existing saves.
 Normal campaign saves use the same folder with the option enabled or disabled.
 Keep imported assets installed when disabling the option.
 
@@ -41,6 +43,14 @@ energy absorption is unchanged and never supplies Machine Gun bullets:
 | Hunter Rifle | 75 before Leech unlock, then 50 | Original behavior |
 | Shotgun | **16 shells** | 8 |
 | Machine Gun | **120 rounds** | 60 |
+| Autocannon (when Chaingun unlocked) | 200 primary rounds | Original behavior |
+| Chaingun | **300 rounds** | 60 |
+
+Primary Autocannon pickups supply only the slot-5 pair. For example, a 40-round
+pickup gives 20 Autocannon rounds and 30 Chaingun bullets when both reserves
+have room. Acquired rounds stay separate. Autocannon secondary grenades are
+unaffected. Existing Autocannon ammunition is retained when adding the Chaingun;
+its new reserve receives subsequent pickups, without a free refill.
 
 The shotgun remains capped at 16 shells with either two or three weapons
 unlocked; the Machine Gun is capped at 120 total rounds, including its loaded
@@ -216,5 +226,25 @@ Earlier validation figures above describe the historical balance at that time.
 Manual reload is bound to **R** by default and can be changed in the game's
 **Options > Controls > Combat > Reload** row. Existing profiles receive the
 binding once if R is unused and no reload binding exists. Custom assignments
-and intentionally cleared bindings are retained. Both current second weapons
-(Shotgun in slot 2 and Machine Gun in slot 4) use orange highlight/icon variants.
+and intentionally cleared bindings are retained. All second weapons (Shotgun
+in slot 2, Machine Gun in slot 4 and Chaingun in slot 5) use orange highlights
+and icons.
+
+## Chaingun
+
+The Chaingun is the orange second weapon in slot 5. The retail model, ammo GUI,
+reload animation and sounds are imported locally. Its adapter retains a
+60-round magazine, 0.4-second spin-up, one-second spin-down, seven-frame-at-60-Hz
+fire interval, spread 5, damage 20 and knockback 1. Barrel rotation uses elapsed
+simulation time. It has no invented alternate fire or shotgun-specific gib rule.
+Prey's weapon class now exposes the existing getWorldModel script event so the
+first-person and world barrels can rotate together. Older weapon scripts remain
+unchanged for save compatibility.
+
+Hidden, muted tests verified visuals and counter updates, separate spending,
+reloads, slot-5 selection, fractional supply and overflow, full-reserve rejection,
+untouched grenade ammunition, equipped and disabled save/load, repeated toggles,
+Spirit Walk and a real level transition. A 56-round magazine and 116 total bullets
+survived Spirit Walk, transition and save/load without changing 100 Autocannon
+rounds or two grenades. The existing Machine Gun ammo regression still passes.
+Use test_chaingun_ammo.ps1 for the repeatable slot-5 arithmetic/save regression.

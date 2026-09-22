@@ -22,8 +22,8 @@ unchanged. Import retail assets locally, never into the source repository.
 | 1 | Wrench | Chainsaw | |
 | 2 | Hunter Rifle | Shotgun | |
 | 3 | Crawler Grenades | Grenades | |
-| 4 | Leech Gun | Machine Gun | Chaingun (planned) |
-| 5 | Autocannon | Plasma Gun | |
+| 4 | Leech Gun | Machine Gun | |
+| 5 | Autocannon | Chaingun | Plasma Gun (planned) |
 | 6 | Acid Sprayer | Super Shotgun, Doom-only mode | |
 | 7 | Rocket Launcher | Rocket Launcher | |
 
@@ -49,6 +49,9 @@ Divide reserve capacities and incoming supplies by the active group size.
 Explicit balance exception: keep the shotgun capped at 16 total shells and the Machine Gun at 120 rounds.
 The Machine Gun unlocks with the Leech Gun (also on existing saves), but still
 receives rifle-group pickup supply. Leech Gun energy absorption is unchanged.
+The Chaingun unlocks with the Autocannon and uses slot 5's primary supply only.
+Its independent reserve is capped at 300 including 60 loaded rounds; Autocannon
+primary capacity is 200 while paired. Secondary grenades remain unchanged.
 Preserve fractional pickup credit. Redistribute incoming pickup supplies from
 full reserves to other reserves in the same group that have room. Once acquired,
 ammunition belongs exclusively to its gun: firing/reloading must never consume
@@ -103,7 +106,7 @@ Reawakened binary that lacks the added weapon classes.
 3. Implemented for rifle / shotgun / Machine Gun: independent reserves, normalized pickups,
    fractional credit, overflow and cabinet demand, migration and persistence.
    Extend allocation metadata when importing each remaining gun.
-4. Machine Gun completed. Import and adapt each remaining gun, including expansion Super Shotgun.
+4. Machine Gun and slot-5 Chaingun completed. Import and adapt each remaining gun, including expansion Super Shotgun.
 5. Complete Doom-only campaign interactions and native launcher modes.
 6. Validate old normal saves, legacy prototype saves, new saves with an added
    weapon equipped, mode changes both ways, death/spirit walking, and transitions

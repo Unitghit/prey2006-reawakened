@@ -1,0 +1,122 @@
+// Additive Prey adapter. Keep this version stable for saved script threads.
+object weapon_d3chaingun : weapon_base {
+    entity worldModel;
+    float barrelJoint;
+    float worldJoint;
+    float barrelAngle;
+    float barrelRate;
+    float barrelTarget;
+    float barrelTime;
+    void init();
+    void UpdateBarrel();
+    void CheckInterrupt();
+    void Idle();
+    void Fire();
+    void Reload();
+};
+
+void weapon_d3chaingun::init() {
+    nextAttack = 0;
+    WEAPON_ALTMODE = false;
+    barrelJoint = getJointHandle("spinner");
+    worldModel = getWorldModel();
+    worldJoint = worldModel.getJointHandle("toob");
+    barrelAngle = 0;
+    barrelRate = 0;
+    barrelTarget = 0;
+    barrelTime = sys.getTime();
+}
+
+void weapon_d3chaingun::UpdateBarrel() {
+    float now = sys.getTime();
+    float dt = now - barrelTime;
+    vector angles;
+    barrelTime = now;
+    if (barrelRate < barrelTarget) {
+        barrelRate = barrelRate + dt * (514.285714 / 0.4);
+        if (barrelRate > barrelTarget) { barrelRate = barrelTarget; }
+    } else if (barrelRate > barrelTarget) {
+        barrelRate = barrelRate - dt * 514.285714;
+        if (barrelRate < barrelTarget) { barrelRate = barrelTarget; }
+    }
+    barrelAngle = barrelAngle + barrelRate * dt;
+    while (barrelAngle >= 360) { barrelAngle = barrelAngle - 360; }
+    angles = '0 0 0';
+    angles_z = barrelAngle;
+    setJointAngle(barrelJoint, JOINTMOD_LOCAL, angles);
+    angles_y = barrelAngle;
+    angles_z = 0;
+    worldModel.setJointAngle(worldJoint, JOINTMOD_LOCAL, angles);
+}
+
+void weapon_d3chaingun::CheckInterrupt() {
+    if (WEAPON_LOWERWEAPON || WEAPON_ASIDEWEAPON) {
+        stopSound(SND_CHANNEL_BODY3, false);
+        barrelRate = 0;
+        barrelTarget = 0;
+    }
+    CheckLower(2);
+    CheckAside(2);
+}
+
+void weapon_d3chaingun::Idle() {
+    weaponReady();
+    PlayCycle("idle");
+    barrelTime = sys.getTime();
+    while (1) {
+        CheckInterrupt();
+        UpdateBarrel();
+        if (WEAPON_ATTACK) {
+            if (ammoInClip() > 0) { PerformAction("Fire", 0); }
+            else if (ammoAvailable() > 0) { PerformAction("Reload", 2); }
+            else if (sys.getTime() >= nextAttack) {
+                StartSound("snd_empty", SND_CHANNEL_WEAPON, false);
+                nextAttack = sys.getTime() + 0.4;
+            }
+        }
+        if (WEAPON_RELOAD && ammoInClip() < clipSize() && ammoAvailable() > ammoInClip()) {
+            PerformAction("Reload", 2);
+        }
+        waitFrame();
+    }
+}
+
+void weapon_d3chaingun::Fire() {
+    barrelTarget = 514.285714;
+    StartSound("snd_windup", SND_CHANNEL_BODY3, false);
+    while (WEAPON_ATTACK && !WEAPON_RELOAD && barrelRate < barrelTarget) {
+        CheckInterrupt();
+        UpdateBarrel();
+        waitFrame();
+    }
+    StartSound("snd_spin", SND_CHANNEL_BODY3, false);
+    while (WEAPON_ATTACK && !WEAPON_RELOAD && ammoInClip() > 0) {
+        CheckInterrupt();
+        UpdateBarrel();
+        if (sys.getTime() >= nextAttack) {
+            nextAttack = sys.getTime() + (7.0 / 60.0);
+            setShaderParm(SHADERPARM_TIMEOFFSET, -sys.getTime());
+            setShaderParm(SHADERPARM_DIVERSITY, sys.random(1));
+            fireProjectiles();
+            StartSound("snd_fire", SND_CHANNEL_WEAPON, false);
+        }
+        waitFrame();
+    }
+    barrelTarget = 0;
+    StartSound("snd_winddown", SND_CHANNEL_BODY3, false);
+    if (WEAPON_RELOAD && ammoAvailable() > ammoInClip()) { PerformAction("Reload", 2); }
+    PerformAction("Idle", 0);
+}
+
+void weapon_d3chaingun::Reload() {
+    weaponReloading();
+    barrelTarget = 0;
+    PlayAnim("reload");
+    while (!animDone(ANIMCHANNEL_ALL, 0)) {
+        CheckInterrupt();
+        UpdateBarrel();
+        waitFrame();
+    }
+    addToClip(clipSize());
+    PerformAction("Idle", 0);
+}

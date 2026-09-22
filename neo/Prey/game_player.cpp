@@ -276,19 +276,20 @@ void hhPlayer::SynchronizeDoom3Shotgun() {
 		return; // Do not alter unrelated mods or the old standalone prototype.
 	}
 	bool anyChanged = false;
-	for (int variant = 0; variant < 2; ++variant) {
-		const int slot = variant == 0 ? 8 : 10, bit = 1 << slot, flag = 1 << (slot - 1);
-		const char *name = variant == 0 ? "d3shotgun" : "d3machinegun";
-		const char *defName = variant == 0 ? "weaponobj_d3shotgun" : "weaponobj_d3machinegun";
+	for (int variant = 0; variant < 3; ++variant) {
+		const int slots[] = {8, 10, 11};
+		const int slot = slots[variant], bit = 1 << slot, flag = 1 << (slot - 1);
+		const char *name = variant == 0 ? "d3shotgun" : (variant == 1 ? "d3machinegun" : "d3chaingun");
+		const char *defName = variant == 0 ? "weaponobj_d3shotgun" : (variant == 1 ? "weaponobj_d3machinegun" : "weaponobj_d3chaingun");
 		const idDict *definition = gameLocal.FindEntityDefDict(defName, false);
 		if (!definition || !definition->GetBool("rw_saveCompatible")) { continue; }
 		const bool enabled = g_doom3Shotgun.GetBool();
 		const bool held = (inventory.weapons & bit) != 0;
-		const int parentSlot = variant == 0 ? 2 : 4;
+		const int parentSlot = variant == 0 ? 2 : (variant == 1 ? 4 : 5);
 		const bool parentOwned = (inventory.weapons & (1 << parentSlot)) != 0;
 		// Old prototypes granted the Machine Gun with the rifle. Its new unlock
 		// must depend on the Leech Gun, even when that old grant was saved.
-		const bool owned = variant == 1 ? parentOwned :
+		const bool owned = variant > 0 ? parentOwned :
 			(held || parentOwned || spawnArgs.GetBool(va("rw_weapon_%s_owned", name)));
 		const bool changed = idStr::Icmp( GetWeaponName(slot), defName ) ||
 			spawnArgs.GetInt( va("rw_weapon_%s_enabled", name), "-1" ) != int(enabled) ||
@@ -425,6 +426,9 @@ void hhPlayer::RestorePersistantInfo( void ) {
 	}
 	if (spawnArgs.FindKey("rw_weapon_d3machinegun_clip")) {
 		inventory.clip[10] = spawnArgs.GetInt("rw_weapon_d3machinegun_clip", "-1");
+	}
+	if (spawnArgs.FindKey("rw_weapon_d3chaingun_clip")) {
+		inventory.clip[11] = spawnArgs.GetInt("rw_weapon_d3chaingun_clip", "-1");
 	}
 	SynchronizeDoom3Shotgun();
 
@@ -1017,7 +1021,7 @@ void hhPlayer::UpdateHudAmmo(idUserInterface *_hud) {
 			va("textures/interface/icons/%s", groupIcons[group - 1]);
 		_hud->SetStateString(va("rw_weapon%d_material", group), material);
 	}
-	const bool splitAmmo = inventory.SplitRifleAmmo(this);
+	const bool splitAmmo = inventory.SplitRifleAmmo(this) || inventory.SplitAutocannonAmmo(this);
 	float ammoPct, altPct;
 	int ammoType, altAmmoType;
 	float ammo, altAmmo;
@@ -1569,8 +1573,8 @@ hhPlayer::SkipWeapon
 ===============
 */
 bool hhPlayer::SkipWeapon( int weaponNum ) const {
-	if ( (weaponNum == 8 || weaponNum == 10) && spawnArgs.FindKey("rw_weapon_d3shotgun_enabled") &&
-		(!g_doom3Shotgun.GetBool() || (weaponNum == 10 && !(inventory.weapons & (1 << 4)))) ) {
+	if ( (weaponNum == 8 || weaponNum == 10 || weaponNum == 11) && spawnArgs.FindKey("rw_weapon_d3shotgun_enabled") &&
+		(!g_doom3Shotgun.GetBool() || (weaponNum == 10 && !(inventory.weapons & (1 << 4))) || (weaponNum == 11 && !(inventory.weapons & (1 << 5)))) ) {
 		return true;
 	}
 	//No bow if not in spirit mode
@@ -5610,8 +5614,8 @@ nla: used to instantly force the spirit weapon, without lowering and raising
 void hhPlayer::ForceWeapon( int weaponNum ) {
 	// A saved spirit/vehicle hand archive may still reference the addon slot.
 	// Resolve it to an owned physical weapon before constructing the view model.
-	if ( (weaponNum == 8 || weaponNum == 10) && spawnArgs.FindKey("rw_weapon_d3shotgun_enabled") &&
-		(!g_doom3Shotgun.GetBool() || (weaponNum == 10 && !(inventory.weapons & (1 << 4)))) ) {
+	if ( (weaponNum == 8 || weaponNum == 10 || weaponNum == 11) && spawnArgs.FindKey("rw_weapon_d3shotgun_enabled") &&
+		(!g_doom3Shotgun.GetBool() || (weaponNum == 10 && !(inventory.weapons & (1 << 4))) || (weaponNum == 11 && !(inventory.weapons & (1 << 5)))) ) {
 		if ( inventory.weapons & (1 << 2) ) { weaponNum = 2; }
 		else if ( inventory.weapons & (1 << 1) ) { weaponNum = 1; }
 	}

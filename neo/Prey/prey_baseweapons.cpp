@@ -89,6 +89,7 @@ CLASS_DECLARATION( hhAnimatedEntity, hhWeapon )
 	EVENT( EV_Weapon_Flashlight,			hhWeapon::Event_Flashlight )
 	EVENT( EV_Weapon_EjectBrass,			hhWeapon::Event_EjectBrass )
 	EVENT( EV_Weapon_GetOwner,				hhWeapon::Event_GetOwner )
+	EVENT( EV_Weapon_GetWorldModel,		hhWeapon::Event_GetWorldModel )
 	EVENT( EV_Weapon_UseAmmo,				hhWeapon::Event_UseAmmo )
 	EVENT( EV_Weapon_UseAltAmmo,			hhWeapon::Event_UseAltAmmo )
 END_CLASS
@@ -647,7 +648,8 @@ void hhWeapon::UpdateGUI() {
 	renderEntity.gui[ 0 ]->SetStateBool( "ammoempty", ( ammoamount == 0 ) );
 	renderEntity.gui[ 0 ]->SetStateBool( "altammoempty", ( altammoamount == 0 ) );
 	renderEntity.gui[ 0 ]->SetStateInt( "clipammoAmount", AmmoInClip() );
-	if (!idStr::Icmp(dict->GetString("classname"), "weaponobj_d3machinegun")) {
+	if (!idStr::Icmp(dict->GetString("classname"), "weaponobj_d3machinegun") ||
+		!idStr::Icmp(dict->GetString("classname"), "weaponobj_d3chaingun")) {
 		renderEntity.gui[0]->SetStateInt("player_ammo", AmmoInClip());
 		renderEntity.gui[0]->SetStateInt("player_totalammo", Max(0, ammoamount - AmmoInClip()));
 		renderEntity.gui[0]->SetStateInt("player_clips", Max(0, ammoamount - AmmoInClip()) / Max(1, ClipSize()));
@@ -1754,6 +1756,10 @@ hhWeapon::Event_GetOwner
 */
 void hhWeapon::Event_GetOwner( void ) {
 	idThread::ReturnEntity( owner.GetEntity() );
+}
+
+void hhWeapon::Event_GetWorldModel( void ) {
+	idThread::ReturnEntity( worldModel.GetEntity() );
 }
 
 /*

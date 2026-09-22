@@ -231,6 +231,7 @@ class hhWeapon: public hhAnimatedEntity {
 
 		void				Event_SetViewAnglesSensitivity( float fov);
 		void				Event_GetOwner( void );
+		void				Event_GetWorldModel( void );
 		void				Event_UseAmmo( int amount );
 		void				Event_UseAltAmmo( int amount );
 		//HUMANHEAD END

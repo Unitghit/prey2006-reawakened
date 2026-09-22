@@ -1,0 +1,76 @@
+// Additional slot-5 weapon; stable inventory index 11 and independent bullets.
+entityDef weaponobj_d3chaingun {
+    "rw_saveCompatible" "1"
+    "rw_weaponGroup" "5"
+    "rw_weaponVariant" "1"
+    "rw_ammoCapacity" "300"
+    "rw_addonScript" "script/reawakened/weapon_d3chaingun_v1.script"
+    "gui" "guis/reawakened/chaingun_v1.gui"
+    "inherit" "weaponobj_default"
+    "weaponname" "Doom 3 Chaingun"
+    "ddaname" "rifle"
+    "spawnclass" "hhWeapon"
+    "scriptobject" "weapon_d3chaingun"
+    "model" "d3_viewmodel_chaingun"
+    "model_world" "d3_worldmodel_chaingun"
+    "joint_attach" "Rattach_gun"
+    "def_fireInfo" "fireinfo_d3chaingun"
+    "def_altFireInfo" "fireinfo_d3chaingun"
+    "def_dropItem" "weapon_d3chaingun"
+    "nozzleFx" "0"
+    "snd_empty" "d3_player_machinegun_empty"
+    "snd_fire" "d3_player_chaingun_fire"
+    "snd_windup" "d3_player_chaingun_windup"
+    "snd_winddown" "d3_player_chaingun_winddown"
+    "snd_spin" "d3_player_chaingun_motorloop"
+    "inv_icon" "textures/interface/icons/rifle"
+}
+
+entityDef fireinfo_d3chaingun {
+    "inherit" "fireinfo_rifle"
+    "def_projectile" "projectile_d3chaingun"
+    "numProjectiles" "1"
+    "spread" "5"
+    "ammoType" "ammo_d3belt"
+    "ammoRequired" "1"
+    "clipSize" "60"
+    "lowAmmo" "10"
+    "fireRate" "0.1166667"
+    "joint_barrel" "barrel"
+    "muzzlelocation" "32 0 0"
+    "fx_muzzleFlash" ""
+    "flashColor" "1 0.8 0.4"
+    "flashSize" "120 120 120"
+    "flashTime" "0.1"
+    "muzzle_kick_time" "0.1"
+    "muzzle_kick_maxtime" "0.1"
+    "muzzle_kick_offset" "0 0 0"
+    "recoilangles" "-1 0 0"
+}
+
+entityDef projectile_d3chaingun {
+    "inherit" "projectile_rifle"
+    "def_damage" "damage_d3chaingun"
+    "velocity" "2000 0 0"
+    "model" ""
+    "fx_fly" ""
+    "snd_fly" ""
+    "mtr_explode_light_shader" ""
+    "explode_light_size" "0 0 0"
+}
+
+entityDef damage_d3chaingun {
+    "inherit" "missile_rifle"
+    "damage" "20"
+    "gib" "0"
+    "knockback" "1"
+}
+
+entityDef weapon_d3chaingun {
+    "inherit" "weapon_autocannon"
+    "model" "d3_worldmodel_chaingun"
+    "inv_name" "Doom 3 Chaingun"
+    "inv_weapon" "weaponobj_d3chaingun"
+    "inv_ammo_autocannon" "30"
+    "def_precache1" "weaponobj_d3chaingun"
+}

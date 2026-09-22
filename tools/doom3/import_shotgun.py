@@ -178,6 +178,8 @@ def main():
     if args.save_compatible:
         from import_machinegun import import_machinegun
         import_machinegun(index, read, text, block, files)
+        from import_chaingun import import_chaingun
+        import_chaingun(index, read, text, block, files)
 
     # Validate everything before writing; no path may escape the output folder.
     for name in files:

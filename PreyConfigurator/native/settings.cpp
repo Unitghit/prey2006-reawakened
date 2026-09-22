@@ -192,7 +192,8 @@ void Save(const fs::path& root, const Values& v) {
 std::vector<std::wstring> Arguments(const fs::path& root, const Values& v) {
     if (v.at(L"weaponPack") == L"doom3shotgun" &&
         (!fs::exists(root/EngineDirectory/L"base/doom3-import-manifest.json") ||
-         !fs::exists(root/EngineDirectory/L"base/def/doom3_machinegun.def"))) {
+         !fs::exists(root/EngineDirectory/L"base/def/doom3_machinegun.def") ||
+         !fs::exists(root/EngineDirectory/L"base/def/doom3_chaingun.def"))) {
         throw std::runtime_error("Import the original Doom 3 weapon assets with --save-compatible before enabling this option. See tools/doom3/README.md.");
     }
     std::vector<std::wstring> args;

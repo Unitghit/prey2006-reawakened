@@ -2607,7 +2607,32 @@ static void Cmd_WeaponAmmoInfo_f(const idCmdArgs &args) {
 		player->inventory.clip[10], (player->inventory.weapons & (1 << 10)) != 0);
 }
 
+// Independent slot-5 ammunition diagnostics; mutations require developer mode.
+static void Cmd_ChaingunInfo_f(const idCmdArgs &args) {
+	hhPlayer *player = static_cast<hhPlayer *>(gameLocal.GetLocalPlayer());
+	if (!player || !player->inventory.UsesIndependentWeaponAmmo(player)) { return; }
+	player->SynchronizeDoom3Shotgun();
+	if (cvarSystem->GetCVarBool("developer")) {
+		if (args.Argc() == 4 && !idStr::Icmp(args.Argv(1), "seed")) {
+			player->inventory.ammo[3] = Max(0, atoi(args.Argv(2)));
+			player->inventory.ammo[12] = Max(0, atoi(args.Argv(3)));
+			player->spawnArgs.Set("rw_weapon_ammo_fraction_3", "0");
+			player->spawnArgs.Set("rw_weapon_ammo_fraction_12", "0");
+		} else if (args.Argc() == 3 && !idStr::Icmp(args.Argv(1), "pickup")) {
+			gameLocal.Printf("CHAINPICKUP accepted=%d\n", player->Give("ammo_autocannon", args.Argv(2)));
+		} else if (args.Argc() == 3 && !idStr::Icmp(args.Argv(1), "altpickup")) {
+			player->Give("ammo_autocannon_grenade", args.Argv(2));
+		}
+	}
+	gameLocal.Printf("CHAINAMMO auto=%d belt=%d autoMax=%d beltMax=%d autoFraction=%s beltFraction=%s clip=%d held=%d alt=%d\n",
+		player->inventory.ammo[3], player->inventory.ammo[12],
+		player->inventory.MaxAmmoForAmmoClass(player, "ammo_autocannon"), player->inventory.MaxAmmoForAmmoClass(player, "ammo_d3belt"),
+		player->spawnArgs.GetString("rw_weapon_ammo_fraction_3", "0"), player->spawnArgs.GetString("rw_weapon_ammo_fraction_12", "0"),
+		player->inventory.clip[11], (player->inventory.weapons & (1 << 11)) != 0, player->inventory.ammo[4]);
+}
+
 void idGameLocal::InitConsoleCommands( void ) {
+	cmdSystem->AddCommand("chaingunInfo", Cmd_ChaingunInfo_f, CMD_FL_GAME, "show independent slot-5 ammo; developer: seed, pickup, altpickup");
 	cmdSystem->AddCommand("weaponAmmoInfo", Cmd_WeaponAmmoInfo_f, CMD_FL_GAME, "show independent ammo pools; developer: seed, pickup, useRifle, useShells, reload");
 	cmdSystem->AddCommand( "weaponPackInfo", Cmd_WeaponPackInfo_f, CMD_FL_GAME, "show addon state; developer: slot, key1..7, next, prev, spirit" );
 	cmdSystem->AddCommand( "game_memory",			idClass::DisplayInfo_f,		CMD_FL_GAME,				"displays game class info" );

@@ -252,6 +252,12 @@ bool hhInventory::SplitRifleAmmo(const idPlayer *owner) const {
 		owner->spawnArgs.GetBool("rw_weapon_ammo_initialized") &&
 		owner->spawnArgs.GetBool("rw_weapon_d3shotgun_owned");
 }
+bool hhInventory::SplitAutocannonAmmo(const idPlayer *owner) const {
+	if (!UsesIndependentWeaponAmmo(owner) || !cvarSystem->GetCVarBool("g_doom3Shotgun") ||
+		!owner->spawnArgs.GetBool("rw_weapon_d3chaingun_owned")) { return false; }
+	const idDict *addon = gameLocal.FindEntityDefDict("weaponobj_d3chaingun", false);
+	return addon && addon->GetBool("rw_saveCompatible");
+}
 bool hhInventory::SynchronizeWeaponAmmo(hhPlayer *owner) {
 	if (!UsesIndependentWeaponAmmo(owner)) { return false; }
 	bool changed = false;
@@ -309,6 +315,17 @@ bool hhInventory::SynchronizeWeaponAmmo(hhPlayer *owner) {
 		owner->spawnArgs.SetBool("rw_weapon_ammo_split_active", active);
 		changed = true;
 	}
+	const bool autocannonActive = SplitAutocannonAmmo(owner);
+	if (owner->spawnArgs.GetInt("rw_weapon_autocannon_split_active", "-1") != int(autocannonActive)) {
+		owner->spawnArgs.SetBool("rw_weapon_autocannon_split_active", autocannonActive);
+		changed = true;
+	}
+	// Existing acquired rounds remain in their own reserve. Newly unlocked
+	// Chainguns receive supply from subsequent primary Autocannon pickups.
+	if (autocannonActive && ammo[12] >= 0 && ammo[12] + WeaponAmmoFraction(owner, 12) > 300) {
+		StoreWeaponAmmo(owner, 12, 300);
+		changed = true;
+	}
 	return changed;
 }
 
@@ -342,6 +359,36 @@ bool hhInventory::GiveRifleGroupAmmo(hhPlayer *owner, int amount) {
 	return true;
 }
 
+bool hhInventory::GiveAutocannonGroupAmmo(hhPlayer *owner, int amount) {
+	if (amount <= 0) { return false; }
+	const int count = 2;
+	const int indices[] = { AmmoIndexForAmmoClass("ammo_autocannon"), 12 };
+	const double full[] = { double(idInventory::MaxAmmoForAmmoClass(owner, "ammo_autocannon")), 600.0 };
+	if (full[0] <= 0) { return false; }
+	double totals[2], room[2];
+	for (int i = 0; i < count; ++i) {
+		totals[i] = ammo[indices[i]] + WeaponAmmoFraction(owner, indices[i]);
+		room[i] = ammo[indices[i]] < 0 ? 0.0 : Max(0.0, 1.0 / count - totals[i] / full[i]);
+	}
+	double budget = amount / full[0], accepted = 0;
+	// Divide incoming supply equally by normalized capacity. Overflow can be
+	// redirected, but already-acquired ammunition never moves between guns.
+	for (int pass = 0; pass < count && budget > 1e-12; ++pass) {
+		int recipients = 0;
+		for (int i = 0; i < count; ++i) { if (room[i] > 1e-12) { ++recipients; } }
+		if (!recipients) { break; }
+		const double share = budget / recipients;
+		for (int i = 0; i < count; ++i) {
+			const double grant = Min(room[i], share);
+			totals[i] += grant * full[i]; room[i] -= grant; budget -= grant; accepted += grant;
+		}
+	}
+	if (accepted <= 1e-12) { return false; }
+	for (int i = 0; i < count; ++i) { if (ammo[indices[i]] >= 0) { StoreWeaponAmmo(owner, indices[i], totals[i]); } }
+	ammoPulse = true;
+	return true;
+}
+
 int hhInventory::MaxAmmoForAmmoClass( idPlayer *owner, const char *ammo_classname ) const {
 	int max = 0;
 	if (ammo_classname && UsesIndependentWeaponAmmo(owner)) {
@@ -349,6 +396,10 @@ int hhInventory::MaxAmmoForAmmoClass( idPlayer *owner, const char *ammo_classnam
 			return 16; // Stable total cap, including the eight loaded shells.
 		}
 		if (!idStr::Icmp(ammo_classname, "ammo_d3bullets")) { return 120; }
+		if (!idStr::Icmp(ammo_classname, "ammo_d3belt")) { return 300; }
+		if (!idStr::Icmp(ammo_classname, "ammo_autocannon") && SplitAutocannonAmmo(owner)) {
+			return idInventory::MaxAmmoForAmmoClass(owner, ammo_classname) / 2;
+		}
 		if (!idStr::Icmp(ammo_classname, "ammo_rifle") && SplitRifleAmmo(owner)) {
 			return idInventory::MaxAmmoForAmmoClass(owner, ammo_classname) / RifleGroupAmmoCount(owner);
 		}
@@ -428,6 +479,10 @@ bool hhInventory::Give( idPlayer *owner, const idDict &spawnArgs, const char *st
 		if (playerOwner && !idStr::Icmp(statname, "ammo_rifle") && UsesIndependentWeaponAmmo(owner)) {
 			playerOwner->SynchronizeDoom3Shotgun();
 			if (SplitRifleAmmo(owner)) { return GiveRifleGroupAmmo(playerOwner, atoi(value)); }
+		}
+		if (playerOwner && !idStr::Icmp(statname, "ammo_autocannon") && UsesIndependentWeaponAmmo(owner)) {
+			playerOwner->SynchronizeDoom3Shotgun();
+			if (SplitAutocannonAmmo(owner)) { return GiveAutocannonGroupAmmo(playerOwner, atoi(value)); }
 		}
 		i = AmmoIndexForAmmoClass( statname );
 		max = MaxAmmoForAmmoClass( owner, statname );
@@ -643,6 +698,12 @@ bool hhInventory::UseAmmo( ammo_t type, int amount ) {
 }
 
 float hhInventory::AmmoPercentage(idPlayer *player, ammo_t type) {
+	if (SplitAutocannonAmmo(player) && type == AmmoIndexForAmmoClass("ammo_autocannon")) {
+		const float autoMax = Max(1, MaxAmmoForAmmoClass(player, "ammo_autocannon"));
+		const float autoPct = ammo[type] < 0 ? 1.0f : idMath::ClampFloat(0, 1, ammo[type] / autoMax);
+		const float beltPct = ammo[12] < 0 ? 1.0f : idMath::ClampFloat(0, 1, ammo[12] / 300.0f);
+		return 0.5f * (autoPct + beltPct);
+	}
 	if (SplitRifleAmmo(player) && type == AmmoIndexForAmmoClass("ammo_rifle")) {
 		const int shells = AmmoIndexForAmmoClass("ammo_d3shells");
 		const float rifleMax = Max(1, MaxAmmoForAmmoClass(player, "ammo_rifle"));

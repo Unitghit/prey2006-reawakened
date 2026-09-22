@@ -77,6 +77,7 @@ extern const idEventDef EV_Weapon_LaunchProjectiles;
 extern const idEventDef EV_Weapon_EjectBrass;
 extern const idEventDef EV_Weapon_Melee;
 extern const idEventDef EV_Weapon_GetOwner;
+extern const idEventDef EV_Weapon_GetWorldModel;
 extern const idEventDef EV_Weapon_UseAmmo;
 //HUMANHEAD END
 
