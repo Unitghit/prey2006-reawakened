@@ -188,3 +188,10 @@ and a real level transition retained a 58-round magazine and 198 total rounds.
 An older split save retained 74 rifle rounds and its capped 32 shells, with the
 new Machine Gun empty. `test_machinegun_ammo.ps1` covers the three-pool arithmetic;
 `test_weapon_ammo.ps1` remains the historical two-pool regression.
+
+The Machine Gun counter uses live magazine/reserve values and the imported
+retail warning/background animation. Implicit GUI materials must retain
+`colored` and `clamp`, matching the engine-generated material: without `colored`,
+the dark translucent test-digit backing becomes opaque white "88" over the
+live counter. This material-only correction preserves the GUI window tree and
+versioned script, so existing weapon saves receive it without migration.

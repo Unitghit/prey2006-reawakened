@@ -28,7 +28,8 @@ def import_machinegun(index, read, text, block, files):
         if decl is None:
             asset = shader if shader.endswith('.tga') else shader+'.tga'
             files[prefix+asset] = read(asset)
-            decl = shader+' {\n { blend blend\n map '+asset+'\n }\n}'
+            # Match an implicit GUI material: honor window tint and alpha.
+            decl = shader+' {\n { blend blend\n map '+asset+'\n colored\n clamp\n }\n}'
         decl = re.sub(r'(?m)^\s*(?:renderbump[^\n]*|ricochet\s*)$', '', decl)
         for asset in re.findall(r'[\w/.-]+\.(?:tga|dds)', decl):
             files[prefix+asset] = read(asset)
