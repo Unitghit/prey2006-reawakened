@@ -38,6 +38,9 @@ END_CLASS
 
 int c_pmove = 0;
 
+static idCVar g_bunnyHop( "g_bunnyHop", "0", CVAR_GAME | CVAR_BOOL | CVAR_ARCHIVE,
+    "Single-player: preserve airborne speed along the gravity plane; collisions still apply" );
+
 /*
 ============
 idPhysics_Player::CmdScale
@@ -634,7 +637,14 @@ void idPhysics_Player::AirMove( void ) {
 	float		wishspeed;
 	float		scale;
 
+	const bool preserveAirSpeed = g_bunnyHop.GetBool() && !gameLocal.isMultiplayer &&
+		current.movementType == PM_NORMAL && waterLevel == WATERLEVEL_NONE;
+	const idVec3 airMomentum = current.velocity - gravityNormal * ( current.velocity * gravityNormal );
 	idPhysics_Player::Friction();
+	if ( preserveAirSpeed ) {
+		// Keep the original vertical damping and gravity. Only lateral drag changes.
+		current.velocity = airMomentum + gravityNormal * ( current.velocity * gravityNormal );
+	}
 
 	scale = idPhysics_Player::CmdScale( command );
 
@@ -652,6 +662,18 @@ void idPhysics_Player::AirMove( void ) {
 
 	// not on ground, so little effect on velocity
 	idPhysics_Player::Accelerate( wishdir, wishspeed, PM_AIRACCELERATE );
+	if ( preserveAirSpeed ) {
+		// Air steering may redirect momentum, but cannot reduce its speed.
+		// Do this before collision response, so walls still stop the player.
+		idVec3 lateral = current.velocity - gravityNormal * ( current.velocity * gravityNormal );
+		const float oldSpeed = airMomentum.Length();
+		const float newSpeed = lateral.Length();
+		if ( newSpeed < oldSpeed ) {
+			lateral = newSpeed > 1e-6f ? lateral * ( oldSpeed / newSpeed ) : airMomentum;
+			current.velocity = lateral + gravityNormal * ( current.velocity * gravityNormal );
+		}
+	}
+
 
 	// we may have a ground plane that is very steep, even
 	// though we don't have a groundentity
