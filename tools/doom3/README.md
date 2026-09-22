@@ -29,9 +29,11 @@ The save-compatible build uses the normal campaign save folder in both modes.
 Owning the Hunter Rifle makes the shotgun available in group 2. Disabling the
 option hides it and returns to an owned Prey weapon, retaining its magazine.
 Compatible installs now split rifle-ammo pickups into **independent bullets and
-shells**. With both guns available, capacities are 75 rifle rounds and 160
-shells (half of their original 150/320 capacities). A 30-round rifle pickup gives
-15 bullets plus 32 shells if both reserves have room. This preserves normalized
+shells**. With both guns available, capacities are 75 rifle rounds and 32
+shells, including loaded ammunition. The shotgun uses a custom 64-shell supply
+baseline, halved for this two-weapon group. A 30-round rifle pickup gives
+15 bullets plus 6.4 shells if both reserves have room (fractional shells carry
+forward). Older saves above the new shell cap are clamped to 32 when enabled. This preserves normalized
 supply, not equal raw counts. Incoming overflow goes to the other gun if one is
 full; fractional rounds carry forward to later pickups and survive saves.
 
@@ -163,7 +165,6 @@ only on that test player so it cannot be mistaken for ammunition duplication.
 
 Additional hidden playtests fired both guns, reloaded the shotgun, loaded an
 active legacy shotgun, crossed a real end-level target, and activated authored
-rifle-ammo items. The rifle remained at 75 while a shotgun blast spent one of
-160 shells; a rifle shot spent one bullet without changing shells. Reloading
+rifle-ammo items. A shotgun blast spent only shells; a rifle shot spent only bullets. Reloading
 changed the magazine without changing either total. A one-round legacy save
 migrated to a one-shell magazine, not eight free shells. All tests were muted.

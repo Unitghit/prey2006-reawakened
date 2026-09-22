@@ -255,7 +255,7 @@ bool hhInventory::SynchronizeWeaponAmmo(hhPlayer *owner) {
 		const int shells = AmmoIndexForAmmoClass("ammo_d3shells");
 		const int rifleFull = idInventory::MaxAmmoForAmmoClass(owner, "ammo_rifle");
 		const idDict *addon = gameLocal.FindEntityDefDict("weaponobj_d3shotgun", false);
-		const int shellFull = addon->GetInt("rw_ammoCapacity", "320");
+		const int shellFull = addon->GetInt("rw_ammoCapacity", "64");
 		if (ammo[rifle] < 0) { ammo[shells] = -1; }
 		else if (rifleFull > 0 && shellFull > 0) {
 			const double total = ammo[rifle] + WeaponAmmoFraction(owner, rifle);
@@ -270,6 +270,19 @@ bool hhInventory::SynchronizeWeaponAmmo(hhPlayer *owner) {
 		changed = true;
 	}
 	const bool active = SplitRifleAmmo(owner);
+	if (active) {
+		const int shells = AmmoIndexForAmmoClass("ammo_d3shells");
+		const int capacity = MaxAmmoForAmmoClass(owner, "ammo_d3shells");
+		if (owner->spawnArgs.GetInt("rw_weapon_shell_capacity", "-1") != capacity) {
+			owner->spawnArgs.SetInt("rw_weapon_shell_capacity", capacity);
+			changed = true; // Refresh ammo bars restored from an older balance.
+		}
+		if (ammo[shells] >= 0 && ammo[shells] + WeaponAmmoFraction(owner, shells) > capacity) {
+			StoreWeaponAmmo(owner, shells, capacity);
+			changed = true;
+		}
+	}
+
 	if (owner->spawnArgs.GetInt("rw_weapon_ammo_split_active", "-1") != int(active)) {
 		owner->spawnArgs.SetBool("rw_weapon_ammo_split_active", active);
 		changed = true;
@@ -282,7 +295,7 @@ bool hhInventory::GiveRifleGroupAmmo(hhPlayer *owner, int amount) {
 	const int indices[] = { AmmoIndexForAmmoClass("ammo_rifle"), AmmoIndexForAmmoClass("ammo_d3shells") };
 	const idDict *addon = gameLocal.FindEntityDefDict("weaponobj_d3shotgun", false);
 	const double full[] = { double(idInventory::MaxAmmoForAmmoClass(owner, "ammo_rifle")),
-		double(addon->GetInt("rw_ammoCapacity", "320")) };
+		double(addon->GetInt("rw_ammoCapacity", "64")) };
 	if (full[0] <= 0 || full[1] <= 0) { return false; }
 	double totals[2], room[2];
 	for (int i = 0; i < 2; ++i) {
@@ -313,7 +326,7 @@ int hhInventory::MaxAmmoForAmmoClass( idPlayer *owner, const char *ammo_classnam
 	if (ammo_classname && UsesIndependentWeaponAmmo(owner)) {
 		if (!idStr::Icmp(ammo_classname, "ammo_d3shells")) {
 			const idDict *addon = gameLocal.FindEntityDefDict("weaponobj_d3shotgun", false);
-			return addon->GetInt("rw_ammoCapacity", "320") / (SplitRifleAmmo(owner) ? 2 : 1);
+			return addon->GetInt("rw_ammoCapacity", "64") / (SplitRifleAmmo(owner) ? 2 : 1);
 		}
 		if (!idStr::Icmp(ammo_classname, "ammo_rifle") && SplitRifleAmmo(owner)) {
 			return idInventory::MaxAmmoForAmmoClass(owner, ammo_classname) / 2;

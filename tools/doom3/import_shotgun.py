@@ -169,7 +169,7 @@ def main():
         definition = files['def/doom3_shotgun.def'].decode()
         definition = definition.replace('entityDef weaponobj_d3shotgun {',
             'entityDef weaponobj_d3shotgun {\n    "rw_saveCompatible" "1"\n'
-            '    "rw_splitAmmo" "1"\n    "rw_ammoCapacity" "320"\n'
+            '    "rw_splitAmmo" "1"\n    "rw_ammoCapacity" "64"\n'
             '    "rw_weaponGroup" "2"\n    "rw_weaponVariant" "1"\n'
             '    "rw_addonScript" "script/reawakened/weapon_d3shotgun_v1.script"')
         definition = definition.replace('"ammoType" "ammo_rifle"', '"ammoType" "ammo_d3shells"')

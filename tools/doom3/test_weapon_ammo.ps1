@@ -23,9 +23,9 @@ wait 120
 weaponAmmoInfo
 weaponAmmoInfo norecharge
 weaponAmmoInfo seed 0 0
-weaponAmmoInfo pickup 1
-weaponAmmoInfo pickup 1
-weaponAmmoInfo pickup 1
+weaponAmmoInfo pickup 5
+weaponAmmoInfo pickup 5
+weaponAmmoInfo pickup 5
 weaponAmmoInfo useRifle 1
 weaponAmmoInfo useShells 1
 saveGame ammo_fraction
@@ -34,9 +34,9 @@ wait 120
 weaponAmmoInfo
 weaponAmmoInfo seed 75 0
 weaponAmmoInfo pickup 30
-weaponAmmoInfo seed 0 160
+weaponAmmoInfo seed 0 32
 weaponAmmoInfo pickup 30
-weaponAmmoInfo seed 75 160
+weaponAmmoInfo seed 75 32
 weaponAmmoInfo pickup 1
 set g_doom3Shotgun 0
 wait 20
@@ -65,7 +65,7 @@ try {
     $pattern='AMMOPOOL rifle=(\d+) shells=(\d+) rifleMax=(\d+) shellMax=(\d+) rifleFraction=([0-9.eE+-]+)\s*shellFraction=([0-9.eE+-]+) clip=(-?\d+) split=(\d+) need=([0-9.]+)'
     $states=[regex]::Matches($log,$pattern)
     if($states.Count -ne 21){throw "Expected 21 ammo records, got $($states.Count)"}
-    $expected=@(@(0,0),@(0,1),@(1,2),@(1,3),@(0,3),@(0,2),@(0,2),@(75,0),@(75,64),@(0,160),@(30,160),@(75,160),@(75,160),@(75,160),@(150,160),@(150,160),@(150,160),@(150,160),@(150,160))
+    $expected=@(@(0,0),@(2,1),@(5,2),@(7,3),@(6,3),@(6,2),@(6,2),@(75,0),@(75,12),@(0,32),@(30,32),@(75,32),@(75,32),@(75,32),@(150,32),@(150,32),@(150,32),@(150,32),@(150,32))
     for($i=0;$i -lt $expected.Count;$i++) {
         $state=$states[$i+2]
         if([int]$state.Groups[1].Value -ne $expected[$i][0] -or [int]$state.Groups[2].Value -ne $expected[$i][1]){throw "Wrong independent totals at record $($i+2): $($state.Value)"}
