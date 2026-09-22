@@ -1,9 +1,13 @@
 # Optional bunny hopping
 
-Gameplay > Bunny hopping enables Quake 1-style air acceleration in single-player (`g_bunnyHop 1`). Disabled is the default and uses original Prey air movement.
+The launcher provides Disabled (0, default), Quake style (1), and Painkiller style (uncapped) (2) through archived `g_bunnyHop`. Existing enabled settings remain Quake style. Both modes are single-player only and preserve Prey jump impulse, gravity, water, ladders, and collision handling.
 
-The rule caps the velocity projection in the wish direction at 30 units/s, while acceleration is 10 * uncapped wish speed * timestep. It does not cap total speed. Strafe and turn to gain speed; opposing input can brake. There is no fixed jump bonus, speed floor, 100 ms grace period, or 2x speed cap.
+## Quake
 
-Prey input scaling, ground friction, manual jump/release requirements, jump impulse, gravity, water, ladders, and collisions remain unchanged. The wish direction is projected onto the current gravity plane, so air acceleration works with rotated gravity. This is an adaptation of the Quake air rule, not a replacement of all Prey physics with Quake movement. Existing saves are compatible; no extra physics state is stored.
+Uses the Quake 1 projection-limited air rule: cap wish-direction projection at 30, with acceleration 10 * wish speed * timestep. Strafe and turn to gain speed; opposing input can brake. Manual jumps and original ground friction apply. No artificial hop bonus or total speed cap.
 
-Reference: https://github.com/id-Software/Quake/blob/master/WinQuake/sv_user.c
+## Painkiller-inspired
+
+Hold a movement direction and jump to chain hops automatically. The first jump is normal; moving subsequent hops within 200 ms of landing add 30% of Prey's walking speed per hop, with no total-speed ceiling or declining gain at higher speeds. Steering approaches the requested direction at a timestep-based rate while preserving lateral speed. Releasing jump and staying grounded for over 200 ms resets the chain; ground friction and obstacles can slow the player. Transient chain state resets on save load. All acceleration and steering lie in the current gravity plane.
+
+Research: PK++ exposes PlayerMove.BunnyHopAcceleration=0.3, 0.2-second before/after landing windows, strong/weak air control, and a MaximalBunnyHopSpeed. See https://github.com/EKBlowfish/PKPlusPlus/blob/master/lscripts/Main/Tweak.lua and lscripts/Main/GameMP.lua. Those scripts delegate actual movement to PHYSICS, so the gain formula and hold-to-hop convenience here are adaptations, not verified copies of Painkiller engine internals. The original maximum-speed setting is intentionally omitted per user request.

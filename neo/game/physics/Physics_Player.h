@@ -192,6 +192,10 @@ protected:	//HUMANHEAD
 	idVec3					viewForward;
 	idVec3					viewRight;
 
+	// Transient hop-chain state; not part of the save format.
+	bool painkillerChain;
+	int painkillerGroundMsec;
+
 	// walk movement
 	bool					walking;
 	bool					groundPlane;

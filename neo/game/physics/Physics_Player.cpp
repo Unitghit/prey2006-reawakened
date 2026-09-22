@@ -39,8 +39,8 @@ END_CLASS
 
 int c_pmove = 0;
 
-static idCVar g_bunnyHop( "g_bunnyHop", "0", CVAR_GAME | CVAR_BOOL | CVAR_ARCHIVE,
-    "Single-player: Quake-style projection-limited air acceleration" );
+static idCVar g_bunnyHop( "g_bunnyHop", "0", CVAR_GAME | CVAR_INTEGER | CVAR_ARCHIVE,
+    "Single-player bunny hopping: 0 off, 1 Quake, 2 uncapped Painkiller-inspired" );
 
 /*
 ============
@@ -638,7 +638,7 @@ void idPhysics_Player::AirMove( void ) {
 	float		wishspeed;
 	float		scale;
 
-	const bool quakeAirMove = g_bunnyHop.GetBool() && !gameLocal.isMultiplayer &&
+	const bool quakeAirMove = g_bunnyHop.GetInteger() == 1 && !gameLocal.isMultiplayer &&
 		current.movementType == PM_NORMAL && waterLevel == WATERLEVEL_NONE;
 	idPhysics_Player::Friction();
 
@@ -656,7 +656,19 @@ void idPhysics_Player::AirMove( void ) {
 	wishspeed = wishdir.Normalize();
 	wishspeed *= scale;
 
-	if ( quakeAirMove ) {
+	if ( g_bunnyHop.GetInteger() == 2 && !gameLocal.isMultiplayer &&
+		current.movementType == PM_NORMAL && waterLevel == WATERLEVEL_NONE ) {
+		// Strong, timestep-based steering preserves lateral speed. Speed is
+		// earned at takeoff, without a projection or total-speed ceiling.
+		idVec3 lateral = current.velocity - gravityNormal * (current.velocity * gravityNormal);
+		const float speed = lateral.Normalize();
+		if ( wishspeed > 0.0f ) {
+			idVec3 direction = lateral + (wishdir - lateral) * Min(1.0f, 8.0f * frametime);
+			if ( direction.Normalize() > 1e-6f ) {
+				current.velocity = direction * speed + gravityNormal * (current.velocity * gravityNormal);
+			}
+		}
+	} else if ( quakeAirMove ) {
 		// Quake 1 caps speed projected onto the wish direction at 30, but
 		// computes acceleration from the uncapped wish speed. Tangential
 		// steering can build total speed; opposing input can brake it.
@@ -1228,7 +1240,8 @@ bool idPhysics_Player::CheckJump( void ) {
 	}
 
 	// must wait for jump to be released
-	if ( current.movementFlags & PMF_JUMP_HELD ) {
+	if ( (current.movementFlags & PMF_JUMP_HELD) &&
+		!(g_bunnyHop.GetInteger() == 2 && !gameLocal.isMultiplayer && current.movementType == PM_NORMAL && waterLevel == WATERLEVEL_NONE) ) {
 		return false;
 	}
 
@@ -1240,6 +1253,22 @@ bool idPhysics_Player::CheckJump( void ) {
 	groundPlane = false;		// jumping away
 	walking = false;
 	current.movementFlags |= PMF_JUMP_HELD | PMF_JUMPED;
+
+	if ( g_bunnyHop.GetInteger() == 2 && !gameLocal.isMultiplayer &&
+		current.movementType == PM_NORMAL && waterLevel == WATERLEVEL_NONE ) {
+		if ( painkillerChain && painkillerGroundMsec <= 200 &&
+			(command.forwardmove || command.rightmove) ) {
+			idVec3 direction = viewForward * command.forwardmove + viewRight * command.rightmove;
+			direction -= gravityNormal * (direction * gravityNormal);
+			if ( direction.Normalize() > 1e-6f ) {
+				const idVec3 lateral = current.velocity - gravityNormal * (current.velocity * gravityNormal);
+				const float speed = lateral.Length() + walkSpeed * 0.3f;
+				current.velocity = direction * speed + gravityNormal * (current.velocity * gravityNormal);
+			}
+		}
+		painkillerChain = true;
+		painkillerGroundMsec = 0;
+	}
 
 	//HUMANHEAD
 	current.velocity += DetermineJumpVelocity();
@@ -1377,6 +1406,10 @@ idPhysics_Player::MovePlayer
 ================
 */
 void idPhysics_Player::MovePlayer( int msec ) {
+	if ( g_bunnyHop.GetInteger() != 2 || gameLocal.isMultiplayer || current.movementType != PM_NORMAL ) {
+		painkillerChain = false;
+		painkillerGroundMsec = 0;
+	}
 
 	// this counter lets us debug movement problems with a journal
 	// by setting a conditional breakpoint for the previous frame
@@ -1447,6 +1480,16 @@ void idPhysics_Player::MovePlayer( int msec ) {
 
 	// check if up against a ladder
 	idPhysics_Player::CheckLadder();
+
+	if ( waterLevel != WATERLEVEL_NONE || ladder ) {
+		painkillerChain = false;
+		painkillerGroundMsec = 0;
+	} else if ( walking ) {
+		painkillerGroundMsec = Min(201, painkillerGroundMsec + msec);
+		if ( painkillerGroundMsec > 200 ) painkillerChain = false;
+	} else {
+		painkillerGroundMsec = 0;
+	}
 
 	// set clip model size
 	idPhysics_Player::CheckDuck();
@@ -1559,6 +1602,8 @@ idPhysics_Player::idPhysics_Player
 ================
 */
 idPhysics_Player::idPhysics_Player( void ) {
+	painkillerChain = false;
+	painkillerGroundMsec = 0;
 	debugLevel = false;
 	clipModel = NULL;
 	clipMask = 0;
@@ -1675,6 +1720,8 @@ idPhysics_Player::Restore
 ================
 */
 void idPhysics_Player::Restore( idRestoreGame *savefile ) {
+	painkillerChain = false;
+	painkillerGroundMsec = 0;
 
 	idPhysics_Player_RestorePState( savefile, current );
 	idPhysics_Player_RestorePState( savefile, saved );
