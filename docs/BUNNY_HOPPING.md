@@ -1,7 +1,9 @@
 # Optional bunny hopping
 
-The native launcher exposes Gameplay > Bunny hopping, disabled by default (`g_bunnyHop 0`). Enabled mode is single-player only. In dry, normal airborne movement, lateral speed cannot decrease from friction or air steering; steering can redirect or increase it. Lateral means perpendicular to the current gravity direction, including wall-walk areas. Original vertical damping/gravity and collision response remain in effect. Speed preservation occurs before slope and collision clipping, so it cannot restore speed lost into walls. Ground friction, swimming, spectator movement, and multiplayer retain original behavior. Jumping remains manual.
+Gameplay > Bunny hopping enables Quake 1-style air acceleration in single-player (`g_bunnyHop 1`). Disabled is the default and uses original Prey air movement.
 
-Runtime hop-chain state is reset on load; the save format is unchanged. The CVar is archived and emitted by the custom launcher; older named presets are unchanged.
+The rule caps the velocity projection in the wish direction at 30 units/s, while acceleration is 10 * uncapped wish speed * timestep. It does not cap total speed. Strafe and turn to gain speed; opposing input can brake. There is no fixed jump bonus, speed floor, 100 ms grace period, or 2x speed cap.
 
-A moving repeat jump within 100 ms of landing gains 5% lateral speed, up to twice walking speed. The first jump gets no bonus. Existing speed above the bonus cap is not reduced. Waiting on the ground, water, ladders, disabling the option, or leaving normal single-player movement clears the chain. Jump impulse and gravity remain unchanged; slopes/collisions can still redirect velocity.
+Prey input scaling, ground friction, manual jump/release requirements, jump impulse, gravity, water, ladders, and collisions remain unchanged. The wish direction is projected onto the current gravity plane, so air acceleration works with rotated gravity. This is an adaptation of the Quake air rule, not a replacement of all Prey physics with Quake movement. Existing saves are compatible; no extra physics state is stored.
+
+Reference: https://github.com/id-Software/Quake/blob/master/WinQuake/sv_user.c
