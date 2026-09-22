@@ -2582,15 +2582,17 @@ static void Cmd_WeaponAmmoInfo_f(const idCmdArgs &args) {
 	const ammo_t rifle = idWeapon::GetAmmoNumForName("ammo_rifle");
 	const ammo_t shells = idWeapon::GetAmmoNumForName("ammo_d3shells");
 	if (cvarSystem->GetCVarBool("developer")) {
-		if (args.Argc() == 4 && !idStr::Icmp(args.Argv(1), "seed")) {
+		if ((args.Argc() == 4 || args.Argc() == 5) && !idStr::Icmp(args.Argv(1), "seed")) {
 			player->inventory.ammo[rifle] = Max(0, atoi(args.Argv(2)));
 			player->inventory.ammo[shells] = Max(0, atoi(args.Argv(3)));
 			player->spawnArgs.Set("rw_weapon_ammo_fraction_5", "0");
 			player->spawnArgs.Set("rw_weapon_ammo_fraction_10", "0");
+			if (args.Argc() == 5) { player->inventory.ammo[11] = Max(0, atoi(args.Argv(4))); player->spawnArgs.Set("rw_weapon_ammo_fraction_11", "0"); }
 		} else if (args.Argc() == 3) {
 			if (!idStr::Icmp(args.Argv(1), "pickup")) {
 				gameLocal.Printf("AMMOPICKUP accepted=%d\n", player->Give("ammo_rifle", args.Argv(2)));
 			} else if (!idStr::Icmp(args.Argv(1), "useRifle")) { player->UseAmmo(rifle, Max(0, atoi(args.Argv(2)))); }
+			else if (!idStr::Icmp(args.Argv(1), "useBullets")) { player->UseAmmo((ammo_t)11, Max(0, atoi(args.Argv(2)))); }
 			else if (!idStr::Icmp(args.Argv(1), "useShells")) { player->UseAmmo(shells, Max(0, atoi(args.Argv(2)))); }
 		} else if (args.Argc() == 2 && !idStr::Icmp(args.Argv(1), "reload")) { player->PerformImpulse(IMPULSE_13); }
 		else if (args.Argc() == 2 && !idStr::Icmp(args.Argv(1), "norecharge")) { player->spawnArgs.SetInt("rifleAmmoRechargeMax", 0); }
@@ -2600,6 +2602,9 @@ static void Cmd_WeaponAmmoInfo_f(const idCmdArgs &args) {
 		player->inventory.MaxAmmoForAmmoClass(player, "ammo_rifle"), player->inventory.MaxAmmoForAmmoClass(player, "ammo_d3shells"),
 		player->spawnArgs.GetString("rw_weapon_ammo_fraction_5", "0"), player->spawnArgs.GetString("rw_weapon_ammo_fraction_10", "0"),
 		player->inventory.clip[8], player->inventory.SplitRifleAmmo(player), player->inventory.AmmoPercentage(player, rifle));
+	gameLocal.Printf("MACHINEGUN ammo=%d max=%d fraction=%s clip=%d held=%d\n", player->inventory.ammo[11],
+		player->inventory.MaxAmmoForAmmoClass(player, "ammo_d3bullets"), player->spawnArgs.GetString("rw_weapon_ammo_fraction_11", "0"),
+		player->inventory.clip[10], (player->inventory.weapons & (1 << 10)) != 0);
 }
 
 void idGameLocal::InitConsoleCommands( void ) {

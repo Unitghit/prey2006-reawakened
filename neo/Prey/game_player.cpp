@@ -235,7 +235,7 @@ void hhPlayer::Spawn( void ) {
 	memset( &lighter, 0, sizeof( lighter ) );
 
 	SetupWeaponFlags();
-	if ( idealWeapon < 1 || idealWeapon > 8 ) {
+	if ( idealWeapon < 1 || idealWeapon >= MAX_WEAPONS ) {
 		// Go to the highest weapon available if no weapon is current selected (NOTE:  This will be ignored if all weapons are locked)
 		NextBestWeapon();	//HUMANHEAD bjk
 	} 
@@ -275,65 +275,73 @@ void hhPlayer::SynchronizeDoom3Shotgun() {
 	if ( !addon || !addon->dict.GetBool( "rw_saveCompatible" ) ) {
 		return; // Do not alter unrelated mods or the old standalone prototype.
 	}
-	const int slot = 8, bit = 1 << slot, flag = 1 << (slot - 1);
-	const bool enabled = g_doom3Shotgun.GetBool();
-	const bool held = (inventory.weapons & bit) != 0;
-	const bool rifleOwned = (inventory.weapons & (1 << 2)) != 0;
-	const bool owned = held || rifleOwned || spawnArgs.GetBool( "rw_weapon_d3shotgun_owned" );
-	const bool changed = idStr::Icmp( GetWeaponName(slot), "weaponobj_d3shotgun" ) ||
-		spawnArgs.GetInt( "rw_weapon_d3shotgun_enabled", "-1" ) != int(enabled) ||
-		held != (enabled && owned);
-	if ( changed ) {
-		spawnArgs.Set( "def_weapon8", "weaponobj_d3shotgun" );
-		spawnArgs.SetBool( "weapon8_allowempty", true );
-		spawnArgs.SetBool( "weapon8_cycle", enabled );
-		spawnArgs.SetBool( "weapon8_best", enabled );
-		spawnArgs.SetBool( "rw_weapon_d3shotgun_owned", owned );
-		spawnArgs.SetBool( "rw_weapon_d3shotgun_enabled", enabled );
-		if ( enabled && owned ) {
-			inventory.weapons |= bit;
+	bool anyChanged = false;
+	for (int variant = 0; variant < 2; ++variant) {
+		const int slot = variant == 0 ? 8 : 10, bit = 1 << slot, flag = 1 << (slot - 1);
+		const char *name = variant == 0 ? "d3shotgun" : "d3machinegun";
+		const char *defName = variant == 0 ? "weaponobj_d3shotgun" : "weaponobj_d3machinegun";
+		const idDict *definition = gameLocal.FindEntityDefDict(defName, false);
+		if (!definition || !definition->GetBool("rw_saveCompatible")) { continue; }
+		const bool enabled = g_doom3Shotgun.GetBool();
+		const bool held = (inventory.weapons & bit) != 0;
+		const bool rifleOwned = (inventory.weapons & (1 << 2)) != 0;
+		const bool owned = held || rifleOwned || spawnArgs.GetBool( va("rw_weapon_%s_owned", name) );
+		const bool changed = idStr::Icmp( GetWeaponName(slot), defName ) ||
+			spawnArgs.GetInt( va("rw_weapon_%s_enabled", name), "-1" ) != int(enabled) ||
+			held != (enabled && owned);
+		if ( changed ) {
+			spawnArgs.Set( va("def_weapon%d", slot), defName );
+			spawnArgs.SetBool( va("weapon%d_allowempty", slot), true );
+			spawnArgs.SetBool( va("weapon%d_cycle", slot), enabled );
+			spawnArgs.SetBool( va("weapon%d_best", slot), enabled );
+			spawnArgs.SetBool( va("rw_weapon_%s_owned", name), owned );
+			spawnArgs.SetBool( va("rw_weapon_%s_enabled", name), enabled );
+			if ( enabled && owned ) {
+				inventory.weapons |= bit;
+			} else {
+				inventory.weapons &= ~bit;
+			}
+			SetupWeaponInfo();
+			if ( g_weaponPackTrace.GetBool() ) {
+				gameLocal.Printf( "WEAPONPACK enabled=%d owned=%d held=%d clip=%d rifleAmmo=%d current=%d ideal=%d health=%d origin=%s\n",
+					enabled, owned, (inventory.weapons & bit) != 0, inventory.clip[slot],
+					inventory.ammo[inventory.AmmoIndexForAmmoClass("ammo_rifle")],
+					currentWeapon, idealWeapon, health, GetOrigin().ToString() );
+			}
+		}
+		// Follow the rifle's authored lock state, including cinematics and spirit
+		// sequences. Enabling a mod must never unlock weapons in a scripted scene.
+		if ( enabled && (weaponFlags & HH_WEAPON_RIFLE) ) {
+			weaponFlags |= flag;
 		} else {
-			inventory.weapons &= ~bit;
+			weaponFlags &= ~flag;
 		}
-		SetupWeaponInfo();
-		if ( g_weaponPackTrace.GetBool() ) {
-			gameLocal.Printf( "WEAPONPACK enabled=%d owned=%d held=%d clip=%d rifleAmmo=%d current=%d ideal=%d health=%d origin=%s\n",
-				enabled, owned, (inventory.weapons & bit) != 0, inventory.clip[slot],
-				inventory.ammo[inventory.AmmoIndexForAmmoClass("ammo_rifle")],
-				currentWeapon, idealWeapon, health, GetOrigin().ToString() );
+		if ( !enabled ) {
+			int fallback = 0;
+			for ( int candidate = 1; candidate < 8; ++candidate ) {
+				if ( (inventory.weapons & (1 << candidate)) && !IsLocked(candidate) ) {
+					fallback = candidate;
+					if ( candidate == 2 ) { break; }
+				}
+			}
+			if ( idealWeapon == slot ) {
+				idealWeapon = fallback;
+				if ( weapon.IsValid() ) {
+					weapon->EndAttack();
+					weapon->PutAway();
+				}
+			}
+			if ( previousWeapon == slot ) { previousWeapon = fallback; }
+			if ( lastWeaponSpirit == slot ) { lastWeaponSpirit = fallback; }
+			if ( preCinematicWeapon == slot ) { preCinematicWeapon = fallback; }
 		}
+		anyChanged |= changed;
 	}
 	if (inventory.SynchronizeWeaponAmmo(this)) {
 		SetupWeaponInfo();
 		if (weapon.IsValid()) { weapon->ClampAmmoClips(); }
 	}
-	// Follow the rifle's authored lock state, including cinematics and spirit
-	// sequences. Enabling a mod must never unlock weapons in a scripted scene.
-	if ( enabled && (weaponFlags & HH_WEAPON_RIFLE) ) {
-		weaponFlags |= flag;
-	} else {
-		weaponFlags &= ~flag;
-	}
-	if ( !enabled ) {
-		int fallback = 0;
-		for ( int candidate = 1; candidate < 8; ++candidate ) {
-			if ( (inventory.weapons & (1 << candidate)) && !IsLocked(candidate) ) {
-				fallback = candidate;
-				if ( candidate == 2 ) { break; }
-			}
-		}
-		if ( idealWeapon == slot ) {
-			idealWeapon = fallback;
-			if ( weapon.IsValid() ) {
-				weapon->EndAttack();
-				weapon->PutAway();
-			}
-		}
-		if ( previousWeapon == slot ) { previousWeapon = fallback; }
-		if ( lastWeaponSpirit == slot ) { lastWeaponSpirit = fallback; }
-		if ( preCinematicWeapon == slot ) { preCinematicWeapon = fallback; }
-	}
-	if ( changed ) { UpdateHudWeapon(false); }
+	if (anyChanged) { UpdateHudWeapon(false); }
 }
 
 // HUD groups are independent of saved inventory indices.
@@ -409,6 +417,9 @@ void hhPlayer::RestorePersistantInfo( void ) {
 
 	if ( spawnArgs.FindKey( "rw_weapon_d3shotgun_clip" ) ) {
 		inventory.clip[8] = spawnArgs.GetInt( "rw_weapon_d3shotgun_clip", "-1" );
+	}
+	if (spawnArgs.FindKey("rw_weapon_d3machinegun_clip")) {
+		inventory.clip[10] = spawnArgs.GetInt("rw_weapon_d3machinegun_clip", "-1");
 	}
 	SynchronizeDoom3Shotgun();
 
@@ -1553,7 +1564,7 @@ hhPlayer::SkipWeapon
 ===============
 */
 bool hhPlayer::SkipWeapon( int weaponNum ) const {
-	if ( weaponNum == 8 && spawnArgs.FindKey("rw_weapon_d3shotgun_enabled") &&
+	if ( (weaponNum == 8 || weaponNum == 10) && spawnArgs.FindKey("rw_weapon_d3shotgun_enabled") &&
 		!g_doom3Shotgun.GetBool() ) {
 		return true;
 	}
@@ -5594,7 +5605,7 @@ nla: used to instantly force the spirit weapon, without lowering and raising
 void hhPlayer::ForceWeapon( int weaponNum ) {
 	// A saved spirit/vehicle hand archive may still reference the addon slot.
 	// Resolve it to an owned physical weapon before constructing the view model.
-	if ( weaponNum == 8 && spawnArgs.FindKey("rw_weapon_d3shotgun_enabled") &&
+	if ( (weaponNum == 8 || weaponNum == 10) && spawnArgs.FindKey("rw_weapon_d3shotgun_enabled") &&
 		!g_doom3Shotgun.GetBool() ) {
 		if ( inventory.weapons & (1 << 2) ) { weaponNum = 2; }
 		else if ( inventory.weapons & (1 << 1) ) { weaponNum = 1; }

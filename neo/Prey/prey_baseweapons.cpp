@@ -647,6 +647,14 @@ void hhWeapon::UpdateGUI() {
 	renderEntity.gui[ 0 ]->SetStateBool( "ammoempty", ( ammoamount == 0 ) );
 	renderEntity.gui[ 0 ]->SetStateBool( "altammoempty", ( altammoamount == 0 ) );
 	renderEntity.gui[ 0 ]->SetStateInt( "clipammoAmount", AmmoInClip() );
+	if (dict->GetInt("rw_weaponVariant") == 2 && dict->GetInt("rw_weaponGroup") == 2) {
+		renderEntity.gui[0]->SetStateInt("player_ammo", AmmoInClip());
+		renderEntity.gui[0]->SetStateInt("player_totalammo", Max(0, ammoamount - AmmoInClip()));
+		renderEntity.gui[0]->SetStateInt("player_clips", Max(0, ammoamount - AmmoInClip()) / Max(1, ClipSize()));
+		renderEntity.gui[0]->SetStateBool("player_clip_low", AmmoInClip() > 0 && AmmoInClip() <= LowAmmo());
+		renderEntity.gui[0]->SetStateBool("player_clip_empty", AmmoInClip() == 0);
+		renderEntity.gui[0]->SetStateBool("player_ammo_empty", ammoamount == 0);
+	}
 	renderEntity.gui[ 0 ]->SetStateInt( "clipaltammoAmount", AltAmmoInClip() );
 	renderEntity.gui[ 0 ]->StateChanged(gameLocal.time);
 }

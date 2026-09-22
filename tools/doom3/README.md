@@ -1,16 +1,16 @@
-# Doom 3 shotgun prototype
+# Doom 3 weapon prototype
 
-An optional additional weapon for Prey2006 Reawakened. It shares HUD slot 2
-with the Hunter Rifle. Press 2 repeatedly to cycle between them. Prey's weapons remain
-available. The historical standalone prototype shares rifle ammunition; compatible installs
-use independent bullet/shell reserves and Prey HUD artwork
-with an orange selection highlight and silhouette for the shotgun. It is single-player experimental work, not a finished arsenal
-conversion. The expansion's double-barrel shotgun has not been implemented.
+Optional additional Shotgun and Machine Gun for Prey2006 Reawakened. Both share
+HUD slot 2 with the Hunter Rifle. Press 2 repeatedly to cycle Rifle (blue),
+Shotgun (orange), Machine Gun (red). Both the silhouette and surrounding
+highlight change color. Wheel/controller cycling visits all available guns.
+This is single-player experimental work, not the completed arsenal conversion.
+The expansion's Super Shotgun and Doom-only mode are not implemented yet.
 
-The local importer reads an original Doom 3 installation. BFG Edition's compiled
-assets are not supported. It imports the shotgun models, animations, materials,
-normal/specular maps and sounds into a namespaced mod folder. Imported retail
-assets must stay local and must not be included in source commits or releases.
+The local importer reads an original Doom 3 installation; BFG assets are not
+supported. It imports namespaced models, animations, materials, normal/specular
+maps, sounds and the Machine Gun's ammo-counter GUI. Generated retail assets
+must stay local and must not be included in source commits or releases.
 
 From a packaged Reawakened installation:
 
@@ -18,42 +18,46 @@ From a packaged Reawakened installation:
 python tools/doom3/import_shotgun.py "D:/Games/Doom 3" engine/base --prey-base engine/base --save-compatible
 ```
 
-For development, pass the retail Prey base directory followed by the active
-engine's base directory using repeated `--prey-base` arguments. The importer
-checks dependencies before writing and records hashes in
-`base/doom3-import-manifest.json`. The default importer mode remains available
-for historical standalone prototype installations.
+The historical command name is retained. Compatible imports now install both
+weapons. For development, pass the retail Prey base directory followed by the
+active engine's base directory using repeated `--prey-base` arguments. The
+importer validates dependencies before writing and records hashes in
+`base/doom3-import-manifest.json`. Default non-compatible mode still imports
+only the historical standalone shotgun prototype.
 
-Enable **Gameplay > Doom 3 shotgun > Enabled (prototype)** in the launcher.
-The save-compatible build uses the normal campaign save folder in both modes.
-Owning the Hunter Rifle makes the shotgun available in group 2. Disabling the
-option hides it and returns to an owned Prey weapon, retaining its magazine.
-Compatible installs now split rifle-ammo pickups into **independent bullets and
-shells**. With both guns available, capacities are 75 rifle rounds and 32
-shells, including loaded ammunition. The shotgun uses a custom 64-shell supply
-baseline, halved for this two-weapon group. A 30-round rifle pickup gives
-15 bullets plus 6.4 shells if both reserves have room (fractional shells carry
-forward). Older saves above the new shell cap are clamped to 32 when enabled. This preserves normalized
-supply, not equal raw counts. Incoming overflow goes to the other gun if one is
-full; fractional rounds carry forward to later pickups and survive saves.
+Enable **Gameplay > Doom 3 weapons > Enabled (prototype)** in the launcher.
+Owning the Hunter Rifle unlocks both additions, including on existing saves.
+Normal campaign saves use the same folder with the option enabled or disabled.
+Keep imported assets installed when disabling the option.
 
-Firing/reloading never draws from the other gun's reserve. Prey's inventory
-totals include loaded rounds, so a reload changes the magazine without adding
-ammunition. Old shared-ammo saves are migrated once; their existing total is
-split proportionally, and loaded magazines are clamped if necessary. Disabling
-the shotgun retains its shells and magazine. Re-enabling does not split again,
-convert ammo or refill anything. Legitimate rifle ammo above the enabled cap is
-retained until spent. Rifle sniper ammunition and the original low-ammo puzzle
-recharge remain dedicated to the rifle. Dynamic cabinets consider both primary
-reserves when deciding whether to offer rifle-group supplies.
+Rifle pickups split into three independent reserves:
 
-Number keys cycle within groups. Wheel and controller
-weapon cycling visit each available weapon in group order. Internal saved
-index 8 remains unchanged; scripts still select exact internal weapon indices.
-The existing HUD layout, fade timing and absence of weapon-name popups remain.
-Orange and red highlight/icon variants are generated locally from retail artwork. The
-red variant is reserved for the future third weapon, not an implemented gun.
-The HUD window tree must not change: it is part of the binary save layout.
+| Weapon | Total ammunition, including loaded rounds | Magazine |
+| --- | --- | --- |
+| Hunter Rifle | 50 | Original behavior |
+| Shotgun | **32 shells** | 8 |
+| Machine Gun | 200 rounds | 60 |
+
+The shotgun's cap remains 32 with either two or three weapons installed. The
+Machine Gun's original 600-round capacity is divided by three. A 30-round rifle
+pickup gives 10 rifle rounds, 6.4 shells and 40 Machine Gun rounds when all
+three reserves have room. Fractional credit survives pickups and saves. Incoming
+overflow is redistributed to reserves with room; acquired ammunition never
+transfers between guns. Reloading only moves rounds into the magazine.
+
+Original shared-ammo saves receive a one-time normalized split. Upgrading an
+already independent shotgun save preserves its bullets and shells; the new
+Machine Gun starts empty and receives its share from subsequent pickups.
+Existing shell totals above 32 are clamped to 32, while legitimate rifle ammo
+above its reduced cap remains until spent. Disabling/re-enabling preserves
+reserves and magazines without splitting or refilling them again. Rifle sniper
+ammo and the authored low-ammo puzzle recharge remain rifle-only. Dynamic
+cabinets consider all three primary reserves.
+
+Stable inventory indices remain 8 for the Shotgun, 9 for the Spirit Bow and 10
+for the Machine Gun. Independent ammo indices are 10 and 11. Array sizes and
+binary save layouts are unchanged. Exact script weapon selection still uses
+internal indices. HUD bindings preserve the retail GUI window tree and events.
 
 The launcher copies old standalone prototype saves into the shared folder as
 `D3Legacy_*`, displayed with a `Doom 3 legacy:` prefix. Originals and existing
@@ -74,8 +78,8 @@ Its globals and checksum must match. The loader also tests the exact historical
 shotgun baseline before constructing saved threads, allowing old mod saves to
 load without relocating instructions or bypassing validation.
 
-`weapon_d3shotgun.script` (legacy) and `weapon_d3shotgun_v1.script` (additive)
-are save ABI files: preserve their contents and line numbers. Future incompatible
+`weapon_d3shotgun.script` (legacy), `weapon_d3shotgun_v1.script`, and
+`weapon_d3machinegun_v1.script` are save ABI files: preserve their contents and line numbers. Future incompatible
 script work needs a new versioned file/type with old versions retained.
 Inventory array sizes and object save layouts have not changed. Namespaced
 `rw_weapon_*` dictionary state persists across saves and level transitions.
@@ -168,3 +172,19 @@ active legacy shotgun, crossed a real end-level target, and activated authored
 rifle-ammo items. A shotgun blast spent only shells; a rifle shot spent only bullets. Reloading
 changed the magazine without changing either total. A one-round legacy save
 migrated to a one-shell magazine, not eight free shells. All tests were muted.
+
+## Machine Gun validation
+
+The adapter uses a 60-round magazine, 0.1-second minimum firing interval,
+one projectile per shot, spread 1, damage 9 and knockback 2. It has no invented
+alternate fire or shotgun concentrated-blast gib logic. Imported animations
+retain their original sound events; projectile impacts use Prey's effects.
+
+Hidden, muted tests verified the model and working ammo display, red group-2
+selection, automatic firing, reload without ammo creation, separate spending,
+three-way fractional allocation and overflow, and a fixed 32-shell shotgun cap.
+Saving/restoring while equipped or disabled preserves ammunition. Spirit walking
+and a real level transition retained a 58-round magazine and 198 total rounds.
+An older split save retained 74 rifle rounds and its capped 32 shells, with the
+new Machine Gun empty. `test_machinegun_ammo.ps1` covers the three-pool arithmetic;
+`test_weapon_ammo.ps1` remains the historical two-pool regression.

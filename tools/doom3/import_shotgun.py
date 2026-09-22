@@ -13,7 +13,7 @@ from weapon_group_hud import generate_hud
 
 
 def block(text, name):
-    match = re.search(r'(?m)^\s*(?:model\s+|table\s+)?' + re.escape(name) + r'\s*\{', text)
+    match = re.search(r'(?im)^\s*(?:model\s+|table\s+)?' + re.escape(name) + r'\s*\{', text)
     if not match:
         return None
     end, depth = match.end(), 1
@@ -174,6 +174,10 @@ def main():
             '    "rw_addonScript" "script/reawakened/weapon_d3shotgun_v1.script"')
         definition = definition.replace('"ammoType" "ammo_rifle"', '"ammoType" "ammo_d3shells"')
         files['def/doom3_shotgun.def'] = definition.encode()
+
+    if args.save_compatible:
+        from import_machinegun import import_machinegun
+        import_machinegun(index, read, text, block, files)
 
     # Validate everything before writing; no path may escape the output folder.
     for name in files:

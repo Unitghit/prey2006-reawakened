@@ -2,7 +2,7 @@
 
 Agreed arsenal design. The save-compatibility foundation is implemented using
 the shotgun. Shared selection and HUD colors are implemented for the rifle /
-shotgun group, with independent reserves and split pickup allocation. The remaining
+shotgun / Machine Gun group, with independent reserves and three-way pickup allocation. The remaining
 weapons and full modes are planned. See README.md for installation and compatibility details.
 
 ## Launcher modes
@@ -46,6 +46,7 @@ counterparts for weapons already owned when enabling a mode on an existing save.
 Each acquired, enabled weapon gets an equal share of its group's supply budget,
 expressed relative to that weapon's full reserve, not equal bullet counts.
 Divide reserve capacities and incoming supplies by the active group size.
+Explicit balance exception: keep the shotgun capped at 32 total shells.
 Preserve fractional pickup credit. Redistribute incoming pickup supplies from
 full reserves to other reserves in the same group that have room. Once acquired,
 ammunition belongs exclusively to its gun: firing/reloading must never consume
@@ -94,13 +95,13 @@ Reawakened binary that lacks the added weapon classes.
 
 1. Completed: additive shotgun scripts, normal and legacy saves, mode toggles,
    magazine preservation, spirit restoration and level-transition persistence.
-2. Completed for rifle / shotgun: group metadata, rifle-pickup unlock, number-key
+2. Completed for rifle / shotgun / Machine Gun: group metadata, rifle-pickup unlock, number-key
    and wheel/controller selection, original HUD with colored highlights and silhouettes.
    Extend the same registry/unlock rules as each remaining weapon is imported.
-3. Implemented for rifle / shotgun: independent reserves, normalized pickups,
+3. Implemented for rifle / shotgun / Machine Gun: independent reserves, normalized pickups,
    fractional credit, overflow and cabinet demand, migration and persistence.
    Extend allocation metadata when importing each remaining gun.
-4. Import and adapt each remaining gun, including expansion Super Shotgun.
+4. Machine Gun completed. Import and adapt each remaining gun, including expansion Super Shotgun.
 5. Complete Doom-only campaign interactions and native launcher modes.
 6. Validate old normal saves, legacy prototype saves, new saves with an added
    weapon equipped, mode changes both ways, death/spirit walking, and transitions

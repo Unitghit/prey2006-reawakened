@@ -1,0 +1,73 @@
+// Additional slot-2 weapon; stable inventory index 10 and independent bullets.
+entityDef weaponobj_d3machinegun {
+    "rw_saveCompatible" "1"
+    "rw_weaponGroup" "2"
+    "rw_weaponVariant" "2"
+    "rw_ammoCapacity" "600"
+    "rw_addonScript" "script/reawakened/weapon_d3machinegun_v1.script"
+    "gui" "guis/reawakened/machinegun_v1.gui"
+    "inherit" "weaponobj_default"
+    "weaponname" "Doom 3 Machine Gun"
+    "ddaname" "rifle"
+    "spawnclass" "hhWeapon"
+    "scriptobject" "weapon_d3machinegun"
+    "model" "d3_viewmodel_machinegun"
+    "model_world" "d3_worldmodel_machinegun"
+    "joint_attach" "Rattach_gun"
+    "def_fireInfo" "fireinfo_d3machinegun"
+    "def_altFireInfo" "fireinfo_d3machinegun"
+    "def_dropItem" "weapon_d3machinegun"
+    "nozzleFx" "0"
+    "snd_empty" "d3_player_machinegun_empty"
+    "inv_icon" "textures/interface/icons/rifle"
+}
+
+entityDef fireinfo_d3machinegun {
+    "inherit" "fireinfo_rifle"
+    "def_projectile" "projectile_d3machinegun"
+    "numProjectiles" "1"
+    "spread" "1"
+    "ammoType" "ammo_d3bullets"
+    "ammoRequired" "1"
+    "clipSize" "60"
+    "lowAmmo" "10"
+    "fireRate" "0.1"
+    "joint_barrel" "barrel"
+    "muzzlelocation" "32 0 0"
+    "fx_muzzleFlash" ""
+    "flashColor" "1 0.8 0.4"
+    "flashSize" "120 120 120"
+    "flashTime" "0.1"
+    "muzzle_kick_time" "0.1"
+    "muzzle_kick_maxtime" "0.1"
+    "muzzle_kick_offset" "0 0 0"
+    "recoilangles" "-1 0 0"
+}
+
+entityDef projectile_d3machinegun {
+    "concentratedMachine GunGibs" "1"
+    "inherit" "projectile_rifle"
+    "def_damage" "damage_d3machinegun"
+    "velocity" "7200 0 0"
+    "model" ""
+    "fx_fly" ""
+    "snd_fly" ""
+    "mtr_explode_light_shader" ""
+    "explode_light_size" "0 0 0"
+}
+
+entityDef damage_d3machinegun {
+    "inherit" "missile_rifle"
+    "damage" "9"
+    "gib" "0"
+    "knockback" "2"
+}
+
+entityDef weapon_d3machinegun {
+    "inherit" "weapon_rifle"
+    "model" "d3_worldmodel_machinegun"
+    "inv_name" "Doom 3 Machine Gun"
+    "inv_weapon" "weaponobj_d3machinegun"
+    "inv_ammo_rifle" "15"
+    "def_precache1" "weaponobj_d3machinegun"
+}
