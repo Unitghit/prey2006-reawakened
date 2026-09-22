@@ -1250,6 +1250,22 @@ bool idPhysics_Player::CheckJump( void ) {
 	walking = false;
 	current.movementFlags |= PMF_JUMP_HELD | PMF_JUMPED;
 
+	if ( g_bunnyHop.GetBool() && !gameLocal.isMultiplayer &&
+		current.movementType == PM_NORMAL && waterLevel == WATERLEVEL_NONE ) {
+		if ( bunnyChainActive && bunnyGroundMsec <= 100 &&
+			(command.forwardmove || command.rightmove) ) {
+			const idVec3 lateral = current.velocity - gravityNormal * (current.velocity * gravityNormal);
+			const float speed = lateral.Length();
+			const float boosted = Min( speed * 1.05f, walkSpeed * 2.0f );
+			if ( speed > 1.0f && boosted > speed ) {
+				// Add only tangent velocity: the original jump impulse is unchanged.
+				current.velocity += lateral * ((boosted - speed) / speed);
+			}
+		}
+		bunnyChainActive = true;
+		bunnyGroundMsec = 0;
+	}
+
 	//HUMANHEAD
 	current.velocity += DetermineJumpVelocity();
 	// HUMANHEAD END
@@ -1386,6 +1402,10 @@ idPhysics_Player::MovePlayer
 ================
 */
 void idPhysics_Player::MovePlayer( int msec ) {
+	if ( !g_bunnyHop.GetBool() || gameLocal.isMultiplayer || current.movementType != PM_NORMAL ) {
+		bunnyChainActive = false;
+		bunnyGroundMsec = 0;
+	}
 
 	// this counter lets us debug movement problems with a journal
 	// by setting a conditional breakpoint for the previous frame
@@ -1456,6 +1476,16 @@ void idPhysics_Player::MovePlayer( int msec ) {
 
 	// check if up against a ladder
 	idPhysics_Player::CheckLadder();
+
+	if ( waterLevel != WATERLEVEL_NONE || ladder ) {
+		bunnyChainActive = false;
+		bunnyGroundMsec = 0;
+	} else if ( walking ) {
+		bunnyGroundMsec = Min( 101, bunnyGroundMsec + msec );
+		if ( bunnyGroundMsec > 100 ) bunnyChainActive = false;
+	} else {
+		bunnyGroundMsec = 0;
+	}
 
 	// set clip model size
 	idPhysics_Player::CheckDuck();
@@ -1568,6 +1598,8 @@ idPhysics_Player::idPhysics_Player
 ================
 */
 idPhysics_Player::idPhysics_Player( void ) {
+	bunnyChainActive = false;
+	bunnyGroundMsec = 0;
 	debugLevel = false;
 	clipModel = NULL;
 	clipMask = 0;
@@ -1684,6 +1716,8 @@ idPhysics_Player::Restore
 ================
 */
 void idPhysics_Player::Restore( idRestoreGame *savefile ) {
+	bunnyChainActive = false;
+	bunnyGroundMsec = 0;
 
 	idPhysics_Player_RestorePState( savefile, current );
 	idPhysics_Player_RestorePState( savefile, saved );

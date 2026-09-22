@@ -192,6 +192,10 @@ protected:	//HUMANHEAD
 	idVec3					viewForward;
 	idVec3					viewRight;
 
+	// Optional hop chain is transient; restoring a save starts a fresh chain.
+	bool bunnyChainActive;
+	int bunnyGroundMsec;
+
 	// walk movement
 	bool					walking;
 	bool					groundPlane;
