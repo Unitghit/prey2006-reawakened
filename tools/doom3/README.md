@@ -1,9 +1,9 @@
 # Doom 3 shotgun prototype
 
-An optional additional weapon for Prey2006 Reawakened. It occupies previously
-unused slot 8, selected with the 8 key or weapon cycling. Prey's weapons remain
-available. The first prototype shares rifle ammunition and uses placeholder
-Prey HUD artwork. It is single-player experimental work, not a finished arsenal
+An optional additional weapon for Prey2006 Reawakened. It shares HUD slot 2
+with the Hunter Rifle. Press 2 repeatedly to cycle between them. Prey's weapons remain
+available. The first prototype shares rifle ammunition and uses Prey HUD artwork
+with an orange selection highlight and silhouette for the shotgun. It is single-player experimental work, not a finished arsenal
 conversion. The expansion's double-barrel shotgun has not been implemented.
 
 The local importer reads an original Doom 3 installation. BFG Edition's compiled
@@ -25,10 +25,16 @@ for historical standalone prototype installations.
 
 Enable **Gameplay > Doom 3 shotgun > Enabled (prototype)** in the launcher.
 The save-compatible build uses the normal campaign save folder in both modes.
-Owning the Hunter Rifle makes the shotgun available in slot 8. Disabling the
+Owning the Hunter Rifle makes the shotgun available in group 2. Disabling the
 option hides it and returns to an owned Prey weapon, retaining its magazine.
-Ammo is still shared with the rifle; the planned split ammo budget and grouped
-weapon selection are not part of this compatibility step.
+Ammo is still shared with the rifle; the normalized split ammo budget is a
+separate upcoming step. Number keys cycle within groups. Wheel and controller
+weapon cycling visit each available weapon in group order. Internal saved
+index 8 remains unchanged; scripts still select exact internal weapon indices.
+The existing HUD layout, fade timing and absence of weapon-name popups remain.
+Orange and red highlight/icon variants are generated locally from retail artwork. The
+red variant is reserved for the future third weapon, not an implemented gun.
+The HUD window tree must not change: it is part of the binary save layout.
 
 The launcher copies old standalone prototype saves into the shared folder as
 `D3Legacy_*`, displayed with a `Doom 3 legacy:` prefix. Originals and existing
@@ -62,7 +68,8 @@ magazine and 149 rifle rounds through a map transition and subsequent mode
 changes. Saving with a live blast tracker, then restoring with the addon off,
 retained the six-shell magazine and 129 rounds. The `weaponPackInfo` console command reports inventory,
 magazine, health and position. With developer mode enabled, a slot argument
-selects through the usual weapon path; `spirit` exercises spirit walking without
+selects through the usual weapon path; `key2`, `next` and `prev` exercise input
+selection; `spirit` exercises spirit walking without
 adding an unsaveable console script.
 
 The weapon uses an eight-shell magazine, thirteen pellets, a 1.333-second

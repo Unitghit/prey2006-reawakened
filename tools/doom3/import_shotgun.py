@@ -9,6 +9,7 @@ import json
 import re
 import zipfile
 from pathlib import Path
+from weapon_group_hud import generate_hud
 
 
 def block(text, name):
@@ -120,18 +121,28 @@ def main():
         sounds.append(decl)
     files['sound/doom3_shotgun.sndshd'] = ('\n\n'.join(sounds)+'\n').encode()
     prey = {}
+    def needed(name):
+        return name in ('script/prey_main.script', 'def/player.def',
+                        'guis/hud/hud_weaponswitchicons.guifragment',
+                        'guis/assets/hud/sw_weapon_selector.tga') or (
+                            name.startswith('textures/interface/icons/') and name.endswith('.tga'))
     for base in args.prey_base:
         for archive in sorted(base.glob('*.pk4')):
             with zipfile.ZipFile(archive) as z:
-                for name in ('script/prey_main.script', 'def/player.def'):
-                    if name in z.namelist():
-                        prey[name] = z.read(name).decode('latin1')
-        for name in ('script/prey_main.script', 'def/player.def'):
+                for name in z.namelist():
+                    if needed(name.lower()):
+                        prey[name.lower()] = z.read(name)
+        for name in list(prey):
             if (base/name).is_file():
-                prey[name] = (base/name).read_text()
+                prey[name] = (base/name).read_bytes()
+    if args.save_compatible:
+        generate_hud(prey, files)
+    for name in ('script/prey_main.script', 'def/player.def'):
+        prey[name] = prey[name].decode('latin1')
     main_script = prey['script/prey_main.script']
     files['script/prey_main.script'] = (main_script+'\n#include "script/weapon_d3shotgun.script"\n').encode()
     player = prey['def/player.def']
+    player = re.sub(r'(?m)^\s*anim d3shotgun_\w+[^\r\n]*[\r\n]+', '', player)
     if not args.save_compatible:
         player, count = re.subn(r'("def_weapon8"\s+)""', r'\1"weaponobj_d3shotgun"', player)
         if count != 1:
@@ -158,6 +169,7 @@ def main():
         definition = files['def/doom3_shotgun.def'].decode()
         definition = definition.replace('entityDef weaponobj_d3shotgun {',
             'entityDef weaponobj_d3shotgun {\n    "rw_saveCompatible" "1"\n'
+            '    "rw_weaponGroup" "2"\n    "rw_weaponVariant" "1"\n'
             '    "rw_addonScript" "script/reawakened/weapon_d3shotgun_v1.script"')
         files['def/doom3_shotgun.def'] = definition.encode()
 

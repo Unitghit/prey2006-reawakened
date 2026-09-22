@@ -2550,11 +2550,21 @@ static void Cmd_WeaponPackInfo_f( const idCmdArgs &args ) {
 	if ( args.Argc() == 2 && cvarSystem->GetCVarBool("developer") ) {
 		if ( !idStr::Icmp(args.Argv(1), "spirit") ) {
 			player->ToggleSpiritWalk();
+		} else if (!idStr::Icmp(args.Argv(1), "next")) {
+			player->PerformImpulse(IMPULSE_14);
+		} else if (!idStr::Icmp(args.Argv(1), "prev")) {
+			player->PerformImpulse(IMPULSE_15);
+		} else if (!idStr::Icmpn(args.Argv(1), "key", 3)) {
+			const int key = atoi(args.Argv(1) + 3);
+			if (key >= 1 && key <= 7) { player->PerformImpulse(key); }
 		} else {
 			const int slot = atoi(args.Argv(1));
 			if ( slot >= 1 && slot < MAX_WEAPONS ) { player->SelectWeapon(slot, false); }
 		}
 	}
+	gameLocal.Printf("WEAPONGROUP current=%d ideal=%d group=%d variant=%d\n",
+		player->GetCurrentWeapon(), player->GetIdealWeapon(),
+		player->WeaponGroup(player->GetIdealWeapon()), player->WeaponVariant(player->GetIdealWeapon()));
 	gameLocal.Printf("WEAPONPACK STATE enabled=%d owned=%d held=%d clip=%d rifleAmmo=%d current=%d ideal=%d health=%d origin=%s\n",
 		cvarSystem->GetCVarBool("g_doom3Shotgun"),
 		player->spawnArgs.GetBool("rw_weapon_d3shotgun_owned"),
@@ -2565,7 +2575,7 @@ static void Cmd_WeaponPackInfo_f( const idCmdArgs &args ) {
 }
 
 void idGameLocal::InitConsoleCommands( void ) {
-	cmdSystem->AddCommand( "weaponPackInfo", Cmd_WeaponPackInfo_f, CMD_FL_GAME, "show addon save state; developer mode accepts a weapon slot or spirit" );
+	cmdSystem->AddCommand( "weaponPackInfo", Cmd_WeaponPackInfo_f, CMD_FL_GAME, "show addon state; developer: slot, key1..7, next, prev, spirit" );
 	cmdSystem->AddCommand( "game_memory",			idClass::DisplayInfo_f,		CMD_FL_GAME,				"displays game class info" );
 	cmdSystem->AddCommand( "listClasses",			idClass::ListClasses_f,		CMD_FL_GAME,				"lists game classes" );
 	cmdSystem->AddCommand( "listThreads",			idThread::ListThreads_f,	CMD_FL_GAME|CMD_FL_CHEAT,	"lists script threads" );

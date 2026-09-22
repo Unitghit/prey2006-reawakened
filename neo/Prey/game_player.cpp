@@ -332,6 +332,72 @@ void hhPlayer::SynchronizeDoom3Shotgun() {
 	if ( changed ) { UpdateHudWeapon(false); }
 }
 
+// HUD groups are independent of saved inventory indices.
+bool hhPlayer::WeaponGroupsEnabled() const {
+	return !gameLocal.isMultiplayer && !*cvarSystem->GetCVarString("fs_game") &&
+		g_doom3Shotgun.GetBool() && spawnArgs.GetBool("rw_weapon_d3shotgun_enabled");
+}
+int hhPlayer::WeaponGroup(int num) const {
+	if (!WeaponGroupsEnabled() || num < 1 || num >= MAX_WEAPONS) { return num; }
+	// Slot 8 has a stable historical identity, including saves from the prototype.
+	if (num == 8 && !idStr::Icmp(GetWeaponName(num), "weaponobj_d3shotgun")) { return 2; }
+	const idDeclEntityDef *def = (*GetWeaponName(num) ? gameLocal.FindEntityDef(GetWeaponName(num), false) : NULL);
+	const int group = def ? def->dict.GetInt("rw_weaponGroup", "0") : 0;
+	return group >= 1 && group <= 7 ? group : num;
+}
+int hhPlayer::WeaponVariant(int num) const {
+	if (!WeaponGroupsEnabled() || num < 1 || num >= MAX_WEAPONS) { return 0; }
+	if (num == 8 && !idStr::Icmp(GetWeaponName(num), "weaponobj_d3shotgun")) { return 1; }
+	const idDeclEntityDef *def = (*GetWeaponName(num) ? gameLocal.FindEntityDef(GetWeaponName(num), false) : NULL);
+	return def ? idMath::ClampInt(0, 2, def->dict.GetInt("rw_weaponVariant")) : 0;
+}
+bool hhPlayer::GroupWeaponSelectable(int num) {
+	if (num < 1 || num >= MAX_WEAPONS || !(inventory.weapons & (1 << num)) ||
+		!(weaponFlags & (1 << (num - 1))) || SkipWeapon(num)) { return false; }
+	const char *name = GetWeaponName(num);
+	return name && *name && (inventory.HasAmmo(name) || inventory.HasAltAmmo(name) ||
+		spawnArgs.GetBool(va("weapon%d_allowempty", num)));
+}
+void hhPlayer::SelectWeaponGroup(int group) {
+	int first = -1, next = -1;
+	const int selected = idealWeapon;
+	const int rank = WeaponVariant(selected) * MAX_WEAPONS + selected;
+	int firstRank = 999, nextRank = 999;
+	for (int num = 1; num < MAX_WEAPONS; ++num) {
+		if (WeaponGroup(num) != group || !GroupWeaponSelectable(num)) { continue; }
+		const int candidateRank = WeaponVariant(num) * MAX_WEAPONS + num;
+		if (candidateRank < firstRank) { first = num; firstRank = candidateRank; }
+		if (candidateRank > rank && candidateRank < nextRank) { next = num; nextRank = candidateRank; }
+	}
+	const int choice = WeaponGroup(selected) == group && next != -1 ? next : first;
+	if (choice != -1) { SelectWeapon(choice, false); }
+}
+void hhPlayer::CycleWeaponGroup(int direction) {
+	int order[MAX_WEAPONS], count = 0;
+	for (int num = 1; num < MAX_WEAPONS; ++num) {
+		if (!spawnArgs.GetBool(va("weapon%d_cycle", num)) || !GroupWeaponSelectable(num)) { continue; }
+		int index = count++;
+		const int rank = WeaponGroup(num) * 64 + WeaponVariant(num) * MAX_WEAPONS + num;
+		while (index > 0) {
+			const int prev = order[index - 1];
+			const int prevRank = WeaponGroup(prev) * 64 + WeaponVariant(prev) * MAX_WEAPONS + prev;
+			if (prevRank <= rank) { break; }
+			order[index] = prev;
+			--index;
+		}
+		order[index] = num;
+	}
+	if (!count) { return; }
+	int index = direction > 0 ? count - 1 : 0;
+	for (int i = 0; i < count; ++i) { if (order[i] == idealWeapon) { index = i; break; } }
+	const int choice = order[(index + direction + count) % count];
+	if (choice != idealWeapon) {
+		idealWeapon = choice;
+		weaponSwitchTime = gameLocal.time + WEAPON_SWITCH_DELAY;
+		UpdateHudWeapon();
+	}
+}
+
 void hhPlayer::RestorePersistantInfo( void ) {
 	int num;
 
@@ -902,8 +968,9 @@ void hhPlayer::UpdateHudWeapon(bool flashWeapon) {
 
 	if ( _hud ) {
 		// HUMANHEAD pdm: changed to suit our needs
-		_hud->SetStateInt( "currentweapon", GetCurrentWeapon() );
-		_hud->SetStateInt( "idealweapon", GetIdealWeapon() );
+		_hud->SetStateInt( "currentweapon", WeaponGroup(GetCurrentWeapon()) );
+		_hud->SetStateInt( "idealweapon", WeaponGroup(GetIdealWeapon()) );
+		_hud->SetStateInt( "weaponvariant", WeaponVariant(GetIdealWeapon()) );
 		//HUMANHEAD PCF mdl 05/05/06 - Added !IsLocked( GetIdealWeapon() )
 		if ( flashWeapon && !IsLocked( GetIdealWeapon() ) ) {
 			_hud->HandleNamedEvent( "weaponChange" );
@@ -914,6 +981,22 @@ void hhPlayer::UpdateHudWeapon(bool flashWeapon) {
 //	PDMMERGE PERSISTENTMERGE: Overridden, Done for 6-03-05 merge
 void hhPlayer::UpdateHudAmmo(idUserInterface *_hud) {
 	assert( _hud );
+	// Saved GUIs can contain the former internal slot number. Republish without
+	// restarting the weapon-bar animation on every frame.
+	_hud->SetStateInt("currentweapon", WeaponGroup(GetCurrentWeapon()));
+	_hud->SetStateInt("idealweapon", WeaponGroup(GetIdealWeapon()));
+	_hud->SetStateInt("weaponvariant", WeaponVariant(GetIdealWeapon()));
+	const int selectedVariant = WeaponVariant(idealWeapon);
+	_hud->SetStateString("rw_weaponSelectionMaterial", selectedVariant > 0 ?
+		va("reawakened/hud/selection_variant%d", selectedVariant) : "guis/assets/hud/sw_weapon_selector");
+	static const char *groupIcons[] = { "wrench", "rifle", "sw_crawler", "soulstripper", "autocannon", "acidsprayer", "rocketlauncher" };
+	const int selectedGroup = WeaponGroup(idealWeapon);
+	for (int group = 1; group <= 7; ++group) {
+		const idStr material = selectedGroup == group && selectedVariant > 0 ?
+			va("reawakened/hud/weapon%d_variant%d", group, selectedVariant) :
+			va("textures/interface/icons/%s", groupIcons[group - 1]);
+		_hud->SetStateString(va("rw_weapon%d_material", group), material);
+	}
 	float ammoPct, altPct;
 	int ammoType, altAmmoType;
 	float ammo, altAmmo;
@@ -922,23 +1005,25 @@ void hhPlayer::UpdateHudAmmo(idUserInterface *_hud) {
     // Publish every slot from authoritative inventory state. A rotating slot
     // per draw made HUD refresh delay depend on the rendering frame rate.
     for (int rover = 1; rover <= 9; ++rover) {
+		int infoSlot = rover;
+		if (WeaponGroup(idealWeapon) == rover && idealWeapon > 0 && idealWeapon < MAX_WEAPONS) { infoSlot = idealWeapon; }
 		bool bHeld = false;
 		ammoPct = 0.0f;
 		altPct = 0.0f;
-		ammoType = weaponInfo[rover].ammoType;
-		altAmmoType = altWeaponInfo[rover].ammoType;
+		ammoType = weaponInfo[infoSlot].ammoType;
+		altAmmoType = altWeaponInfo[infoSlot].ammoType;
 		ammo = inventory.ammo[ammoType];
 		altAmmo = inventory.ammo[altAmmoType];
 		ammoLow = false;
 		altAmmoLow = false;
 
-		if ( inventory.weapons & ( 1 << rover ) ) {
+		if ( WeaponGroup(infoSlot) == rover && (inventory.weapons & (1 << infoSlot)) ) {
 			// have this weapon
 			bHeld = true;
-			ammoPct = ammo / weaponInfo[rover].ammoMax;
-			altPct = altAmmo / altWeaponInfo[rover].ammoMax;
-			ammoLow = ammo > 0 && ammo <= weaponInfo[rover].ammoLow;
-			altAmmoLow = altAmmo > 0 && altAmmo <= altWeaponInfo[rover].ammoLow;
+			ammoPct = ammo / weaponInfo[infoSlot].ammoMax;
+			altPct = altAmmo / altWeaponInfo[infoSlot].ammoMax;
+			ammoLow = ammo > 0 && ammo <= weaponInfo[infoSlot].ammoLow;
+			altAmmoLow = altAmmo > 0 && altAmmo <= altWeaponInfo[infoSlot].ammoLow;
 		}
 
 		// Spirit ammo doesn't display in a bar
@@ -1293,7 +1378,8 @@ void hhPlayer::NextBestWeapon( void ) {
 hhPlayer::SelectWeapon
 ===============
 */
-void hhPlayer::SelectWeapon( int num, bool force ) {	
+void hhPlayer::SelectWeapon( int num, bool force ) {
+	if (num < 1 || num >= MAX_WEAPONS) { return; }
 	if ( ! ( weaponFlags & ( 1 << ( num - 1 ) ) ) ) {
 		return;
 	}
@@ -1326,6 +1412,8 @@ void hhPlayer::NextWeapon( void ) {
 	if ( !inventory.weapons ) {
 		return;
 	}
+
+	if (WeaponGroupsEnabled()) { CycleWeaponGroup(1); return; }
 
 	const char *weap;
 	int w, start;
@@ -1400,6 +1488,8 @@ void hhPlayer::PrevWeapon( void ) {
 	if ( !inventory.weapons ) {
 		return;
 	}
+
+	if (WeaponGroupsEnabled()) { CycleWeaponGroup(-1); return; }
 
 	const char *weap;
 	int w = idealWeapon, start = w;
@@ -2959,6 +3049,10 @@ void hhPlayer::PerformImpulse( int impulse ) {
 		return;
 	}
 
+	if (WeaponGroupsEnabled() && impulse >= IMPULSE_1 && impulse <= IMPULSE_7) {
+		SelectWeaponGroup(impulse);
+		return;
+	}
 	idPlayer::PerformImpulse( impulse );
 
 	switch( impulse ) {

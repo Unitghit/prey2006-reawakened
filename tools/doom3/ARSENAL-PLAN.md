@@ -1,8 +1,8 @@
 # Doom 3 weapon modes
 
 Agreed arsenal design. The save-compatibility foundation is implemented using
-the shotgun; the remaining weapon groups, split ammunition and full modes are
-still planned. See README.md for installation and compatibility details.
+the shotgun. Shared selection and HUD colors are implemented for the rifle /
+shotgun group; the remaining weapons, split ammunition and full modes are planned. See README.md for installation and compatibility details.
 
 ## Launcher modes
 
@@ -90,7 +90,9 @@ Reawakened binary that lacks the added weapon classes.
 
 1. Completed: additive shotgun scripts, normal and legacy saves, mode toggles,
    magazine preservation, spirit restoration and level-transition persistence.
-2. Implement the group registry, unlock rules, selection and HUD colors.
+2. Completed for rifle / shotgun: group metadata, rifle-pickup unlock, number-key
+   and wheel/controller selection, original HUD with colored highlights and silhouettes.
+   Extend the same registry/unlock rules as each remaining weapon is imported.
 3. Implement normalized ammo allocation, magazines and dispenser integration.
 4. Import and adapt each remaining gun, including expansion Super Shotgun.
 5. Complete Doom-only campaign interactions and native launcher modes.

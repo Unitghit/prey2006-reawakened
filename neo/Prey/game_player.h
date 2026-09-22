@@ -177,6 +177,12 @@ public:
 	// Overridden Methods
 	virtual void		RestorePersistantInfo( void );
 	void				SynchronizeDoom3Shotgun();
+	bool WeaponGroupsEnabled() const;
+	int WeaponGroup(int weaponNum) const;
+	int WeaponVariant(int weaponNum) const;
+	bool GroupWeaponSelectable(int weaponNum);
+	void SelectWeaponGroup(int group);
+	void CycleWeaponGroup(int direction);
 	virtual void		SquishedByDoor(idEntity *door);
 	virtual void		Init();
 	void				Save( idSaveGame *savefile ) const;
