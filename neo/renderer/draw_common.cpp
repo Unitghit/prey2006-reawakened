@@ -1950,6 +1950,7 @@ static void RB_GlowRecoveredKernel( void ) {
     qglProgramLocalParameter4fvARB( GL_FRAGMENT_PROGRAM_ARB, 1, weights + 4 );
     qglEnable( GL_FRAGMENT_PROGRAM_ARB );
     for ( int axis = 0; axis < 2; ++axis ) {
+        idHitchScope hitch("bloom_blur", axis == 0 ? "horizontal" : "vertical");
         idImage *source = axis == 0 ? globalImages->glowKernelImage : globalImages->glowCompositeImage;
         source->Bind();
         // Half a texel on the recovered 256-square intermediate, in both axes.
@@ -1973,10 +1974,15 @@ struct retailGlowProgram_t {
     int size, steps;
     float alpha, change;
 };
-static retailGlowProgram_t retailGlowPrograms[2];
+static const int RETAIL_GLOW_CACHE_SIZE = 8;
+static retailGlowProgram_t retailGlowPrograms[2][RETAIL_GLOW_CACHE_SIZE];
+static int retailGlowNextSlot[2];
+static int retailGlowActiveProgram[2];
 
 void RB_InvalidateRetailGlowPrograms( void ) {
     memset( retailGlowPrograms, 0, sizeof( retailGlowPrograms ) );
+    memset( retailGlowNextSlot, 0, sizeof( retailGlowNextSlot ) );
+    memset( retailGlowActiveProgram, 0, sizeof( retailGlowActiveProgram ) );
 }
 
 // A larger mask with only the original sparse taps produces separated copies
@@ -1989,11 +1995,21 @@ static bool RB_GlowRetailProgram( int axis, int size ) {
     }
     const int steps = idMath::ClampInt( 0, 256, r_glowSteps.GetInteger() );
     const float alpha = r_glowAlpha.GetFloat(), change = r_glowAlphaChange.GetFloat();
-    retailGlowProgram_t &cached = retailGlowPrograms[axis];
-    if ( cached.valid && cached.size == size && cached.steps == steps &&
-         cached.alpha == alpha && cached.change == change ) {
-        return cached.supported;
+    // Retain the exact programs for recurring viewport sizes (portals,
+    // thumbnails, main view). Fixed reserved IDs bound driver resource use.
+    for ( int slot = 0; slot < RETAIL_GLOW_CACHE_SIZE; ++slot ) {
+        const retailGlowProgram_t &entry = retailGlowPrograms[axis][slot];
+        if ( entry.valid && entry.size == size && entry.steps == steps &&
+             entry.alpha == alpha && entry.change == change ) {
+            retailGlowActiveProgram[axis] = FPROG_RETAIL_GLOW_CACHE + axis * RETAIL_GLOW_CACHE_SIZE + slot;
+            return entry.supported;
+        }
     }
+    const int slot = retailGlowNextSlot[axis];
+    retailGlowNextSlot[axis] = (slot + 1) % RETAIL_GLOW_CACHE_SIZE;
+    retailGlowProgram_t &cached = retailGlowPrograms[axis][slot];
+    retailGlowActiveProgram[axis] = FPROG_RETAIL_GLOW_CACHE + axis * RETAIL_GLOW_CACHE_SIZE + slot;
+    idHitchScope compileHitch("bloom_program_build", axis == 0 ? "horizontal" : "vertical");
     cached.valid = true;
     cached.supported = false;
     cached.size = size; cached.steps = steps; cached.alpha = alpha; cached.change = change;
@@ -2054,7 +2070,7 @@ static bool RB_GlowRetailProgram( int axis, int size ) {
     }
     program += instructions;
     program += "MOV result.color, sum;\nEND\n";
-    qglBindProgramARB( GL_FRAGMENT_PROGRAM_ARB, axis == 0 ? FPROG_RETAIL_GLOW_X : FPROG_RETAIL_GLOW_Y );
+    qglBindProgramARB( GL_FRAGMENT_PROGRAM_ARB, retailGlowActiveProgram[axis] );
     qglGetError();
     qglProgramStringARB( GL_FRAGMENT_PROGRAM_ARB, GL_PROGRAM_FORMAT_ASCII_ARB, program.Length(), program.c_str() );
     const GLenum error = qglGetError();
@@ -2102,6 +2118,7 @@ static void RB_GlowRetailScreenRect( bool fullViewport = false ) {
 }
 
 static void RB_GlowRetailCopy( idImage *image ) {
+    idHitchScope hitch("bloom_copy", image->imgName.c_str());
     const viewDef_t *view = backEnd.viewDef;
     image->CopyFramebuffer( tr.viewportOffset[0] + view->viewport.x1,
         tr.viewportOffset[1] + view->viewport.y1,
@@ -2238,9 +2255,15 @@ static bool RB_GlowPrepareRetail( drawSurf_t **drawSurfs, int numDrawSurfs, int 
         backEnd.viewDef = &glowView;
         RB_BeginDrawingView();
     }
-    RB_STD_FillDepthBuffer( glowView.drawSurfs, count );
+    {
+        idHitchScope hitch("bloom_mask_depth", "mask");
+        RB_STD_FillDepthBuffer( glowView.drawSurfs, count );
+    }
     qglStencilFunc( GL_ALWAYS, 128, 255 );
-    RB_STD_DrawShaderPasses( glowView.drawSurfs, count );
+    {
+        idHitchScope hitch("bloom_mask_materials", "mask");
+        RB_STD_DrawShaderPasses( glowView.drawSurfs, count );
+    }
     rbDrawingGlow = false;
     RB_GlowRetailCopy( globalImages->glowScreenImage );
 
@@ -2254,10 +2277,11 @@ static bool RB_GlowPrepareRetail( drawSurf_t **drawSurfs, int numDrawSurfs, int 
     const float startAlpha = r_glowAlpha.GetFloat();
     const float alphaChange = r_glowAlphaChange.GetFloat();
     for ( int axis = 0; axis < 2; ++axis ) {
+        idHitchScope hitch("bloom_blur", axis == 0 ? "horizontal" : "vertical");
         idImage *source = axis == 0 ? globalImages->glowScreenImage : globalImages->glowCompositeImage;
         if ( smoothKernel ) {
             GL_State( GLS_DEPTHFUNC_ALWAYS | GLS_DEPTHMASK | GLS_SRCBLEND_ONE | GLS_DSTBLEND_ZERO );
-            qglBindProgramARB( GL_FRAGMENT_PROGRAM_ARB, axis == 0 ? FPROG_RETAIL_GLOW_X : FPROG_RETAIL_GLOW_Y );
+            qglBindProgramARB( GL_FRAGMENT_PROGRAM_ARB, retailGlowActiveProgram[axis] );
             const float bounds[4] = { 0.5f / source->uploadWidth, 0.5f / source->uploadHeight,
                 ( glowWidth - 0.5f ) / source->uploadWidth, ( glowHeight - 0.5f ) / source->uploadHeight };
             qglProgramLocalParameter4fvARB( GL_FRAGMENT_PROGRAM_ARB, 0, bounds );
