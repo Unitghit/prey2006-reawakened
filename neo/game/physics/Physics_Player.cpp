@@ -40,7 +40,7 @@ END_CLASS
 int c_pmove = 0;
 
 static idCVar g_bunnyHop( "g_bunnyHop", "0", CVAR_GAME | CVAR_INTEGER | CVAR_ARCHIVE,
-    "Single-player bunny hopping: 0 off, 1 Quake, 2 uncapped Painkiller-inspired" );
+    "Single-player bunny hopping: 0 off, 1 Quake, 2 capped Painkiller-inspired" );
 
 /*
 ============
@@ -659,7 +659,7 @@ void idPhysics_Player::AirMove( void ) {
 	if ( g_bunnyHop.GetInteger() == 2 && !gameLocal.isMultiplayer &&
 		current.movementType == PM_NORMAL && waterLevel == WATERLEVEL_NONE ) {
 		// Strong, timestep-based steering preserves lateral speed. Speed is
-		// earned at takeoff, without a projection or total-speed ceiling.
+		// earned at takeoff, capped at the Painkiller single-player ratio.
 		idVec3 lateral = current.velocity - gravityNormal * (current.velocity * gravityNormal);
 		const float speed = lateral.Normalize();
 		if ( wishspeed > 0.0f ) {
@@ -1262,7 +1262,8 @@ bool idPhysics_Player::CheckJump( void ) {
 			direction -= gravityNormal * (direction * gravityNormal);
 			if ( direction.Normalize() > 1e-6f ) {
 				const idVec3 lateral = current.velocity - gravityNormal * (current.velocity * gravityNormal);
-				const float speed = lateral.Length() + walkSpeed * 0.3f;
+				// Painkiller single-player tuning: PlayerSpeed 8, hop maximum 15.
+				const float speed = Min( lateral.Length() + walkSpeed * 0.3f, walkSpeed * (15.0f / 8.0f) );
 				current.velocity = direction * speed + gravityNormal * (current.velocity * gravityNormal);
 			}
 		}
