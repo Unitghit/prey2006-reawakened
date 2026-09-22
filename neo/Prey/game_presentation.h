@@ -481,7 +481,6 @@ static idCVar g_lateMouse("g_lateMouse", "0", CVAR_GAME | CVAR_BOOL | CVAR_ARCHI
 static bool ApplyLateMousePresentation(hhPlayer *player, renderView_t &view, idAngles &delta) {
     if (!g_lateMouse.GetBool() || !usercmdGen || player->health <= 0 || player->GuiActive() ||
         player->IsSpiritOrDeathwalking() || player->GetBindMaster() ||
-        player->GetPhysics()->GetGravityNormal().z > -0.99f ||
         cvarSystem->GetCVarFloat("com_fpsTestTurn") != 0.0f ||
         !usercmdGen->GetPresentationLook(player->usercmd, delta)) return false;
     idAngles look = player->GetUntransformedViewAngles() + delta;

@@ -1074,6 +1074,8 @@ void idUsercmdGenLocal::MakeCurrent( void ) {
 	}
 
 	for ( i = 0; i < 3; i++ ) {
+		// Keep accumulated angles bounded so long sessions do not lose small mouse deltas.
+		viewangles[i] = idMath::AngleNormalize180( viewangles[i] );
 		cmd.angles[i] = ANGLE2SHORT( viewangles[i] );
 	}
 
@@ -1447,8 +1449,8 @@ bool idUsercmdGenLocal::GetPresentationLook(const usercmd_t &applied, idAngles &
     }
     const float yawSign = (m_invertLook.GetInteger() & 2) ? -1.0f : 1.0f;
     const float pitchSign = (m_invertLook.GetInteger() & 1) ? -1.0f : 1.0f;
-    delta.yaw = idMath::AngleNormalize180(SHORT2ANGLE(ANGLE2SHORT(viewangles[YAW])) - SHORT2ANGLE(applied.angles[YAW]));
-    delta.pitch = idMath::AngleNormalize180(SHORT2ANGLE(ANGLE2SHORT(viewangles[PITCH])) - SHORT2ANGLE(applied.angles[PITCH]));
+    delta.yaw = idMath::AngleNormalize180(viewangles[YAW] - SHORT2ANGLE(applied.angles[YAW]));
+    delta.pitch = idMath::AngleNormalize180(viewangles[PITCH] - SHORT2ANGLE(applied.angles[PITCH]));
     delta.yaw -= dx * sensitivity.GetFloat() * gameSensitivityFactor * m_yaw.GetFloat() * yawSign;
     delta.pitch += idMath::ClampFloat(-90.0f, 90.0f, dy * sensitivity.GetFloat() * gameSensitivityFactor * m_pitch.GetFloat() * pitchSign);
     return true;
