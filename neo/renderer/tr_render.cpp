@@ -175,14 +175,18 @@ RB_SetMaterialPolygonOffset
 */
 void RB_SetMaterialPolygonOffset( const idMaterial *material ) {
 	float units = r_offsetUnits.GetFloat() * material->GetPolygonOffset();
+	float factor = r_offsetFactor.GetFloat();
 	// Blended decals can lie exactly on an alpha-tested, depth-writing decal.
 	// Give the overlay a distinct bias so rounding between their triangles
 	// cannot alternately reject it. Keep depth prepass/lighting offsets equal
 	// for opaque and perforated materials, including lit floor decals.
 	if ( material->Coverage() == MC_TRANSLUCENT ) {
 		units *= 1.01f;
+		// Cover a pixel's depth slope as well as depth-buffer rounding.
+		// Constant units alone are insufficient for coplanar MSAA samples.
+		factor += units < 0.0f ? -1.0f : units > 0.0f ? 1.0f : 0.0f;
 	}
-	qglPolygonOffset( r_offsetFactor.GetFloat(), units );
+	qglPolygonOffset( factor, units );
 }
 
 void RB_EnterWeaponDepthHack() {

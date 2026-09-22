@@ -78,3 +78,31 @@ particular sweep, not a universal perceived-flicker percentage. Finite sample
 counts still permit ordinary subpixel aliasing. The samples-restart portal
 smoke test logged actual sample counts 4,0,4,8 and no GL errors. All runs were
 hidden, muted, and isolated; the player's running game was left untouched.
+
+## Angle-dependent overlay bands (floorsubtle2)
+
+The newer save reproduces horizontal bands across the flat mat even with
+specular and bump disabled. Skipping ambient passes removes them. This is
+remaining overlay depth conflict, not solely cutout-edge aliasing; the earlier
+interpretation that the residual was entirely alpha aliasing was incomplete.
+The loose-material bias experiments did not establish a changed parsed
+material and are not evidence against this diagnosis. Runtime global bias
+changes and the compiled shared-helper change do separate the layers.
+
+The units-only separation did not cover sample-depth differences on sloped
+screen-space polygons. RB_SetMaterialPolygonOffset now also separates blended
+polygon-offset materials by one screen-space depth slope in the direction of
+their authored units offset. The existing 1% units guard covers nearly face-on
+surfaces. A zero units offset retains the caller's slope; positive/negative
+units preserve their direction. Opaque/perforated prepass and lighting still
+use exactly their former bias. No material names, map geometry, brightness,
+or specular settings are patched. This applies to blended polygon-offset
+materials in all normal and portal views.
+
+Hidden muted tests: subtle2-layers isolates the passes; subtle2-slope removes
+the saved-view bands; subtle2-angles covers 16 yaw/pitch combinations with the
+player position fixed; subtle2-slow-fixed and subtle2-slow-old compare 24
+view-only steps of 0.05 degrees. Final renderer restarts log actual MSAA counts
+4,0,8 and bloom-off is also exercised. No GL errors were reported. The runtime
+stage is decal-slope-build. Prior edge anti-aliasing remains enabled but is
+not the mechanism fixing these overlay bands.
