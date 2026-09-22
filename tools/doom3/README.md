@@ -212,3 +212,9 @@ a save that owns it activates the Machine Gun. No extra tooltip was added.
 Hidden, muted validation covers both unlock paths, slot-2/slot-4 cycling,
 new total caps, fractional pickup allocation, mode toggles, and saved ownership.
 Earlier validation figures above describe the historical balance at that time.
+
+Manual reload is bound to **R** by default and can be changed in the game's
+**Options > Controls > Combat > Reload** row. Existing profiles receive the
+binding once if R is unused and no reload binding exists. Custom assignments
+and intentionally cleared bindings are retained. Both current second weapons
+(Shotgun in slot 2 and Machine Gun in slot 4) use orange highlight/icon variants.

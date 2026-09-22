@@ -73,6 +73,7 @@ struct version_s {
 
 idCVar com_version( "si_version", version.string, CVAR_SYSTEM|CVAR_ROM|CVAR_SERVERINFO, "engine version" );
 idCVar com_skipRenderer( "com_skipRenderer", "0", CVAR_BOOL|CVAR_SYSTEM, "skip the renderer completely" );
+idCVar com_reloadBindingVersion( "com_reloadBindingVersion", "0", CVAR_INTEGER | CVAR_SYSTEM | CVAR_ARCHIVE, "reload binding migration version" );
 idCVar com_profanity( "com_profanity", "1", CVAR_BOOL | CVAR_SYSTEM | CVAR_ARCHIVE, "profanity preference (this port currently plays unfiltered dialogue)" );
 idCVar com_imageQuality( "com_imageQuality", "0", CVAR_INTEGER | CVAR_ARCHIVE | CVAR_SYSTEM, "hardware classification, -1 = not detected, 0 = low quality, 1 = medium quality, 2 = high quality, 3 = ultra quality" );
 idCVar com_purgeAll( "com_purgeAll", "0", CVAR_BOOL | CVAR_ARCHIVE | CVAR_SYSTEM, "purge everything between level loads" );
@@ -3254,6 +3255,16 @@ void idCommonLocal::InitGame( void ) {
 
 	// if any archived cvars are modified after this, we will trigger a writing of the config file
 	cvarSystem->ClearModifiedFlags( CVAR_ARCHIVE );
+
+	// Existing configs begin with unbindall, so adding a new default alone does
+	// not reach them. Migrate once without replacing a custom key or restoring
+	// a binding the player deliberately clears after this update.
+	if (!*cvarSystem->GetCVarString("fs_game") && com_reloadBindingVersion.GetInteger() < 1) {
+		if (!*idKeyInput::GetBinding('r') && idKeyInput::NumBinds("_impulse13") == 0) {
+			idKeyInput::SetBinding('r', "_impulse13");
+		}
+		com_reloadBindingVersion.SetInteger(1);
+	}
 
 	// init the user command input code
 	usercmdGen->Init();

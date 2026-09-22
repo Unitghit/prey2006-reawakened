@@ -542,8 +542,35 @@
 								}
 							}
 
-							buttonDef OCC_BindingPrevweapon {
+							buttonDef OCC_BindingReload {
 								rect			10, 100, 400, 25
+								leftMat			"guis/assets/menu/textbar_corner.tga"
+								middleMat		"guis/assets/menu/textbarstrip.tga"
+								rightMat		"guis/assets/menu/textbar_invcorner.tga"
+
+								windowDef OCCA_Reload {
+									rect		5, 5, 190, 20
+									text		"Reload"
+									textscale	0.33
+									textalign	1
+									textaligny	-6
+									shadow		1
+									forecolor	STATIC_FORECOLOR_COMMA
+								}
+								bindDef OCCK_Reload {
+									rect		200, 5, 195, 20
+									bind		"_impulse13"
+									textscale	0.33
+									textalign	1
+									textaligny	-6
+									shadow		1
+									forecolor	EDITABLE_FORECOLOR_COMMA
+									hovercolor	EDITABLE_HOVERCOLOR_COMMA
+								}
+							}
+
+							buttonDef OCC_BindingPrevweapon {
+								rect			10, 130, 400, 25
 								leftMat			"guis/assets/menu/textbar_corner.tga"
 								middleMat		"guis/assets/menu/textbarstrip.tga"
 								rightMat		"guis/assets/menu/textbar_invcorner.tga"
@@ -570,7 +597,7 @@
 							}
 
 							buttonDef OCC_BindingNextweapon {
-								rect			10, 130, 400, 25
+								rect			10, 160, 400, 25
 								leftMat			"guis/assets/menu/textbar_corner.tga"
 								middleMat		"guis/assets/menu/textbarstrip.tga"
 								rightMat		"guis/assets/menu/textbar_invcorner.tga"
@@ -597,7 +624,7 @@
 							}
 
 							buttonDef OCW_BindingLight {
-								rect			10, 160, 400, 25
+								rect			10, 190, 400, 25
 								leftMat			"guis/assets/menu/textbar_corner.tga"
 								middleMat		"guis/assets/menu/textbarstrip.tga"
 								rightMat		"guis/assets/menu/textbar_invcorner.tga"
@@ -624,7 +651,7 @@
 							}
 
 							buttonDef OCW_BindingSpiritwalk {
-								rect			10, 190, 400, 25
+								rect			10, 220, 400, 25
 								leftMat			"guis/assets/menu/textbar_corner.tga"
 								middleMat		"guis/assets/menu/textbarstrip.tga"
 								rightMat		"guis/assets/menu/textbar_invcorner.tga"
@@ -651,7 +678,7 @@
 							}
 
 							buttonDef OCW_BindingThrowGrenade {
-								rect			10, 220, 400, 25
+								rect			10, 250, 400, 25
 								leftMat			"guis/assets/menu/textbar_corner.tga"
 								middleMat		"guis/assets/menu/textbarstrip.tga"
 								rightMat		"guis/assets/menu/textbar_invcorner.tga"
