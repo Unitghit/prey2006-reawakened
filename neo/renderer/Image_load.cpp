@@ -1908,7 +1908,11 @@ CopyFramebuffer
 ====================
 */
 void idImage::CopyFramebuffer( int x, int y, int imageWidth, int imageHeight, bool useOversizedBuffer, bool honorLowResFX ) {
-	Bind();
+	const bool traceBloom = imgName.Icmpn( "_preyGlow", 9 ) == 0;
+	{
+		idHitchScope hitch("bloom_texture_bind", imgName.c_str(), traceBloom);
+		Bind();
+	}
 
 	if ( honorLowResFX && cvarSystem->GetCVarBool( "g_lowresFullscreenFX" ) ) {
 		imageWidth = 512;
@@ -1930,39 +1934,65 @@ void idImage::CopyFramebuffer( int x, int y, int imageWidth, int imageHeight, bo
 	// otherwise subview renderings could thrash this
 	if ( ( useOversizedBuffer && ( uploadWidth < potWidth || uploadHeight < potHeight ) )
 		|| ( !useOversizedBuffer && ( uploadWidth != potWidth || uploadHeight != potHeight ) ) ) {
+		if ( traceBloom && cvarSystem->GetCVarBool("com_hitchTrace") ) {
+			common->Printf("HITCH_BLOOM_RESIZE wall=%u asset=%s old=%dx%d new=%dx%d copy=%dx%d\n",
+				sys->GetMilliseconds(), imgName.c_str(), uploadWidth, uploadHeight,
+				potWidth, potHeight, imageWidth, imageHeight);
+		}
 		uploadWidth = potWidth;
 		uploadHeight = potHeight;
 		if ( potWidth == imageWidth && potHeight == imageHeight ) {
-			qglCopyTexImage2D( GL_TEXTURE_2D, 0, GL_RGB8, x, y, imageWidth, imageHeight, 0 );
+			{
+				idHitchScope hitch("bloom_allocate_copy", imgName.c_str(), traceBloom);
+				qglCopyTexImage2D( GL_TEXTURE_2D, 0, GL_RGB8, x, y, imageWidth, imageHeight, 0 );
+			}
 		} else {
 			byte	*junk;
 			// we need to create a dummy image with power of two dimensions,
 			// then do a qglCopyTexSubImage2D of the data we want
 			// this might be a 16+ meg allocation, which could fail on _alloca
-			junk = (byte *)Mem_Alloc( potWidth * potHeight * 4 );
-			memset( junk, 0, potWidth * potHeight * 4 );		//!@#
+			{
+				idHitchScope hitch("bloom_allocate_cpu", imgName.c_str(), traceBloom);
+				junk = (byte *)Mem_Alloc( potWidth * potHeight * 4 );
+				memset( junk, 0, potWidth * potHeight * 4 );
+			}
 #if 0 // Disabling because it's unnecessary and introduces a green strip on edge of _currentRender
 			for ( int i = 0 ; i < potWidth * potHeight * 4 ; i+=4 ) {
 				junk[i+1] = 255;
 			}
 #endif
-			qglTexImage2D( GL_TEXTURE_2D, 0, GL_RGB, potWidth, potHeight, 0, GL_RGBA, GL_UNSIGNED_BYTE, junk );
+			{
+				idHitchScope hitch("bloom_allocate_upload", imgName.c_str(), traceBloom);
+				qglTexImage2D( GL_TEXTURE_2D, 0, GL_RGB, potWidth, potHeight, 0, GL_RGBA, GL_UNSIGNED_BYTE, junk );
+			}
 			Mem_Free( junk );
 
-			qglCopyTexSubImage2D( GL_TEXTURE_2D, 0, 0, 0, x, y, imageWidth, imageHeight );
+			{
+				idHitchScope hitch("bloom_copy_pixels", imgName.c_str(), traceBloom);
+				qglCopyTexSubImage2D( GL_TEXTURE_2D, 0, 0, 0, x, y, imageWidth, imageHeight );
+			}
 		}
 	} else {
 		// otherwise, just subimage upload it so that drivers can tell we are going to be changing
 		// it and don't try and do a texture compression or some other silliness
-		qglCopyTexSubImage2D( GL_TEXTURE_2D, 0, 0, 0, x, y, imageWidth, imageHeight );
+		{
+			idHitchScope hitch("bloom_copy_pixels", imgName.c_str(), traceBloom);
+			qglCopyTexSubImage2D( GL_TEXTURE_2D, 0, 0, 0, x, y, imageWidth, imageHeight );
+		}
 	}
 
 	// if the image isn't a full power of two, duplicate an extra row and/or column to fix bilerps
 	if ( imageWidth != potWidth ) {
-		qglCopyTexSubImage2D( GL_TEXTURE_2D, 0, imageWidth, 0, x+imageWidth-1, y, 1, imageHeight );
+		{
+			idHitchScope hitch("bloom_copy_edge", imgName.c_str(), traceBloom);
+			qglCopyTexSubImage2D( GL_TEXTURE_2D, 0, imageWidth, 0, x+imageWidth-1, y, 1, imageHeight );
+		}
 	}
 	if ( imageHeight != potHeight ) {
-		qglCopyTexSubImage2D( GL_TEXTURE_2D, 0, 0, imageHeight, x, y+imageHeight-1, imageWidth, 1 );
+		{
+			idHitchScope hitch("bloom_copy_edge", imgName.c_str(), traceBloom);
+			qglCopyTexSubImage2D( GL_TEXTURE_2D, 0, 0, imageHeight, x, y+imageHeight-1, imageWidth, 1 );
+		}
 	}
 
 	qglTexParameterf( GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR );
