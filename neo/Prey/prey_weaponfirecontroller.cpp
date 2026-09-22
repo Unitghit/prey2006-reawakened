@@ -384,6 +384,8 @@ hhWeaponFireController::GetAmmoType
 ================
 */
 ammo_t hhWeaponFireController::GetAmmoType( const char *ammoname ) {
+	if (!idStr::Icmp(ammoname, "ammo_d3shells")) { return idWeapon::GetAmmoNumForName(ammoname); }
+
 	int num;
 	const idDict *ammoDict;
 
@@ -452,6 +454,14 @@ void hhWeaponFireController::Restore( idRestoreGame *savefile ) {
 	savefile->ReadString( scriptFunction );
 
 	savefile->ReadInt( reinterpret_cast<int &> ( ammoType ) );
+	// Legacy saves serialized the shotgun's rifle-ammo controller. Keep its
+	// animation/script state and magazine, but update its stable ammo identity.
+	if (!gameLocal.isMultiplayer && !*cvarSystem->GetCVarString("fs_game") && dict &&
+		!idStr::Icmp(dict->GetString("def_projectile"), "projectile_d3shotgun")) {
+		const idDict *addon = gameLocal.FindEntityDefDict("weaponobj_d3shotgun", false);
+		if (addon && addon->GetBool("rw_splitAmmo")) { ammoType = idWeapon::GetAmmoNumForName("ammo_d3shells"); }
+	}
+
 	savefile->ReadInt( clipSize );
 	savefile->ReadInt( ammoClip );
 	savefile->ReadInt( lowAmmo );

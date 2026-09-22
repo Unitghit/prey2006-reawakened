@@ -303,6 +303,10 @@ void hhPlayer::SynchronizeDoom3Shotgun() {
 				currentWeapon, idealWeapon, health, GetOrigin().ToString() );
 		}
 	}
+	if (inventory.SynchronizeWeaponAmmo(this)) {
+		SetupWeaponInfo();
+		if (weapon.IsValid()) { weapon->ClampAmmoClips(); }
+	}
 	// Follow the rifle's authored lock state, including cinematics and spirit
 	// sequences. Enabling a mod must never unlock weapons in a scripted scene.
 	if ( enabled && (weaponFlags & HH_WEAPON_RIFLE) ) {
@@ -997,6 +1001,7 @@ void hhPlayer::UpdateHudAmmo(idUserInterface *_hud) {
 			va("textures/interface/icons/%s", groupIcons[group - 1]);
 		_hud->SetStateString(va("rw_weapon%d_material", group), material);
 	}
+	const bool splitAmmo = inventory.SplitRifleAmmo(this);
 	float ammoPct, altPct;
 	int ammoType, altAmmoType;
 	float ammo, altAmmo;
@@ -1040,7 +1045,7 @@ void hhPlayer::UpdateHudAmmo(idUserInterface *_hud) {
 		_hud->SetStateBool (va("weapon%d_held", rover), bHeld);
 		_hud->SetStateBool (va("weapon%d_ammolow", rover), ammoLow);
 		_hud->SetStateBool (va("weapon%d_altammolow", rover), altAmmoLow);
-		_hud->SetStateFloat(va("weapon%d_ammo", rover), ammoPct);
+		_hud->SetStateFloat(va("weapon%d_ammo", rover), splitAmmo ? Min(1.0f, ammoPct) : ammoPct);
 		_hud->SetStateFloat(va("weapon%d_altammo", rover), altPct);
 		_hud->SetStateBool (va("weapon%d_ammoempty", rover), ammoType != 0 && ammo == 0 && altAmmo == 0);
 	}
@@ -1085,7 +1090,7 @@ void hhPlayer::UpdateHudAmmo(idUserInterface *_hud) {
 		_hud->SetStateBool( "player_ammobar", ammoType != 0);
 		_hud->SetStateBool( "player_altammobar", altAmmoType != 0 && altAmmoType != ammoType );
 
-		_hud->SetStateFloat( "player_ammopercent", ammoPct );
+		_hud->SetStateFloat( "player_ammopercent", splitAmmo ? Min(1.0f, ammoPct) : ammoPct );
 		_hud->SetStateFloat( "player_altammopercent", altPct );
 		_hud->SetStateString( "player_ammoamounttext", ammo<0 ? "" : va("%d", ammo) );
 		_hud->SetStateString( "player_altammoamounttext", altAmmo<0 ? "" : va("%d", altAmmo) );

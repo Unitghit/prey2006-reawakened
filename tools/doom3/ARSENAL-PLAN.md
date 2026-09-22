@@ -2,7 +2,8 @@
 
 Agreed arsenal design. The save-compatibility foundation is implemented using
 the shotgun. Shared selection and HUD colors are implemented for the rifle /
-shotgun group; the remaining weapons, split ammunition and full modes are planned. See README.md for installation and compatibility details.
+shotgun group, with independent reserves and split pickup allocation. The remaining
+weapons and full modes are planned. See README.md for installation and compatibility details.
 
 ## Launcher modes
 
@@ -45,9 +46,12 @@ counterparts for weapons already owned when enabling a mode on an existing save.
 Each acquired, enabled weapon gets an equal share of its group's supply budget,
 expressed relative to that weapon's full reserve, not equal bullet counts.
 Divide reserve capacities and incoming supplies by the active group size.
-Preserve fractional pickup credit. Redistribute supplies from full reserves to
-other reserves in the same group that have room. Redistribute normalized supply
-when group membership changes; do not create or delete supply by mode toggling.
+Preserve fractional pickup credit. Redistribute incoming pickup supplies from
+full reserves to other reserves in the same group that have room. Once acquired,
+ammunition belongs exclusively to its gun: firing/reloading must never consume
+another gun's ammo. Mode toggles retain dormant reserves without conversion or
+refills. Existing shared-ammo prototype saves receive a one-time normalized split.
+Retain legitimate over-cap ammunition after mode changes until it is spent.
 Track magazines correctly so switching weapons cannot duplicate loaded ammo.
 
 Route authored ammo pickups and dynamic dispenser supplies through the same
@@ -93,7 +97,9 @@ Reawakened binary that lacks the added weapon classes.
 2. Completed for rifle / shotgun: group metadata, rifle-pickup unlock, number-key
    and wheel/controller selection, original HUD with colored highlights and silhouettes.
    Extend the same registry/unlock rules as each remaining weapon is imported.
-3. Implement normalized ammo allocation, magazines and dispenser integration.
+3. Implemented for rifle / shotgun: independent reserves, normalized pickups,
+   fractional credit, overflow and cabinet demand, migration and persistence.
+   Extend allocation metadata when importing each remaining gun.
 4. Import and adapt each remaining gun, including expansion Super Shotgun.
 5. Complete Doom-only campaign interactions and native launcher modes.
 6. Validate old normal saves, legacy prototype saves, new saves with an added

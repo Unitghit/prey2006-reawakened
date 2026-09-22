@@ -224,8 +224,101 @@ void hhInventory::RestoreInventory( idPlayer *owner, const idDict &dict ) {
 	weaponPulse = false;
 }
 
+// Fractional pickup credit lives in the already-serialized player dictionary.
+// Integer ammo totals include loaded rounds, as in the original engine.
+static double WeaponAmmoFraction(const hhPlayer *player, int index) {
+	return atof(player->spawnArgs.GetString(va("rw_weapon_ammo_fraction_%d", index), "0"));
+}
+static void StoreWeaponAmmo(hhPlayer *player, int index, double total) {
+	const int whole = (int)floor(total + 1e-9);
+	player->inventory.ammo[index] = whole;
+	const double fraction = Max(0.0, total - whole);
+	player->spawnArgs.Set(va("rw_weapon_ammo_fraction_%d", index), va("%.17g", fraction));
+}
+
+bool hhInventory::UsesIndependentWeaponAmmo(const idPlayer *owner) const {
+	if (!owner || gameLocal.isMultiplayer || *cvarSystem->GetCVarString("fs_game")) { return false; }
+	const idDict *addon = gameLocal.FindEntityDefDict("weaponobj_d3shotgun", false);
+	return addon && addon->GetBool("rw_saveCompatible") && addon->GetBool("rw_splitAmmo");
+}
+bool hhInventory::SplitRifleAmmo(const idPlayer *owner) const {
+	return UsesIndependentWeaponAmmo(owner) && cvarSystem->GetCVarBool("g_doom3Shotgun") &&
+		owner->spawnArgs.GetBool("rw_weapon_ammo_initialized") &&
+		owner->spawnArgs.GetBool("rw_weapon_d3shotgun_owned");
+}
+bool hhInventory::SynchronizeWeaponAmmo(hhPlayer *owner) {
+	if (!UsesIndependentWeaponAmmo(owner)) { return false; }
+	bool changed = false;
+	if (cvarSystem->GetCVarBool("g_doom3Shotgun") && owner->spawnArgs.GetBool("rw_weapon_d3shotgun_owned") &&
+		!owner->spawnArgs.GetBool("rw_weapon_ammo_initialized")) {
+		const int rifle = AmmoIndexForAmmoClass("ammo_rifle");
+		const int shells = AmmoIndexForAmmoClass("ammo_d3shells");
+		const int rifleFull = idInventory::MaxAmmoForAmmoClass(owner, "ammo_rifle");
+		const idDict *addon = gameLocal.FindEntityDefDict("weaponobj_d3shotgun", false);
+		const int shellFull = addon->GetInt("rw_ammoCapacity", "320");
+		if (ammo[rifle] < 0) { ammo[shells] = -1; }
+		else if (rifleFull > 0 && shellFull > 0) {
+			const double total = ammo[rifle] + WeaponAmmoFraction(owner, rifle);
+			StoreWeaponAmmo(owner, rifle, total * 0.5);
+			StoreWeaponAmmo(owner, shells, total * 0.5 * shellFull / rifleFull);
+		}
+		owner->spawnArgs.SetBool("rw_weapon_ammo_initialized", true);
+		// Older prototype magazines referenced the same total. They are not
+		// extra ammunition and must fit in the newly independent totals.
+		if (ammo[rifle] >= 0 && clip[2] > ammo[rifle]) { clip[2] = ammo[rifle]; }
+		if (ammo[shells] >= 0 && clip[8] > ammo[shells]) { clip[8] = ammo[shells]; }
+		changed = true;
+	}
+	const bool active = SplitRifleAmmo(owner);
+	if (owner->spawnArgs.GetInt("rw_weapon_ammo_split_active", "-1") != int(active)) {
+		owner->spawnArgs.SetBool("rw_weapon_ammo_split_active", active);
+		changed = true;
+	}
+	return changed;
+}
+
+bool hhInventory::GiveRifleGroupAmmo(hhPlayer *owner, int amount) {
+	if (amount <= 0) { return false; }
+	const int indices[] = { AmmoIndexForAmmoClass("ammo_rifle"), AmmoIndexForAmmoClass("ammo_d3shells") };
+	const idDict *addon = gameLocal.FindEntityDefDict("weaponobj_d3shotgun", false);
+	const double full[] = { double(idInventory::MaxAmmoForAmmoClass(owner, "ammo_rifle")),
+		double(addon->GetInt("rw_ammoCapacity", "320")) };
+	if (full[0] <= 0 || full[1] <= 0) { return false; }
+	double totals[2], room[2];
+	for (int i = 0; i < 2; ++i) {
+		totals[i] = ammo[indices[i]] + WeaponAmmoFraction(owner, indices[i]);
+		room[i] = ammo[indices[i]] < 0 ? 0.0 : Max(0.0, 0.5 - totals[i] / full[i]);
+	}
+	double budget = amount / full[0], accepted = 0;
+	// Equal normalized shares. Only incoming pickup supply may overflow into
+	// another reserve; already-acquired bullets/shells never transfer.
+	for (int pass = 0; pass < 2 && budget > 1e-12; ++pass) {
+		int recipients = 0;
+		for (int i = 0; i < 2; ++i) { if (room[i] > 1e-12) { ++recipients; } }
+		if (!recipients) { break; }
+		const double share = budget / recipients;
+		for (int i = 0; i < 2; ++i) {
+			const double grant = Min(room[i], share);
+			totals[i] += grant * full[i]; room[i] -= grant; budget -= grant; accepted += grant;
+		}
+	}
+	if (accepted <= 1e-12) { return false; }
+	for (int i = 0; i < 2; ++i) { if (ammo[indices[i]] >= 0) { StoreWeaponAmmo(owner, indices[i], totals[i]); } }
+	ammoPulse = true;
+	return true;
+}
+
 int hhInventory::MaxAmmoForAmmoClass( idPlayer *owner, const char *ammo_classname ) const {
 	int max = 0;
+	if (ammo_classname && UsesIndependentWeaponAmmo(owner)) {
+		if (!idStr::Icmp(ammo_classname, "ammo_d3shells")) {
+			const idDict *addon = gameLocal.FindEntityDefDict("weaponobj_d3shotgun", false);
+			return addon->GetInt("rw_ammoCapacity", "320") / (SplitRifleAmmo(owner) ? 2 : 1);
+		}
+		if (!idStr::Icmp(ammo_classname, "ammo_rifle") && SplitRifleAmmo(owner)) {
+			return idInventory::MaxAmmoForAmmoClass(owner, ammo_classname) / 2;
+		}
+	}
 	if (ammo_classname != NULL) {
 		if (!idStr::Icmp(ammo_classname, "ammo_spiritpower")) {
 			max = maxSpirit;
@@ -272,7 +365,7 @@ bool hhInventory::Give( idPlayer *owner, const idDict &spawnArgs, const char *st
 	bool					tookWeapon;
 	int						amount;
 	idItemInfo				info;
-	hhPlayer*				playerOwner;
+	hhPlayer*				playerOwner = NULL;
 
 
 	if( owner && owner->IsType( hhPlayer::Type ) ) {
@@ -298,6 +391,10 @@ bool hhInventory::Give( idPlayer *owner, const idDict &spawnArgs, const char *st
 			playerOwner->healthPulse = true;
 		}
 	} else if ( !idStr::Icmpn( statname, "ammo_", 5 ) ) {
+		if (playerOwner && !idStr::Icmp(statname, "ammo_rifle") && UsesIndependentWeaponAmmo(owner)) {
+			playerOwner->SynchronizeDoom3Shotgun();
+			if (SplitRifleAmmo(owner)) { return GiveRifleGroupAmmo(playerOwner, atoi(value)); }
+		}
 		i = AmmoIndexForAmmoClass( statname );
 		max = MaxAmmoForAmmoClass( owner, statname );
 		if ( ammo[ i ] >= max ) {
@@ -512,6 +609,15 @@ bool hhInventory::UseAmmo( ammo_t type, int amount ) {
 }
 
 float hhInventory::AmmoPercentage(idPlayer *player, ammo_t type) {
+	if (SplitRifleAmmo(player) && type == AmmoIndexForAmmoClass("ammo_rifle")) {
+		const int shells = AmmoIndexForAmmoClass("ammo_d3shells");
+		const float rifleMax = Max(1, MaxAmmoForAmmoClass(player, "ammo_rifle"));
+		const float shellMax = Max(1, MaxAmmoForAmmoClass(player, "ammo_d3shells"));
+		const float riflePct = ammo[type] < 0 ? 1.0f : idMath::ClampFloat(0, 1, ammo[type] / rifleMax);
+		const float shellPct = ammo[shells] < 0 ? 1.0f : idMath::ClampFloat(0, 1, ammo[shells] / shellMax);
+		return 0.5f * (riflePct + shellPct);
+	}
+
 	float amount = ammo[type];
 	const char *ammoName = idWeapon::GetAmmoNameForNum( type );
 	float max_percent = MaxAmmoForAmmoClass( player, ammoName );

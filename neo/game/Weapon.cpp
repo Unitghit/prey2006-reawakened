@@ -2135,6 +2135,10 @@ idWeapon::GetAmmoNumForName
 ================
 */
 ammo_t idWeapon::GetAmmoNumForName( const char *ammoname ) {
+	// Stable unused inventory index; do not grow serialized ammo arrays.
+	if (!gameLocal.isMultiplayer && !*cvarSystem->GetCVarString("fs_game") &&
+		!idStr::Icmp(ammoname, "ammo_d3shells")) { return (ammo_t)10; }
+
 	int num;
 	const idDict *ammoDict;
 
@@ -2166,6 +2170,10 @@ idWeapon::GetAmmoNameForNum
 ================
 */
 const char *idWeapon::GetAmmoNameForNum( ammo_t ammonum ) {
+	if (!gameLocal.isMultiplayer && !*cvarSystem->GetCVarString("fs_game") && ammonum == 10) {
+		return "ammo_d3shells";
+	}
+
 	int i;
 	int num;
 	const idDict *ammoDict;

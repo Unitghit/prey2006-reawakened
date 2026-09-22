@@ -168,6 +168,7 @@ class hhWeapon: public hhAnimatedEntity {
 		idVec3				GetMuzzlePosition() const { return fireController->GetMuzzlePosition(); }
 		idVec3				GetAltMuzzlePosition() const { return altFireController->GetMuzzlePosition(); }
 
+		void ClampAmmoClips();
 		void				SnapDown();
 		void				SnapUp();
 

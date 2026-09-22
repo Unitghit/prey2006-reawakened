@@ -2111,6 +2111,12 @@ int	hhWeapon::AmmoAvailable( void ) const {
 hhWeapon::AmmoInClip
 ==============================
 */
+void hhWeapon::ClampAmmoClips() {
+	// AddToClip(0) clamps to the available total without granting ammunition.
+	if (fireController && fireController->ClipSize() > 0 && fireController->AmmoAvailable() >= 0) { fireController->AddToClip(0); }
+	if (altFireController && altFireController->ClipSize() > 0 && altFireController->AmmoAvailable() >= 0) { altFireController->AddToClip(0); }
+}
+
 int	hhWeapon::AmmoInClip( void ) const {
 	return (fireController) ? fireController->AmmoInClip() : 0;
 }

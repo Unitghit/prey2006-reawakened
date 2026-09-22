@@ -2,7 +2,8 @@
 
 An optional additional weapon for Prey2006 Reawakened. It shares HUD slot 2
 with the Hunter Rifle. Press 2 repeatedly to cycle between them. Prey's weapons remain
-available. The first prototype shares rifle ammunition and uses Prey HUD artwork
+available. The historical standalone prototype shares rifle ammunition; compatible installs
+use independent bullet/shell reserves and Prey HUD artwork
 with an orange selection highlight and silhouette for the shotgun. It is single-player experimental work, not a finished arsenal
 conversion. The expansion's double-barrel shotgun has not been implemented.
 
@@ -27,8 +28,24 @@ Enable **Gameplay > Doom 3 shotgun > Enabled (prototype)** in the launcher.
 The save-compatible build uses the normal campaign save folder in both modes.
 Owning the Hunter Rifle makes the shotgun available in group 2. Disabling the
 option hides it and returns to an owned Prey weapon, retaining its magazine.
-Ammo is still shared with the rifle; the normalized split ammo budget is a
-separate upcoming step. Number keys cycle within groups. Wheel and controller
+Compatible installs now split rifle-ammo pickups into **independent bullets and
+shells**. With both guns available, capacities are 75 rifle rounds and 160
+shells (half of their original 150/320 capacities). A 30-round rifle pickup gives
+15 bullets plus 32 shells if both reserves have room. This preserves normalized
+supply, not equal raw counts. Incoming overflow goes to the other gun if one is
+full; fractional rounds carry forward to later pickups and survive saves.
+
+Firing/reloading never draws from the other gun's reserve. Prey's inventory
+totals include loaded rounds, so a reload changes the magazine without adding
+ammunition. Old shared-ammo saves are migrated once; their existing total is
+split proportionally, and loaded magazines are clamped if necessary. Disabling
+the shotgun retains its shells and magazine. Re-enabling does not split again,
+convert ammo or refill anything. Legitimate rifle ammo above the enabled cap is
+retained until spent. Rifle sniper ammunition and the original low-ammo puzzle
+recharge remain dedicated to the rifle. Dynamic cabinets consider both primary
+reserves when deciding whether to offer rifle-group supplies.
+
+Number keys cycle within groups. Wheel and controller
 weapon cycling visit each available weapon in group order. Internal saved
 index 8 remains unchanged; scripts still select exact internal weapon indices.
 The existing HUD layout, fade timing and absence of weapon-name popups remain.
@@ -134,3 +151,19 @@ copies its seed, launches hidden and muted, and asserts unchanged ammo, magazine
 health and position across the three mode states. It never runs in the player's
 profile. Launcher verification separately checks that legacy save migration
 preserves originals and existing destination files.
+
+## Independent-ammo regression
+
+`test_weapon_ammo.ps1` takes the same Engine, PreyAssets, CampaignSave and fresh
+Output parameters as the compatibility test. It verifies fractional awards,
+independent spending, overflowing pickups, full-reserve rejection, save/load
+and repeated mode toggles. Developer-only `weaponAmmoInfo` operations support
+these isolated checks. `norecharge` disables the retail rifle safety recharge
+only on that test player so it cannot be mistaken for ammunition duplication.
+
+Additional hidden playtests fired both guns, reloaded the shotgun, loaded an
+active legacy shotgun, crossed a real end-level target, and activated authored
+rifle-ammo items. The rifle remained at 75 while a shotgun blast spent one of
+160 shells; a rifle shot spent one bullet without changing shells. Reloading
+changed the magazine without changing either total. A one-round legacy save
+migrated to a one-shell magazine, not eight free shells. All tests were muted.

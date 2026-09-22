@@ -6,6 +6,10 @@
 class hhInventory : public idInventory {
 
 public:
+	bool UsesIndependentWeaponAmmo(const idPlayer *owner) const;
+	bool SplitRifleAmmo(const idPlayer *owner) const;
+	bool SynchronizeWeaponAmmo(hhPlayer *owner);
+	bool GiveRifleGroupAmmo(hhPlayer *owner, int amount);
 	virtual void		GetPersistantData( idDict &dict );
 	virtual void		RestoreInventory( idPlayer *owner, const idDict &dict );
 	virtual bool		Give( idPlayer *owner, const idDict &spawnArgs, const char *statname, const char *value, int *idealWeapon, bool updateHud );

@@ -2574,7 +2574,36 @@ static void Cmd_WeaponPackInfo_f( const idCmdArgs &args ) {
 		player->GetOrigin().ToString());
 }
 
+// Read-only unless an explicit developer test operation is supplied.
+static void Cmd_WeaponAmmoInfo_f(const idCmdArgs &args) {
+	hhPlayer *player = static_cast<hhPlayer *>(gameLocal.GetLocalPlayer());
+	if (!player || !player->inventory.UsesIndependentWeaponAmmo(player)) { return; }
+	player->SynchronizeDoom3Shotgun();
+	const ammo_t rifle = idWeapon::GetAmmoNumForName("ammo_rifle");
+	const ammo_t shells = idWeapon::GetAmmoNumForName("ammo_d3shells");
+	if (cvarSystem->GetCVarBool("developer")) {
+		if (args.Argc() == 4 && !idStr::Icmp(args.Argv(1), "seed")) {
+			player->inventory.ammo[rifle] = Max(0, atoi(args.Argv(2)));
+			player->inventory.ammo[shells] = Max(0, atoi(args.Argv(3)));
+			player->spawnArgs.Set("rw_weapon_ammo_fraction_5", "0");
+			player->spawnArgs.Set("rw_weapon_ammo_fraction_10", "0");
+		} else if (args.Argc() == 3) {
+			if (!idStr::Icmp(args.Argv(1), "pickup")) {
+				gameLocal.Printf("AMMOPICKUP accepted=%d\n", player->Give("ammo_rifle", args.Argv(2)));
+			} else if (!idStr::Icmp(args.Argv(1), "useRifle")) { player->UseAmmo(rifle, Max(0, atoi(args.Argv(2)))); }
+			else if (!idStr::Icmp(args.Argv(1), "useShells")) { player->UseAmmo(shells, Max(0, atoi(args.Argv(2)))); }
+		} else if (args.Argc() == 2 && !idStr::Icmp(args.Argv(1), "reload")) { player->PerformImpulse(IMPULSE_13); }
+		else if (args.Argc() == 2 && !idStr::Icmp(args.Argv(1), "norecharge")) { player->spawnArgs.SetInt("rifleAmmoRechargeMax", 0); }
+	}
+	gameLocal.Printf("AMMOPOOL rifle=%d shells=%d rifleMax=%d shellMax=%d rifleFraction=%s shellFraction=%s clip=%d split=%d need=%.6f\n",
+		player->inventory.ammo[rifle], player->inventory.ammo[shells],
+		player->inventory.MaxAmmoForAmmoClass(player, "ammo_rifle"), player->inventory.MaxAmmoForAmmoClass(player, "ammo_d3shells"),
+		player->spawnArgs.GetString("rw_weapon_ammo_fraction_5", "0"), player->spawnArgs.GetString("rw_weapon_ammo_fraction_10", "0"),
+		player->inventory.clip[8], player->inventory.SplitRifleAmmo(player), player->inventory.AmmoPercentage(player, rifle));
+}
+
 void idGameLocal::InitConsoleCommands( void ) {
+	cmdSystem->AddCommand("weaponAmmoInfo", Cmd_WeaponAmmoInfo_f, CMD_FL_GAME, "show independent ammo pools; developer: seed, pickup, useRifle, useShells, reload");
 	cmdSystem->AddCommand( "weaponPackInfo", Cmd_WeaponPackInfo_f, CMD_FL_GAME, "show addon state; developer: slot, key1..7, next, prev, spirit" );
 	cmdSystem->AddCommand( "game_memory",			idClass::DisplayInfo_f,		CMD_FL_GAME,				"displays game class info" );
 	cmdSystem->AddCommand( "listClasses",			idClass::ListClasses_f,		CMD_FL_GAME,				"lists game classes" );
