@@ -93,12 +93,33 @@ unsigned int Sys_Milliseconds() {
 	return SDL_GetTicks();
 }
 
+double Sys_PresentationMilliseconds() {
+#if SDL_MAJOR_VERSION >= 2
+	struct presentationClock_t {
+		Uint64 counter;
+		double milliseconds, scale;
+		presentationClock_t() {
+			scale = 1000.0 / (double)SDL_GetPerformanceFrequency();
+			milliseconds = (double)SDL_GetTicks();
+			counter = SDL_GetPerformanceCounter();
+		}
+	};
+	// Keep the initial sub-millisecond phase error constant; never re-anchor
+	// each frame or each tick, which would reintroduce millisecond stepping.
+	static const presentationClock_t clock;
+	return clock.milliseconds + (double)(SDL_GetPerformanceCounter() - clock.counter) * clock.scale;
+#else
+	return Sys_Milliseconds();
+#endif
+}
+
 /*
 ==================
 Sys_InitThreads
 ==================
 */
 void Sys_InitThreads() {
+	Sys_PresentationMilliseconds();
 	mainThreadID = SDL_GetCurrentThreadID();
 	mainThreadIDset = true;
 

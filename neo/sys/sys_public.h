@@ -160,6 +160,8 @@ void			Sys_Sleep( int msec );
 // Sys_Milliseconds should only be used for profiling purposes,
 // any game related timing information should come from event timestamps
 unsigned int	Sys_Milliseconds( void );
+// Fractional presentation time, anchored once to the SDL millisecond epoch.
+double Sys_PresentationMilliseconds( void );
 
 // returns a selection of the CPUID_* flags
 int				Sys_GetProcessorId( void );

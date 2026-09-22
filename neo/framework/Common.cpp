@@ -2571,8 +2571,13 @@ float Com_PresentationFraction( int gameTic ) {
 	const int tick = com_ticNumber;
 	const int timestamp = presentationTickMsec;
 	Sys_LeaveCriticalSection();
-	return idMath::ClampFloat( 0.0f, 1.0f,
-		( Sys_Milliseconds() - timestamp ) / (float)USERCMD_MSEC + tick - gameTic );
+	const double now = Sys_PresentationMilliseconds();
+	const float fraction = idMath::ClampFloat( 0.0f, 1.0f,
+		(float)( ( now - timestamp ) / USERCMD_MSEC + tick - gameTic ) );
+	if ( cvarSystem->GetCVarBool( "com_fpsTrace" ) ) {
+		common->Printf( "CAMERA_TIMING %.6f %d %d %d %.6f\n", now, timestamp, tick, gameTic, fraction );
+	}
+	return fraction;
 }
 
 void idCommonLocal::SingleAsyncTic( void ) {

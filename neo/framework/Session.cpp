@@ -2631,24 +2631,31 @@ void idSessionLocal::Frame() {
 		if ( cap != presentationCap && com_maxFPS.GetInteger() < 0 ) {
 			common->Printf( "Match Display: %d FPS\n", cap );
 		}
-		const double now = Sys_Milliseconds();
+		const double now = Sys_PresentationMilliseconds();
 		if ( cap != presentationCap || nextPresentationMsec == 0.0 ||
 			now > nextPresentationMsec + 100.0 || now < nextPresentationMsec - 1000.0 ) {
 			nextPresentationMsec = now;
 		}
 		presentationCap = cap;
 		if ( cap > 0 ) {
-			int delay;
-			while ( ( delay = (int)( nextPresentationMsec - Sys_Milliseconds() ) ) > 0 ) {
-				Sys_Sleep( delay );
+			double remaining;
+			while ( ( remaining = nextPresentationMsec - Sys_PresentationMilliseconds() ) > 0.0 ) {
+				// Sleep for the coarse portion, yielding through the final fraction.
+				Sys_Sleep( remaining >= 1.0 ? (int)remaining : 0 );
 			}
 			// Fractional deadlines avoid rounding 144 Hz to a permanent 7 ms interval.
 			nextPresentationMsec += 1000.0 / cap;
-			if ( nextPresentationMsec < Sys_Milliseconds() ) {
-				nextPresentationMsec = Sys_Milliseconds();
+			if ( nextPresentationMsec < Sys_PresentationMilliseconds() ) {
+				nextPresentationMsec = Sys_PresentationMilliseconds();
 			}
 		} else {
 			nextPresentationMsec = 0.0;
+		}
+		if ( !com_asyncInput.GetBool() && eventLoop->JournalLevel() == 0 ) {
+			// Collect motion arriving during the limiter wait before building the
+			// next usercmd. Do not execute the command buffer a second time.
+			Sys_GenerateEvents();
+			eventLoop->RunEventLoop( false );
 		}
 		minTic = latchedTicNumber;
 	} else {
