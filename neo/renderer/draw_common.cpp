@@ -29,6 +29,7 @@ If you have questions concerning this license or the applicable additional terms
 #pragma hdrstop
 
 #include "tr_local.h"
+#include "../framework/HitchTrace.h"
 
 static bool rbDrawingGlow = false;
 
@@ -2375,47 +2376,87 @@ void	RB_STD_DrawView( void ) {
 	drawSurfs = (drawSurf_t **)&backEnd.viewDef->drawSurfs[0];
 	numDrawSurfs = backEnd.viewDef->numDrawSurfs;
 
+	const char *hitchView = !backEnd.viewDef->viewEntitys ? "gui" :
+		(backEnd.viewDef->isSubview ? "subview" : "main");
 	int glowWidth = 0, glowHeight = 0;
-	const bool retailGlow = RB_GlowPrepareRetail( drawSurfs, numDrawSurfs, glowWidth, glowHeight );
+	bool retailGlow;
+	{
+		idHitchScope hitch("draw_bloom_prepare", hitchView);
+		retailGlow = RB_GlowPrepareRetail( drawSurfs, numDrawSurfs, glowWidth, glowHeight );
+	}
 
 	// clear the z buffer, set the projection matrix, etc
-	RB_BeginDrawingView();
+	{
+		idHitchScope hitch("draw_setup", hitchView);
+		RB_BeginDrawingView();
+	}
 
 	// decide how much overbrighting we are going to do
-	RB_DetermineLightScale();
+	{
+		idHitchScope hitch("draw_light_setup", hitchView);
+		RB_DetermineLightScale();
+	}
 
 	// fill the depth buffer and clear color buffer to black except on
 	// subviews
-	RB_STD_FillDepthBuffer( drawSurfs, numDrawSurfs );
+	{
+		idHitchScope hitch("draw_depth", hitchView);
+		RB_STD_FillDepthBuffer( drawSurfs, numDrawSurfs );
+	}
 
 	// main light renderer
-	RB_ARB2_DrawInteractions();
+	{
+		idHitchScope hitch("draw_lighting_shadows", hitchView);
+		RB_ARB2_DrawInteractions();
+	}
 
 	// disable stencil shadow test
 	qglStencilFunc( GL_ALWAYS, 128, 255 );
 
 	// uplight the entire screen to crutch up not having better blending range
-	RB_STD_LightScale();
+	{
+		idHitchScope hitch("draw_light_scale", hitchView);
+		RB_STD_LightScale();
+	}
 
 	// now draw any non-light dependent shading passes
-	int	processed = RB_STD_DrawShaderPasses( drawSurfs, numDrawSurfs );
+	int processed;
+	{
+		idHitchScope hitch("draw_materials", hitchView);
+		processed = RB_STD_DrawShaderPasses( drawSurfs, numDrawSurfs );
+	}
 
 	// fob and blend lights
-	RB_STD_FogAllLights();
+	{
+		idHitchScope hitch("draw_fog", hitchView);
+		RB_STD_FogAllLights();
+	}
 
 	if ( !retailGlow ) {
-		RB_STD_GlowOverlay( drawSurfs, processed );
+		{
+			idHitchScope hitch("draw_bloom_legacy", hitchView);
+			RB_STD_GlowOverlay( drawSurfs, processed );
+		}
 	}
 
 	// now draw any post-processing effects using _currentRender
 	if ( processed < numDrawSurfs ) {
-		RB_STD_DrawShaderPasses( drawSurfs+processed, numDrawSurfs-processed );
+		{
+			idHitchScope hitch("draw_postprocess", hitchView);
+			RB_STD_DrawShaderPasses( drawSurfs+processed, numDrawSurfs-processed );
+		}
 	}
 
 	if ( retailGlow ) {
-		RB_GlowOverlayRetail( glowWidth, glowHeight );
+		{
+			idHitchScope hitch("draw_bloom_composite", hitchView);
+			RB_GlowOverlayRetail( glowWidth, glowHeight );
+		}
 	}
 
-	RB_RenderDebugTools( drawSurfs, numDrawSurfs );
+	{
+		idHitchScope hitch("draw_debug", hitchView);
+		RB_RenderDebugTools( drawSurfs, numDrawSurfs );
+	}
 
 }

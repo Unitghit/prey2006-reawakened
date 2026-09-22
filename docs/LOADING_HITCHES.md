@@ -119,3 +119,5 @@ byte-for-byte after reload. Both source builds and native launcher verification 
 ### Save and rendering stage diagnostics
 
 The existing hitch trace also measures save-state serialization and writes, save-file close, and thumbnail generation. Thumbnail capture separates GPU pixel readback from TGA writing. Rendering separates frame setup, scene/GUI preparation, backend commands, individual views/copies, explicit GPU waits, and buffer presentation. Scopes below 2 ms are omitted. Nested durations overlap and must not be summed; these are CPU elapsed times, including driver waits and scheduling, not GPU timer queries. No extra GPU synchronization is introduced.
+
+Scene drawing now reports `draw_*` scopes for view setup, depth, lighting/shadows, materials, fog, bloom preparation/compositing, postprocessing, and debug drawing. Labels identify main, subview, or GUI views. This narrows CPU-side stalls inside `render_view`; driver backpressure can occur in any GL pass, so a slow pass is not proof that its GPU work is the root cause. No forced GPU synchronization is added.
