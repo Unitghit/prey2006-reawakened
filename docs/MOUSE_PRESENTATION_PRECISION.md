@@ -1,6 +1,6 @@
 # Fractional mouse presentation
 
-Smooth motion now enables g_lateMouse with the existing interpolation bundle.
+The launcher forces g_lateMouse off. An initial default-on trial did not improve the reported mouse feel and caused visible reticle displacement during rapid shaking; it was reverted. Smooth motion continues to control the original interpolation bundle only.
 Sensitivity is unchanged. GetPresentationLook retains fractional accumulated
 angles rather than re-quantizing them to the 16-bit command format. MakeCurrent
 normalizes accumulated angles after the pitch-delta clamp, avoiding loss of
@@ -19,3 +19,5 @@ cover repeated non-consuming reads, inversion, smoothing and menu inhibition.
 A visualjolt test covers nonstandard gravity. These are functional traces, not
 physical mouse latency measurements. Actual mouse counts and sensitivity still
 determine the angular size of each hardware movement.
+
+User playtesting supersedes the narrow diagnostic result: fractional preview is not a confirmed fix for the reported blocky aiming. The opt-in diagnostic path remains available but is not selected by the launcher. Saved sensitivity 5 and m_yaw/m_pitch 0.022 produce 0.11 degrees per raw count before scope scaling. No sensitivity change was made.

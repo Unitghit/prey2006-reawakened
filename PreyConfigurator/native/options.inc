@@ -9,7 +9,7 @@ const std::vector<Setting>& Options() {
         {L"Graphics",L"Bloom",L"bloom",L"enhanced",L"Corrected retail bloom. Enhanced follows internal resolution; Original uses a 256 x 256 blur.",{{L"Off",L"off"},{L"Original resolution",L"original"},{L"Enhanced (default)",L"enhanced"}}},
         {L"Graphics",L"Flashlight dynamic shadows",L"g_lighterShadows",L"1",L"Dynamic shadows from the lighter. Can reduce performance in complex scenes.",{{L"Enabled",L"1"},{L"Disabled",L"0"}}},
         {L"Graphics",L"Portal render distance",L"r_portalDistanceScale",L"8",L"Viewing distance relative to original. Portal nesting stays at three layers. Longer distances can reduce performance.",{{L"1x original",L"1"},{L"2x original",L"2"},{L"3x original",L"3"},{L"4x original",L"4"},{L"8x original (default)",L"8"},{L"16x original",L"16"}}},
-        {L"Controls",L"Smooth motion",L"smoothMotion",L"1",L"Smooths camera, world objects, weapons, effects and portal transitions. Updates mouse look between simulation ticks; uses m_smooth 1.",{{L"Enabled",L"1"},{L"Disabled",L"0"}}},
+        {L"Controls",L"Smooth motion",L"smoothMotion",L"1",L"Smooths camera, world objects, weapons, effects and portal transitions.",{{L"Enabled",L"1"},{L"Disabled",L"0"}}},
         {L"Controls",L"Xbox controller support",L"in_useGamepad",L"1",L"Keyboard and mouse remain available.",{{L"Enabled",L"1"},{L"Disabled",L"0"}}},
         {L"Controls",L"Invert controller look",L"joy_invertLook",L"0",L"",{{L"Enabled",L"1"},{L"Disabled",L"0"}}},
         {L"Controls",L"Controller dead zone",L"joy_deadZone",L"0.25",L"",{{L"10%",L"0.1"},{L"15%",L"0.15"},{L"25% (default)",L"0.25"}}},
