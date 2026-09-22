@@ -49,3 +49,37 @@ Normal launcher play keeps the unlocked-framerate settings.
 Do not save after using the engine's `script` console command in a test: it adds
 a temporary `console` script source that this build cannot reopen during load.
 Use normal game controls or the existing input diagnostics for save/load tests.
+
+## Concentrated lethal blasts
+
+The optional shotgun now uses Prey's authored gib debris for ordinary Hunters,
+Fodders and Hounds when at least eight distinct pellets from one blast strike
+that enemy and that blast kills it. A fresh shot has fresh counters; corpses
+already dead at the first hit cannot qualify. Bosses, story characters,
+cinematic actors, `noDamage`, `not_gory`, and `no_shotgun_gib` exclusions remain
+protected. Gore-disabled settings take precedence.
+
+Pellets remain physical projectiles and retain normal portal behavior. The
+blast collects hits per enemy and applies pending damage after that physics
+pass, then decides whether to gib. Counts and kill attribution persist across
+physics ticks for the lifetime of the blast and are serialized with saves.
+The pellet damage definition explicitly disables individual-pellet gibbing.
+Only a qualified blast invokes the native gib path; a special damage marker
+avoids Prey's global gib-effect cooldown suppressing a second enemy's debris.
+
+Validation used hidden, muted isolated sessions. Controlled zero-spread shots
+exercise the seven/eight-hit boundary without random misses; the installed
+weapon retains its original thirteen pellets and spread of 22. The diagnostic
+`d3_shotgunTrace 1` logs target, pellet count, kill attribution, eligibility,
+gib decision, and resulting health.
+
+Validated cases for the concentrated-blast change:
+
+- Seven pellets, lethal: normal death, no gib.
+- Eight pellets, lethal: gib.
+- Thirteen pellets, nonlethal: no gib.
+- Explicit `no_shotgun_gib` target: normal death.
+- Gore disabled: no shotgun-triggered gib.
+- Original prototype save, original spread: eleven hits and a lethal gib.
+- Save/load with a live blast tracker, followed by unlocked 144 FPS rendering:
+  successful restoration and expiration without a new error.

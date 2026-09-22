@@ -301,8 +301,12 @@ void hhFireController::LaunchProjectiles( const idVec3& launchOrigin, const idMa
 			return;
 		}
 
-		hhProjectile* projectile = NULL;
-		bool clientProjectiles = dict->GetBool("net_clientProjectiles", "1");
+        idEntityPtr<hhShotgunBlast> shotgunBlast;
+        if ( !gameLocal.isMultiplayer && numProjectiles > 0 && numProjectiles <= 13 && GetProjectileDict()->GetBool("concentratedShotgunGibs") ) {
+            shotgunBlast = static_cast<hhShotgunBlast *>(gameLocal.SpawnEntityType(hhShotgunBlast::Type));
+        }
+        hhProjectile* projectile = NULL;
+        bool clientProjectiles = dict->GetBool("net_clientProjectiles", "1");
 		for( int ix = 0; ix < numProjectiles; ++ix ) {
 			if (clientProjectiles) { //HUMANHEAD rww - clientside projectiles!
 				projectile = hhProjectile::SpawnClientProjectile( GetProjectileDict() );
@@ -315,6 +319,9 @@ void hhFireController::LaunchProjectiles( const idVec3& launchOrigin, const idMa
 
 			projectile->spawnArgs.Set( "weapontype", GetSelf()->spawnArgs.GetString("ddaname", "") );
 
+            if ( shotgunBlast.IsValid() ) {
+                projectile->spawnArgs.SetInt("shotgunBlast", shotgunBlast.GetSpawnId());
+            }
 			projectile->Launch( launchOrigin, DetermineProjectileAxis(aimAxis), pushVelocity, 0.0f, 1.0f );
 		}
 	}

@@ -1,6 +1,36 @@
 #ifndef __PREY_PROJECTILE_H__
 #define __PREY_PROJECTILE_H__
 
+// A single blast owns its hit counts, including pellets arriving on later ticks.
+// Damage is flushed after projectile physics, so an early lethal pellet cannot
+// replace the target's collision model before the other pellets are traced.
+class hhShotgunBlast : public idEntity {
+    CLASS_PROTOTYPE( hhShotgunBlast );
+public:
+    void Spawn();
+    void Save( idSaveGame *file ) const;
+    void Restore( idRestoreGame *file );
+    bool QueueHit( idEntity *projectile, idEntity *target, idEntity *attacker,
+                   const idVec3 &dir, const char *damage, float scale, int location );
+private:
+    struct target_t {
+        idEntityPtr<idEntity> entity;
+        int pellets;
+        bool eligible, killed, gibbed;
+        idVec3 direction;
+    };
+    struct hit_t {
+        idEntityPtr<idEntity> inflictor, attacker, recipient;
+        int target, location;
+        idVec3 direction;
+        idStr damage;
+        float scale;
+    };
+    idList<target_t> targets;
+    idList<hit_t> pending;
+    void Event_Flush();
+};
+
 class hhBeamSystem;
 
 extern const idEventDef EV_SpawnDriverLocal;

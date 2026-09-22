@@ -116,6 +116,7 @@ typedef struct {
 } copyJoints_t;
 
 class idActor : public idAFEntity_Gibbable {
+	friend class hhShotgunBlast; // Uses the virtual gib path after a validated lethal blast.
 public:
 	CLASS_PROTOTYPE( idActor );
 

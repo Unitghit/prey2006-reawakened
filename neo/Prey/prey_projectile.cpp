@@ -3,6 +3,149 @@
 
 #include "prey_local.h"
 
+static const idEventDef EV_ShotgunBlastFlush( "<shotgunBlastFlush>" );
+CLASS_DECLARATION( idEntity, hhShotgunBlast )
+    EVENT( EV_ShotgunBlastFlush, hhShotgunBlast::Event_Flush )
+END_CLASS
+
+static bool ShotgunGibEligible( idEntity *ent ) {
+    if ( !ent || !ent->IsType(hhMonsterAI::Type) || ent->health <= 0 ||
+         ent->cinematic || gameLocal.inCinematic || !ent->fl.takedamage ||
+         ent->spawnArgs.GetBool("noDamage") || ent->spawnArgs.GetBool("not_gory") ||
+         ent->spawnArgs.GetBool("no_shotgun_gib") || ent->spawnArgs.GetInt("num_cinematics") > 0 ) {
+        return false;
+    }
+    // Only ordinary enemies with authored gib debris. Bosses, possessed people,
+    // and story characters must keep their original death behavior.
+    const char *name = ent->spawnArgs.GetString("classname");
+    const bool ordinary = !idStr::Icmpn(name, "monster_hunter", 14) ||
+        !idStr::Icmpn(name, "monster_fodder", 14) || !idStr::Icmp(name, "monster_hound");
+    return ordinary && ent->spawnArgs.GetString("def_gibDebrisSpawner")[0] &&
+        !ent->spawnArgs.GetBool("boss") && !ent->spawnArgs.GetBool("boss_bar");
+}
+
+void hhShotgunBlast::Spawn() {
+    targets.Clear();
+    pending.Clear();
+    // The imported pellets have a four-second fuse. Keep attribution alive
+    // beyond that fuse; this entity never renders or runs per-frame Think.
+    PostEventSec(&EV_Remove, 8.0f);
+}
+
+bool hhShotgunBlast::QueueHit( idEntity *projectile, idEntity *target, idEntity *attacker,
+                              const idVec3 &dir, const char *damage, float scale, int location ) {
+    idEntity *body = target;
+    if ( body->IsType(idAFAttachment::Type) ) {
+        body = static_cast<idAFAttachment *>(body)->GetBody();
+    }
+    if ( !body || !body->IsType(hhMonsterAI::Type) ) {
+        return false;
+    }
+    if ( projectile->spawnArgs.GetBool("shotgunHitQueued") ) {
+        return true;
+    }
+    projectile->spawnArgs.SetBool("shotgunHitQueued", true);
+    int index = 0;
+    for ( ; index < targets.Num(); ++index ) {
+        if ( targets[index].entity.GetEntity() == body ) break;
+    }
+    if ( index == targets.Num() ) {
+        target_t entry;
+        entry.entity = body;
+        entry.pellets = 0;
+        entry.eligible = ShotgunGibEligible(body);
+        entry.killed = entry.gibbed = false;
+        entry.direction.Zero();
+        targets.Append(entry);
+    }
+    target_t &entry = targets[index];
+    ++entry.pellets;
+    entry.direction += dir;
+    hit_t hit;
+    hit.inflictor = projectile;
+    hit.attacker = attacker;
+    hit.recipient = target;
+    hit.target = index;
+    hit.location = location;
+    hit.direction = dir;
+    hit.damage = damage;
+    hit.scale = scale;
+    if ( pending.Num() == 0 ) PostEventMS(&EV_ShotgunBlastFlush, 0);
+    pending.Append(hit);
+    return true;
+}
+
+void hhShotgunBlast::Event_Flush() {
+    for ( int i = 0; i < pending.Num(); ++i ) {
+        const hit_t &hit = pending[i];
+        target_t &entry = targets[hit.target];
+        idEntity *body = entry.entity.GetEntity();
+        idEntity *recipient = hit.recipient.GetEntity();
+        if ( !body || !recipient || entry.gibbed ) continue;
+        const bool alive = body->health > 0;
+        recipient->Damage(hit.inflictor.IsValid() ? hit.inflictor.GetEntity() : this,
+                          hit.attacker.GetEntity(), hit.direction, hit.damage.c_str(), hit.scale, hit.location);
+        if ( alive && body->health <= 0 ) entry.killed = true;
+    }
+    pending.Clear();
+    for ( int i = 0; i < targets.Num(); ++i ) {
+        target_t &entry = targets[i];
+        idEntity *body = entry.entity.GetEntity();
+        if ( !body || entry.gibbed ) continue;
+        const bool gib = entry.eligible && entry.killed && body->health <= 0 && entry.pellets >= 8 &&
+            !gameLocal.isMultiplayer && !GERMAN_VERSION && !g_nogore.GetBool() && g_bloodEffects.GetBool() &&
+            !gameLocal.inCinematic && !body->cinematic && !body->spawnArgs.GetBool("no_shotgun_gib");
+        if ( cvarSystem->GetCVarBool("d3_shotgunTrace") ) {
+            gameLocal.Printf("D3GIB target=%s pellets=%d killed=%d eligible=%d gib=%d health=%d\n",
+                body->name.c_str(), entry.pellets, entry.killed, entry.eligible, gib, body->health);
+        }
+        if ( gib ) {
+            entry.gibbed = true;
+            idVec3 direction = entry.direction;
+            direction.Normalize();
+            static_cast<idActor *>(body)->Gib(direction, "damage_d3shotgun_gib");
+        }
+    }
+}
+
+void hhShotgunBlast::Save( idSaveGame *file ) const {
+    file->WriteInt(targets.Num());
+    for ( int i = 0; i < targets.Num(); ++i ) {
+        const target_t &t = targets[i];
+        t.entity.Save(file); file->WriteInt(t.pellets); file->WriteBool(t.eligible);
+        file->WriteBool(t.killed); file->WriteBool(t.gibbed); file->WriteVec3(t.direction);
+    }
+    file->WriteInt(pending.Num());
+    for ( int i = 0; i < pending.Num(); ++i ) {
+        const hit_t &h = pending[i];
+        h.inflictor.Save(file); h.attacker.Save(file); h.recipient.Save(file);
+        file->WriteInt(h.target); file->WriteInt(h.location); file->WriteVec3(h.direction);
+        file->WriteString(h.damage); file->WriteFloat(h.scale);
+    }
+}
+
+void hhShotgunBlast::Restore( idRestoreGame *file ) {
+    int count;
+    file->ReadInt(count);
+    if ( count < 0 || count > 13 ) file->Error("Invalid shotgun blast target count");
+    targets.SetNum(count);
+    for ( int i = 0; i < count; ++i ) {
+        target_t &t = targets[i];
+        t.entity.Restore(file); file->ReadInt(t.pellets); file->ReadBool(t.eligible);
+        file->ReadBool(t.killed); file->ReadBool(t.gibbed); file->ReadVec3(t.direction);
+    }
+    file->ReadInt(count);
+    if ( count < 0 || count > 13 ) file->Error("Invalid shotgun blast hit count");
+    pending.SetNum(count);
+    for ( int i = 0; i < count; ++i ) {
+        hit_t &h = pending[i];
+        h.inflictor.Restore(file); h.attacker.Restore(file); h.recipient.Restore(file);
+        file->ReadInt(h.target); file->ReadInt(h.location); file->ReadVec3(h.direction);
+        file->ReadString(h.damage); file->ReadFloat(h.scale);
+        if ( h.target < 0 || h.target >= targets.Num() ) file->Error("Invalid shotgun blast target");
+    }
+}
+
 const idEventDef EV_SpawnDriverLocal( "<spawnDriverLocal>", "s" );
 const idEventDef EV_SpawnFxFlyLocal( "<spawnFxFlyLocal>", "s" );
 
@@ -824,7 +967,12 @@ void hhProjectile::DamageEntityHit( const trace_t* collision, const idVec3& velo
 					}
 				}
 
-				entHit->Damage( this, killer, dir, damage, damageScale, CLIPMODEL_ID_TO_JOINT_HANDLE(collision->c.id) );
+                idEntityPtr<hhShotgunBlast> blast;
+                blast.SetSpawnId(spawnArgs.GetInt("shotgunBlast"));
+                if ( !blast.IsValid() || !blast->QueueHit(this, entHit, killer, dir, damage, damageScale,
+                                                         CLIPMODEL_ID_TO_JOINT_HANDLE(collision->c.id)) ) {
+                    entHit->Damage( this, killer, dir, damage, damageScale, CLIPMODEL_ID_TO_JOINT_HANDLE(collision->c.id) );
+                }
 
 				if ( playerHit && def->dict.GetInt( "freeze_duration" ) > 0 ) {
 					playerHit->Freeze( def->dict.GetInt( "freeze_duration" ) );

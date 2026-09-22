@@ -39,6 +39,7 @@ entityDef fireinfo_d3shotgun {
 }
 
 entityDef projectile_d3shotgun {
+    "concentratedShotgunGibs" "1"
     "inherit" "projectile_rifle"
     "def_damage" "damage_d3shotgun"
     "velocity" "7200 0 0"
@@ -52,6 +53,7 @@ entityDef projectile_d3shotgun {
 entityDef damage_d3shotgun {
     "inherit" "missile_rifle"
     "damage" "14"
+    "gib" "0"
     "knockback" "10"
 }
 
@@ -62,4 +64,10 @@ entityDef weapon_d3shotgun {
     "inv_weapon" "weaponobj_d3shotgun"
     "inv_ammo_rifle" "32"
     "def_precache1" "weaponobj_d3shotgun"
+}
+
+entityDef damage_d3shotgun_gib {
+    "inherit" "damage_d3shotgun"
+    "gib" "1"
+    "gib_ignoreDelay" "1"
 }

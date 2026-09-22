@@ -363,6 +363,12 @@ void App::Verify(const fs::path& output) {
     auto probe=fs::path(self).parent_path()/L"PreySettingsTestChild.exe";
     if(!fs::exists(probe)) probe=originalRoot/L"PreyConfigurator/native/build/Release/PreySettingsTestChild.exe";
     fs::copy_file(probe,root/EngineDirectory/L"prey06.exe",fs::copy_options::overwrite_existing);
+    if(initial.at(L"weaponPack")==L"doom3shotgun") {
+        // The child only records arguments; no retail assets are needed here.
+        auto mod=root/EngineDirectory/L"doom3shotgun";
+        fs::create_directories(mod);
+        Atomic(mod/L"import-manifest.json","{}\n");
+    }
     auto expected=Arguments(root,initial);Action(PlayId);require(!IsWindow(window),"Successful Save & Play did not close");
     auto resultFile=root/EngineDirectory/L"launch-result.json";
     for(int i=0;i<100 && !fs::exists(resultFile);++i) Sleep(50);
