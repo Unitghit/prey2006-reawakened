@@ -49,3 +49,32 @@ interior lighting. A portal_bloom smoke test completed renderer restarts at
 1100,650 floor crop matched the old build byte for byte. These screenshots
 verify the edge treatment; they do not establish that every possible source
 of temporal shimmer is eliminated. User movement testing remains valuable.
+
+## Per-sample cutout testing
+
+The remaining edge stipple is addressed with GL_ARB_sample_shading (or core
+OpenGL 4). Alpha is evaluated at each MSAA sample's own texture coordinate with
+the authored cutoff, instead of estimating a coverage mask from one lookup.
+Only the alpha-tested depth draw enables sample shading; it is disabled before
+subsequent passes. Lighting reuses the sample depth coverage. Unsupported GPUs
+retain alpha-to-coverage; single-sample rendering retains ordinary alpha tests.
+The actual GL_SAMPLES count is queried during context initialization/restart,
+so changing a pending r_multiSamples value cannot select an incompatible path.
+Reference: https://registry.khronos.org/OpenGL/extensions/ARB/ARB_sample_shading.txt
+
+Validation correction: startup hardware settings reset MSAA in some earlier
+isolated profiles, so their initial-view comparisons did not exercise either
+MSAA path. The test script now explicitly supplies r_multiSamples at startup.
+The new engine also logs the actual framebuffer sample count. The prior
+multi-restart smoke tests exercised settings after vid_restart, but initial
+MSAA visual claims should be treated as superseded by the following tests.
+
+At verified 4x MSAA, dense-coverage4 and dense-samples4 compare 32 fixed-position
+camera steps of 0.02 degrees in floorsubtle. The sampled silhouette loses the
+coverage fallback's visible stipple. In a fixed left-edge crop (540,430 to
+780,820), the mean absolute temporal second difference among pixels affected
+by the change fell from 1.008 to 0.808 RGB levels. This is a diagnostic for this
+particular sweep, not a universal perceived-flicker percentage. Finite sample
+counts still permit ordinary subpixel aliasing. The samples-restart portal
+smoke test logged actual sample counts 4,0,4,8 and no GL errors. All runs were
+hidden, muted, and isolated; the player's running game was left untouched.

@@ -411,15 +411,18 @@ void RB_T_FillDepthBuffer( const drawSurf_t *surf ) {
 			}
 			qglColor4fv( color );
 
-			// A binary alpha test discards every MSAA sample together, leaving
-			// texture-defined edges (mats, grilles, etc.) visibly stepping.
-			// Let alpha select depth samples for standard cutouts. Later passes
-			// inherit this coverage through their equal-depth test. Preserve
-			// authored nonstandard thresholds and animated alpha modulation.
-			const bool alphaCoverage = r_multiSamples.GetInteger() > 1 &&
+			// Test alpha at each MSAA sample's texture coordinate, rather than
+			// deriving every sample from a single per-pixel lookup. This keeps
+			// cutout edges spatially anchored as the camera moves and preserves
+			// authored thresholds. Older hardware uses coverage as a fallback.
+			const bool sampleShading = r_framebufferSamples > 1 && qglMinSampleShadingARB;
+			const bool alphaCoverage = !sampleShading && r_framebufferSamples > 1 &&
 				regs[ pStage->alphaTestRegister ] == 0.5f && color[3] == 1.0f;
 			qglAlphaFunc( GL_GREATER, alphaCoverage ? 0.0f : regs[ pStage->alphaTestRegister ] );
-			if ( alphaCoverage ) {
+			if ( sampleShading ) {
+				qglMinSampleShadingARB( 1.0f );
+				qglEnable( GL_SAMPLE_SHADING_ARB );
+			} else if ( alphaCoverage ) {
 				qglEnable( GL_SAMPLE_ALPHA_TO_COVERAGE );
 			}
 
@@ -432,6 +435,9 @@ void RB_T_FillDepthBuffer( const drawSurf_t *surf ) {
 			// draw it
 			RB_DrawElementsWithCounters( tri );
 
+			if ( sampleShading ) {
+				qglDisable( GL_SAMPLE_SHADING_ARB );
+			}
 			if ( alphaCoverage ) {
 				qglDisable( GL_SAMPLE_ALPHA_TO_COVERAGE );
 			}

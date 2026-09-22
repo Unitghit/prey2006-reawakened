@@ -42,6 +42,8 @@ If you have questions concerning this license or the applicable additional terms
 
 glconfig_t	glConfig;
 bool r_portalDepthClampAvailable = false;
+PFNGLMINSAMPLESHADINGARBPROC qglMinSampleShadingARB = NULL;
+int r_framebufferSamples = 0;
 
 idCVar r_inhibitFragmentProgram( "r_inhibitFragmentProgram", "0", CVAR_RENDERER | CVAR_BOOL, "ignore the fragment program extension" );
 idCVar r_useLightPortalFlow( "r_useLightPortalFlow", "1", CVAR_RENDERER | CVAR_BOOL, "use a more precise area reference determination" );
@@ -531,7 +533,18 @@ static void R_CheckPortableExtensions( void ) {
 			common->Error( "%s", common->GetLanguageDict()->GetString( "#str_06780" ) );
 	}
 
-	// GL_EXT_depth_bounds_test
+	// Per-sample alpha tests use the actual framebuffer, not a pending CVar.
+	r_framebufferSamples = 0;
+	qglGetIntegerv( GL_SAMPLES_ARB, &r_framebufferSamples );
+	qglMinSampleShadingARB = NULL;
+	if ( glConfig.glVersion >= 4.0f || R_CheckExtension( "GL_ARB_sample_shading" ) ) {
+		qglMinSampleShadingARB = (PFNGLMINSAMPLESHADINGARBPROC)GLimp_ExtensionPointer( "glMinSampleShadingARB" );
+		if ( !qglMinSampleShadingARB ) {
+			qglMinSampleShadingARB = (PFNGLMINSAMPLESHADINGARBPROC)GLimp_ExtensionPointer( "glMinSampleShading" );
+		}
+	}
+	common->Printf( "...cutout sample shading: %s, framebuffer samples: %d\n", qglMinSampleShadingARB ? "available" : "coverage fallback", r_framebufferSamples );
+
 	r_portalDepthClampAvailable = glConfig.glVersion >= 3.2f ||
 		R_CheckExtension("GL_ARB_depth_clamp") || R_CheckExtension("GL_NV_depth_clamp");
 

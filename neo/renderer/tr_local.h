@@ -837,6 +837,8 @@ extern backEndState_t		backEnd;
 extern idRenderSystemLocal	tr;
 extern glconfig_t			glConfig;		// outside of TR since it shouldn't be cleared during ref re-init
 extern bool r_portalDepthClampAvailable;
+extern PFNGLMINSAMPLESHADINGARBPROC qglMinSampleShadingARB;
+extern int r_framebufferSamples; // actual context samples; refreshed on vid_restart
 
 
 //
