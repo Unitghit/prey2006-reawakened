@@ -578,6 +578,14 @@ void hhWeapon::InitScriptObject( const char* objectType ) {
 		return;
 	}
 
+	// Addon scripts are compiled after the unchanged campaign baseline. Their
+	// filenames are then saved by idProgram and restored even with the addon
+	// disabled, before deserializing any weapon or script-thread objects.
+	const char *addonScript = dict->GetString( "rw_addonScript" );
+	if ( !gameLocal.program.FindType( objectType ) && *addonScript ) {
+		gameLocal.program.CompileFile( addonScript );
+	}
+
 	// setup script object
 	if( !scriptObject.SetType(objectType) ) {
 		gameLocal.Error( "Script object '%s' not found on weapon '%s'.", objectType, dict->GetString("classname") );

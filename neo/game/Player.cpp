@@ -2089,6 +2089,16 @@ void idPlayer::SavePersistantInfo( void ) {
 	inventory.GetPersistantData( playerInfo );
 	playerInfo.SetInt( "health", health );
 	playerInfo.SetInt( "current_weapon", currentWeapon );
+	// Addon metadata uses the existing dictionary path across level changes.
+	// The fixed-size inventory save format remains compatible with old saves.
+	for ( const idKeyValue *kv = spawnArgs.MatchPrefix("rw_weapon_"); kv;
+		kv = spawnArgs.MatchPrefix("rw_weapon_", kv) ) {
+		playerInfo.Set( kv->GetKey(), kv->GetValue() );
+	}
+	if ( spawnArgs.FindKey("rw_weapon_d3shotgun_owned") ) {
+		playerInfo.SetInt( "rw_weapon_d3shotgun_clip", inventory.clip[8] );
+	}
+
 	playerInfo.SetInt( "max_ammo_energy", spawnArgs.GetInt( "max_ammo_energy" ) );	//HUMANHEAD bjk: possibly unneeded but def works with it in
 }
 

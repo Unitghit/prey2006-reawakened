@@ -30,6 +30,8 @@ def main():
     parser.add_argument('output', type=Path)
     parser.add_argument('--prey-base', action='append', type=Path, required=True,
                         help='Prey base directories in ascending precedence order')
+    parser.add_argument('--save-compatible', action='store_true',
+                        help='Install additive assets in base, retaining the normal campaign script baseline')
     args = parser.parse_args()
     index, archives = {}, []
     for archive in sorted((args.install / 'base').glob('pak*.pk4')):
@@ -130,11 +132,12 @@ def main():
     main_script = prey['script/prey_main.script']
     files['script/prey_main.script'] = (main_script+'\n#include "script/weapon_d3shotgun.script"\n').encode()
     player = prey['def/player.def']
-    player, count = re.subn(r'("def_weapon8"\s+)""', r'\1"weaponobj_d3shotgun"', player)
-    if count != 1:
-        raise ValueError('Expected exactly one unused player weapon slot 8')
-    for key in ('weapon8_cycle','weapon8_best','weapon8_allowempty'):
-        player = re.sub(r'("'+key+r'"\s+)"0"', r'\1"1"', player)
+    if not args.save_compatible:
+        player, count = re.subn(r'("def_weapon8"\s+)""', r'\1"weaponobj_d3shotgun"', player)
+        if count != 1:
+            raise ValueError('Expected exactly one unused player weapon slot 8')
+        for key in ('weapon8_cycle','weapon8_best','weapon8_allowempty'):
+            player = re.sub(r'("'+key+r'"\s+)"0"', r'\1"1"', player)
     # Reuse Tommy's rifle poses for the new world weapon, rather than falling
     # back to missing unprefixed fire/reload animations.
     player = re.sub(r'(?m)^(\s*anim )rifle_(\w+)([^\r\n]*)',
@@ -146,6 +149,18 @@ def main():
     files['script/weapon_d3shotgun.script'] = Path(__file__).with_name('weapon_d3shotgun.script').read_bytes()
     files['def/doom3_shotgun.def'] = Path(__file__).with_name('shotgun.def').read_bytes()
     files['description.txt'] = b'Doom 3 shotgun prototype'
+    if args.save_compatible:
+        # Never change the baseline script. Keep the old script path byte-for-
+        # byte for prototype saves, and a versioned path for new additive saves.
+        del files['script/prey_main.script']
+        del files['description.txt']
+        files['script/reawakened/weapon_d3shotgun_v1.script'] = Path(__file__).with_name('weapon_d3shotgun_v1.script').read_bytes()
+        definition = files['def/doom3_shotgun.def'].decode()
+        definition = definition.replace('entityDef weaponobj_d3shotgun {',
+            'entityDef weaponobj_d3shotgun {\n    "rw_saveCompatible" "1"\n'
+            '    "rw_addonScript" "script/reawakened/weapon_d3shotgun_v1.script"')
+        files['def/doom3_shotgun.def'] = definition.encode()
+
     # Validate everything before writing; no path may escape the output folder.
     for name in files:
         if Path(name).is_absolute() or '..' in Path(name).parts:
@@ -155,7 +170,7 @@ def main():
         dest.parent.mkdir(parents=True, exist_ok=True)
         dest.write_bytes(data)
     manifest = {n: {'bytes':len(d), 'sha256':hashlib.sha256(d).hexdigest()} for n,d in sorted(files.items())}
-    (args.output/'import-manifest.json').write_text(json.dumps(manifest,indent=2))
+    (args.output/('doom3-import-manifest.json' if args.save_compatible else 'import-manifest.json')).write_text(json.dumps(manifest,indent=2))
     print(f'Imported {len(files)} files, {sum(map(len,files.values()))/1048576:.1f} MiB to {args.output}')
     for z in archives:
         z.close()

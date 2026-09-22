@@ -2542,7 +2542,30 @@ Let the system know about all of our commands
 so it can perform tab completion
 =================
 */
+// Read-only by default; an optional slot exercises the normal selection path
+// without desktop input or temporary console scripts that cannot be saved.
+static void Cmd_WeaponPackInfo_f( const idCmdArgs &args ) {
+	hhPlayer *player = static_cast<hhPlayer *>(gameLocal.GetLocalPlayer());
+	if ( !player || gameLocal.isMultiplayer ) { return; }
+	if ( args.Argc() == 2 && cvarSystem->GetCVarBool("developer") ) {
+		if ( !idStr::Icmp(args.Argv(1), "spirit") ) {
+			player->ToggleSpiritWalk();
+		} else {
+			const int slot = atoi(args.Argv(1));
+			if ( slot >= 1 && slot < MAX_WEAPONS ) { player->SelectWeapon(slot, false); }
+		}
+	}
+	gameLocal.Printf("WEAPONPACK STATE enabled=%d owned=%d held=%d clip=%d rifleAmmo=%d current=%d ideal=%d health=%d origin=%s\n",
+		cvarSystem->GetCVarBool("g_doom3Shotgun"),
+		player->spawnArgs.GetBool("rw_weapon_d3shotgun_owned"),
+		(player->inventory.weapons & (1 << 8)) != 0, player->inventory.clip[8],
+		player->inventory.ammo[player->inventory.AmmoIndexForAmmoClass("ammo_rifle")],
+		player->GetCurrentWeapon(), player->GetIdealWeapon(), player->health,
+		player->GetOrigin().ToString());
+}
+
 void idGameLocal::InitConsoleCommands( void ) {
+	cmdSystem->AddCommand( "weaponPackInfo", Cmd_WeaponPackInfo_f, CMD_FL_GAME, "show addon save state; developer mode accepts a weapon slot or spirit" );
 	cmdSystem->AddCommand( "game_memory",			idClass::DisplayInfo_f,		CMD_FL_GAME,				"displays game class info" );
 	cmdSystem->AddCommand( "listClasses",			idClass::ListClasses_f,		CMD_FL_GAME,				"lists game classes" );
 	cmdSystem->AddCommand( "listThreads",			idThread::ListThreads_f,	CMD_FL_GAME|CMD_FL_CHEAT,	"lists script threads" );

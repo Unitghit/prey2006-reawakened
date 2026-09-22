@@ -14,25 +14,56 @@ assets must stay local and must not be included in source commits or releases.
 From a packaged Reawakened installation:
 
 ```powershell
-python tools/doom3/import_shotgun.py "D:/Games/Doom 3" engine/doom3shotgun --prey-base engine/base
+python tools/doom3/import_shotgun.py "D:/Games/Doom 3" engine/base --prey-base engine/base --save-compatible
 ```
 
 For development, pass the retail Prey base directory followed by the active
-engine's base directory using repeated `--prey-base` arguments. This preserves
-the active Prey scripts and player definition as the basis for the generated
-mod adapters. The importer checks all required assets before writing and records
-sizes and SHA-256 hashes in `import-manifest.json`.
+engine's base directory using repeated `--prey-base` arguments. The importer
+checks dependencies before writing and records hashes in
+`base/doom3-import-manifest.json`. The default importer mode remains available
+for historical standalone prototype installations.
 
 Enable **Gameplay > Doom 3 shotgun > Enabled (prototype)** in the launcher.
-This uses `fs_game doom3shotgun`, with a separate save/configuration folder. The
-launcher copies normal controls into that folder on first use. Normal campaign
-saves are not imported: this mod adds a script object and weapon slot, so loading
-base-game saves is not supported. Disabling the option restores the normal game.
+The save-compatible build uses the normal campaign save folder in both modes.
+Owning the Hunter Rifle makes the shotgun available in slot 8. Disabling the
+option hides it and returns to an owned Prey weapon, retaining its magazine.
+Ammo is still shared with the rifle; the planned split ammo budget and grouped
+weapon selection are not part of this compatibility step.
 
-Start a new mod game, open the console and enter `give weapon_d3shotgun` to obtain
-the shotgun. Use `give ammo` if needed. For the local prototype playtest, a
-`Doom3_Shotgun` save is provided separately, outside Git. No automatic item
-placement has been added to the campaign.
+The launcher copies old standalone prototype saves into the shared folder as
+`D3Legacy_*`, displayed with a `Doom 3 legacy:` prefix. Originals and existing
+destination saves are never overwritten. The original mod folder is retained.
+Normal campaign and old shotgun saves can be loaded without starting over.
+
+Keep the imported assets installed when disabling the weapon. A saved weapon or
+thread must first be restored before the mode can safely hide it. This is
+compatibility between modes in the updated port, not a guarantee that new saves
+will work with an older executable or the retail engine.
+
+## Save format and validation
+
+The baseline `prey_main.script` is unchanged in compatible installations.
+The weapon compiles its versioned script on first construction; idProgram
+records this extra file with the save and restores it before saved objects.
+Its globals and checksum must match. The loader also tests the exact historical
+shotgun baseline before constructing saved threads, allowing old mod saves to
+load without relocating instructions or bypassing validation.
+
+`weapon_d3shotgun.script` (legacy) and `weapon_d3shotgun_v1.script` (additive)
+are save ABI files: preserve their contents and line numbers. Future incompatible
+script work needs a new versioned file/type with old versions retained.
+Inventory array sizes and object save layouts have not changed. Namespaced
+`rw_weapon_*` dictionary state persists across saves and level transitions.
+
+Hidden, muted validation covers normal campaign and legacy prototype saves,
+enable/disable/re-enable round trips, a partly used magazine, and restoration
+from spirit walking. A real end-level target also preserved a seven-shell
+magazine and 149 rifle rounds through a map transition and subsequent mode
+changes. Saving with a live blast tracker, then restoring with the addon off,
+retained the six-shell magazine and 129 rounds. The `weaponPackInfo` console command reports inventory,
+magazine, health and position. With developer mode enabled, a slot argument
+selects through the usual weapon path; `spirit` exercises spirit walking without
+adding an unsaveable console script.
 
 The weapon uses an eight-shell magazine, thirteen pellets, a 1.333-second
 minimum firing interval and the original two-shell reload animations. Projectile
@@ -83,3 +114,16 @@ Validated cases for the concentrated-blast change:
 - Original prototype save, original spread: eleven hits and a lethal gib.
 - Save/load with a live blast tracker, followed by unlocked 144 FPS rendering:
   successful restoration and expiration without a new error.
+
+
+Run the repeatable campaign-save regression in a fresh output directory:
+
+```powershell
+./tools/doom3/test_save_compatibility.ps1 -Engine engine -PreyAssets engine -CampaignSave userdata/base/savegames/example.save -Output validation/weapon-save-roundtrip
+```
+
+Use a stationary ordinary campaign save with the Hunter Rifle owned. The test
+copies its seed, launches hidden and muted, and asserts unchanged ammo, magazine,
+health and position across the three mode states. It never runs in the player's
+profile. Launcher verification separately checks that legacy save migration
+preserves originals and existing destination files.

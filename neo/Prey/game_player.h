@@ -176,6 +176,7 @@ public:
 
 	// Overridden Methods
 	virtual void		RestorePersistantInfo( void );
+	void				SynchronizeDoom3Shotgun();
 	virtual void		SquishedByDoor(idEntity *door);
 	virtual void		Init();
 	void				Save( idSaveGame *savefile ) const;

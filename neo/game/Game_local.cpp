@@ -1504,19 +1504,46 @@ bool idGameLocal::InitFromSaveGame( const char *mapName, idRenderWorld *renderWo
 	}
 #endif
 
-	// Create the list of all objects in the game
-	savegame.CreateObjects();
-
-	// Load the idProgram, also checking to make sure scripting hasn't changed since the savegame
-	if ( program.Restore( &savegame ) == false ) {
-
-		// Abort the load process, and let the session know so that it can restart the level
-		// with the player persistent data.
-		savegame.DeleteObjects();
-		program.Restart();
-
+	// Select and validate the script baseline BEFORE instantiating saved threads.
+	// Rebuilding idProgram after CreateObjects would delete those new threads.
+	const int objectListOffset = saveGameFile->Tell();
+	int objectCount;
+	savegame.ReadInt( objectCount );
+	if ( objectCount < 0 || objectCount > 65536 ) {
+		savegame.Error( "Invalid savegame object count" );
+	}
+	for ( int objectIndex = 0; objectIndex < objectCount; ++objectIndex ) {
+		idStr objectClass;
+		savegame.ReadString( objectClass );
+	}
+	const int scriptOffset = saveGameFile->Tell();
+	program.Startup( SCRIPT_DEFAULT );
+	bool scriptsMatch = program.Restore( &savegame );
+	const bool addonScriptPresent = program.FindType( "weapon_d3shotgun" ) != NULL;
+	if ( !scriptsMatch && !addonScriptPresent &&
+		fileSystem->ReadFile( "script/weapon_d3shotgun.script", NULL, NULL ) > 0 &&
+		!idStr::Icmp( cvarSystem->GetCVarString( "fs_game" ), "" ) ) {
+		// The original prototype included this exact script in prey_main.script.
+		// Reproduce its baseline (including file IDs) rather than relocating any
+		// saved instruction pointers. Both globals and checksum must still match.
+		program.Startup( SCRIPT_DEFAULT, "script/weapon_d3shotgun.script" );
+		saveGameFile->Seek( scriptOffset, FS_SEEK_SET );
+		scriptsMatch = program.Restore( &savegame );
+		if ( scriptsMatch ) {
+			Printf( "Weapon save compatibility: restored legacy shotgun script baseline.\n" );
+		}
+	}
+	if ( !scriptsMatch ) {
+		program.Startup( SCRIPT_DEFAULT );
+		if ( addonScriptPresent ) {
+			savegame.Error( "Weapon addon scripts do not match this save. Restore the matching addon files; campaign progress was not loaded." );
+		}
 		return false;
 	}
+	const int afterScriptOffset = saveGameFile->Tell();
+	saveGameFile->Seek( objectListOffset, FS_SEEK_SET );
+	savegame.CreateObjects();
+	saveGameFile->Seek( afterScriptOffset, FS_SEEK_SET );
 
 	// load the map needed for this savegame
 	LoadMap( mapName, 0 );

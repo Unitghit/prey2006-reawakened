@@ -127,7 +127,7 @@ std::vector<std::pair<std::wstring,std::wstring>> Variables(const Values& v) {
     for (const auto& s : Options()) if (s.key != L"resolution" && s.key != L"bloom" && s.key != L"smoothMotion" && s.key != L"r_fullscreen" && s.key != L"weaponPack") result.emplace_back(s.key,v.at(s.key));
     const auto& size = v.at(L"resolution"); auto x = size.find(L'x');
     const std::vector<std::pair<std::wstring,std::wstring>> fixed = {
-        {L"fs_game",v.at(L"weaponPack")==L"doom3shotgun"?L"doom3shotgun":L""},
+        {L"fs_game",L""},{L"g_doom3Shotgun",v.at(L"weaponPack")==L"doom3shotgun"?L"1":L"0"},
         {L"r_mode",L"-1"},{L"r_customWidth",size.substr(0,x)},{L"r_customHeight",size.substr(x+1)},
         {L"gui_translateAlienFont",L"fonts"},{L"g_stopTime",L"0"},
         {L"r_fullscreen",v.at(L"r_fullscreen")==L"0"?L"0":L"1"},{L"r_fullscreenDesktop",v.at(L"r_fullscreen")==L"desktop"?L"1":L"0"},
@@ -156,19 +156,43 @@ void Atomic(const fs::path& file, const std::string& contents) {
 }
 void Save(const fs::path& root, const Values& v) {
     Validate(v); Atomic(root/L"Prey-settings.json",Json(v)); Atomic(root/L"Play-Prey2006-Custom.bat",Launcher(v));
-    if (v.at(L"weaponPack") == L"doom3shotgun") {
-        const auto source = root/L"userdata/base/prey06.cfg";
-        const auto target = root/L"userdata/doom3shotgun/prey06.cfg";
-        if (fs::exists(source) && !fs::exists(target)) {
-            fs::create_directories(target.parent_path());
-            fs::copy_file(source,target);
+    // Copy legacy prototype saves into the shared campaign list once. The
+    // originals and any existing destination saves are never overwritten.
+    if (fs::exists(root/EngineDirectory/L"base/doom3-import-manifest.json")) {
+        const auto source = root/L"userdata/doom3shotgun/savegames";
+        const auto target = root/L"userdata/base/savegames";
+        if (fs::is_directory(source)) {
+            fs::create_directories(target);
+            for (const auto& entry : fs::directory_iterator(source)) {
+                if (!entry.is_regular_file() || entry.path().extension()!=L".save") continue;
+                const auto name=L"D3Legacy_"+entry.path().stem().wstring();
+                const auto dest=target/(name+L".save");
+                if (fs::exists(dest)) continue;
+                // Publish the save last so an interrupted copy can be retried.
+                for (const auto* ext : {L".txt",L".tga"}) {
+                    auto side=entry.path(); side.replace_extension(ext);
+                    auto to=target/(name+ext);
+                    if (fs::exists(side) && !fs::exists(to)) {
+                        if (side.extension()==L".txt") {
+                            std::ifstream in(side,std::ios::binary);
+                            std::string title(std::istreambuf_iterator<char>(in), {});
+                            auto quote=title.find('"');
+                            if (quote!=std::string::npos) title.insert(quote+1,"Doom 3 legacy: ");
+                            Atomic(to,title);
+                        } else fs::copy_file(side,to);
+                    }
+                }
+                auto tmp=dest; tmp+=L".importing";
+                fs::copy_file(entry.path(),tmp,fs::copy_options::overwrite_existing);
+                fs::rename(tmp,dest);
+            }
         }
     }
 }
 std::vector<std::wstring> Arguments(const fs::path& root, const Values& v) {
     if (v.at(L"weaponPack") == L"doom3shotgun" &&
-        !fs::exists(root/EngineDirectory/L"doom3shotgun/import-manifest.json")) {
-        throw std::runtime_error("Import the original Doom 3 shotgun assets before enabling this prototype. See tools/doom3/README.md.");
+        !fs::exists(root/EngineDirectory/L"base/doom3-import-manifest.json")) {
+        throw std::runtime_error("Import the original Doom 3 shotgun assets with --save-compatible before enabling this option. See tools/doom3/README.md.");
     }
     std::vector<std::wstring> args;
     auto set = [&](const std::wstring& key, const std::wstring& value) { args.insert(args.end(),{L"+set",key,value}); };
@@ -207,7 +231,7 @@ void VerifyConfiguration(const fs::path& output) {
     for (const auto& s : Options()) for (const auto& c : s.choices) {
         auto v = defaults; v[s.key]=c.value; Validate(v); require(Migrate(ParseJson(Json(v)))==v);
         auto pairs = Variables(v); Values vars(pairs.begin(),pairs.end());
-        require(vars.at(L"fs_game")==(v[L"weaponPack"]==L"doom3shotgun"?L"doom3shotgun":L""));
+        require(vars.at(L"fs_game").empty() && vars.at(L"g_doom3Shotgun")==(v[L"weaponPack"]==L"doom3shotgun"?L"1":L"0"));
         require(vars.at(L"r_portalMaxDepth")==L"3" && vars.at(L"r_correctspecular")==L"1");
         require(vars.at(L"r_fullscreen")== (v[L"r_fullscreen"]==L"0"?L"0":L"1"));
         require(vars.at(L"r_fullscreenDesktop")== (v[L"r_fullscreen"]==L"desktop"?L"1":L"0"));
@@ -227,5 +251,26 @@ void VerifyConfiguration(const fs::path& output) {
     std::wstring command=L"test.exe"; for (const auto& a : testArgs) command+=L" "+QuoteArgument(a);
     int argc; auto argv=CommandLineToArgvW(command.c_str(),&argc); require(argv && argc==(int)testArgs.size()+1);
     for (int i=1;i<argc;++i) require(argv[i]==testArgs[i-1]); LocalFree(argv);
+    auto migrationRoot=output/(L"save-migration-"+std::to_wstring(GetCurrentProcessId()));
+    auto legacy=migrationRoot/L"userdata/doom3shotgun/savegames";
+    auto shared=migrationRoot/L"userdata/base/savegames";
+    fs::create_directories(legacy);
+    fs::create_directories(migrationRoot/EngineDirectory/L"base");
+    Atomic(migrationRoot/EngineDirectory/L"base/doom3-import-manifest.json","{}");
+    Atomic(legacy/L"example.save","legacy-save");
+    Atomic(legacy/L"example.txt","\"example\"\n\"Ascent\"\n\"\"\n");
+    Save(migrationRoot,defaults); // Import is also available with the addon off.
+    require(fs::exists(shared/L"D3Legacy_example.save"));
+    auto read=[](const fs::path& path) {
+        std::ifstream in(path,std::ios::binary);
+        return std::string(std::istreambuf_iterator<char>(in), {});
+    };
+    require(read(legacy/L"example.save")=="legacy-save");
+    require(read(shared/L"D3Legacy_example.save")=="legacy-save");
+    require(read(shared/L"D3Legacy_example.txt").find("Doom 3 legacy: example")!=std::string::npos);
+    Atomic(shared/L"D3Legacy_example.save","user-progress");
+    Save(migrationRoot,defaults);
+    require(read(shared/L"D3Legacy_example.save")=="user-progress");
+    require(read(legacy/L"example.save")=="legacy-save");
     Atomic(output/L"configuration-pass.txt","PASS: all choices, bundles, defaults, migration, JSON validation, argument quoting and disk round trips.\n");
 }

@@ -551,7 +551,7 @@ public:
 	int											CalculateChecksum( bool forOldSavegame ) const;		// Used to insure program code has not
 																						//    changed between savegames
 
-	void										Startup( const char *defaultScript );
+	void										Startup( const char *defaultScript, const char *addonBaseline = NULL );
 	void										Restart( void );
 	bool										CompileText( const char *source, const char *text, bool console );
 	const function_t							*CompileFunction( const char *functionName, const char *text );

@@ -2085,7 +2085,7 @@ void idProgram::FreeData( void ) {
 idProgram::Startup
 ================
 */
-void idProgram::Startup( const char *defaultScript ) {
+void idProgram::Startup( const char *defaultScript, const char *addonBaseline ) {
 	gameLocal.Printf( "Initializing scripts\n" );
 
 	// make sure all data is freed up
@@ -2103,6 +2103,12 @@ void idProgram::Startup( const char *defaultScript ) {
 	// load the default script
 	if ( defaultScript && *defaultScript ) {
 		CompileFile( defaultScript );
+	}
+
+	// Only the historical shotgun baseline uses this compatibility path. New
+	// addons compile after the baseline, so ordinary campaign saves stay valid.
+	if ( addonBaseline && *addonBaseline ) {
+		CompileFile( addonBaseline );
 	}
 
 	FinishCompilation();
@@ -2159,6 +2165,9 @@ bool idProgram::Restore( idRestoreGame *savefile ) {
 	idStr scriptname;
 
 	savefile->ReadInt( num );
+	if ( num < 0 || num > 4096 ) {
+		savefile->Error( "Invalid saved script file count" );
+	}
 	for ( i = 0; i < num; i++ ) {
 		savefile->ReadString( scriptname );
 		CompileFile( scriptname );
@@ -2166,11 +2175,20 @@ bool idProgram::Restore( idRestoreGame *savefile ) {
 
 	savefile->ReadInt( index );
 	while( index >= 0 ) {
+		if ( index >= MAX_GLOBALS ) {
+			savefile->Error( "Invalid saved script variable index" );
+		}
 		savefile->ReadByte( variables[index] );
 		savefile->ReadInt( index );
 	}
 
 	savefile->ReadInt( num );
+	// A different baseline can have different defaults and globals. Reject it
+	// before reading the wrong number of bytes; the loader may try the known
+	// historical baseline. Never bypass checksum or interpreter layout checks.
+	if ( num != numVariables || num < variableDefaults.Num() || num > MAX_GLOBALS ) {
+		return false;
+	}
 	for ( i = variableDefaults.Num(); i < num; i++ ) {
 		savefile->ReadByte( variables[i] );
 	}
