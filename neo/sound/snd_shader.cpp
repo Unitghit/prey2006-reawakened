@@ -548,3 +548,8 @@ const char *idSoundShader::GetSound( int index ) const {
 	}
 	return "";
 }
+void idSoundShader::PreloadSamples() const {
+	if (!soundSystemLocal.soundCache || onDemand) return;
+	for (int i=0; i<numLeadins; ++i) if (leadins[i]) soundSystemLocal.soundCache->FindSound(leadins[i]->name, false);
+	for (int i=0; i<numEntries; ++i) if (entries[i]) soundSystemLocal.soundCache->FindSound(entries[i]->name, false);
+}

@@ -14,6 +14,7 @@ static idCVar com_assetPreload("com_assetPreload", "0", CVAR_SYSTEM | CVAR_ARCHI
 	"Experimental per-map learned archive prefetch; takes effect on map/save load");
 
 namespace {
+static const char *preloadManifestVersion = "# prey-prefetch-v2 gameplay-only";
 struct preloadJob_t {
 	std::string name, archive, fullPath;
 	ZPOS64_T offset;
@@ -113,7 +114,7 @@ public:
 static idFile *FS_PreloadLookup(const char *path, idFile *file) {
 	if(!file || !Sys_IsMainThread() || !preload.active || !com_assetPreload.GetBool() || !PreloadPath(path)) return file;
 	const std::string key=PreloadKey(path);
-	if(preload.order.size()<512 && preload.observed.insert(key).second) preload.order.push_back(key);
+	if(!idStr::Cmp(sessLocal.HitchState(),"gameplay") && preload.order.size()<512 && preload.observed.insert(key).second) preload.order.push_back(key);
 	preloadData_t found;
 	{
 		std::lock_guard<std::mutex> lock(preload.mutex);
@@ -136,6 +137,7 @@ void FS_PreloadStop() {
 	if(!preload.manifest.empty() && fileSystem->IsInitialized()) {
 		idFile *out=fileSystem->OpenFileWrite(preload.manifest.c_str());
 		if(out) {
+			out->Printf("%s\n",preloadManifestVersion);
 			for(const auto &name:preload.order) out->Printf("%s\n",name.c_str());
 			fileSystem->CloseFile(out);
 		}
@@ -158,9 +160,11 @@ void FS_PreloadStart(const char *map) {
 			std::vector<char> text(in->Length()+1,0);
 			in->Read(text.data(),in->Length());
 			std::string line;
+			bool firstLine=true, validVersion=false;
 			for(char c:text) {
 				if(c=='\n' || c==0) {
-					if(preload.order.size()<512 && PreloadPath(line.c_str())) {
+					if(firstLine) { validVersion=(line==preloadManifestVersion); firstLine=false; }
+					else if(validVersion && preload.order.size()<512 && PreloadPath(line.c_str())) {
 						auto key=PreloadKey(line.c_str());
 						if(preload.observed.insert(key).second) { preload.pending.push_back(key); preload.order.push_back(key); }
 					}

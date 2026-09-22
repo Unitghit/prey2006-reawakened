@@ -28,6 +28,7 @@ If you have questions concerning this license or the applicable additional terms
 
 #include "precompiled.h"
 #pragma hdrstop
+#include "HitchTrace.h"
 
 idCVar idEventLoop::com_journal( "com_journal", "0", CVAR_INIT|CVAR_SYSTEM, "1 = record journal, 2 = play back journal", 0, 2, idCmdSystem::ArgCompletion_Integer<0,2> );
 
@@ -181,13 +182,28 @@ int idEventLoop::RunEventLoop( bool commandExecution ) {
 			cmdSystem->ExecuteCommandBuffer();
 		}
 
-		ev = GetEvent();
+		{
+			idHitchScope hitch("event_poll", "system_event_queue");
+			ev = GetEvent();
+		}
 
 		// if no more events are available
 		if ( ev.evType == SE_NONE ) {
 			return 0;
 		}
-		ProcessEvent( ev );
+		{
+			const char *type = "other";
+			switch (ev.evType) {
+				case SE_KEY: type="key"; break;
+				case SE_CHAR: type="text"; break;
+				case SE_MOUSE: type="mouse"; break;
+				case SE_MOUSE_ABS: type="mouse_absolute"; break;
+				case SE_CONSOLE: type="console"; break;
+				default: break;
+			}
+			idHitchScope hitch("event_dispatch", type);
+			ProcessEvent( ev );
+		}
 	}
 
 	return 0;	// never reached

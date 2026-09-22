@@ -31,6 +31,7 @@ If you have questions concerning this license or the applicable additional terms
 
 #include "Unzip.h"
 #include "HitchTrace.h"
+#include "Session_local.h"
 
 #ifdef WIN32
 	#include <io.h>	// for _read

@@ -122,7 +122,9 @@ bool idDeclEntityDef::Parse( const char *text, const int textLength ) {
 	// precache all referenced media
 	// do this as long as we arent in modview
 	// DG: ... and only if we currently have a loaded/loading map
-	if ( !( com_editors & (EDITOR_RADIANT|EDITOR_AAS) ) && session->GetCurrentMapName()[0] ) {
+	// Map-list browsing needs metadata, not every map's music and media.
+	// The selected map is explicitly precached by ExecuteMapChange.
+	if ( GetType() != DECL_MAPDEF && !( com_editors & (EDITOR_RADIANT|EDITOR_AAS) ) && session->GetCurrentMapName()[0] ) {
 		game->CacheDictionaryMedia( &dict );
 	}
 

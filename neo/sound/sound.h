@@ -197,6 +197,8 @@ public:
 	virtual const soundShaderParms_t *GetParms() const;
 	virtual int				GetNumSounds() const;
 	virtual const char *	GetSound( int index ) const;
+	// Prepare an existing shader without playing it or changing sound-world state.
+	void PreloadSamples() const;
 
 	virtual bool			CheckShakesAndOgg( void ) const;
 

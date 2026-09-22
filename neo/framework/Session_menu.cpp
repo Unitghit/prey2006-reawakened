@@ -28,6 +28,7 @@ If you have questions concerning this license or the applicable additional terms
 
 #include "precompiled.h"
 #pragma hdrstop
+#include "HitchTrace.h"
 
 #include "Session_local.h"
 
@@ -85,6 +86,7 @@ idSessionLocal::SetGUI
 */
 void idSessionLocal::SetGUI( idUserInterface *gui, HandleGuiCommand_t handle ) {
 	guiActive = gui;
+	if (cvarSystem->GetCVarBool("com_hitchTrace")) common->Printf("HITCH_UI wall=%u state=%s\n",Sys_Milliseconds(),HitchState());
 	guiHandle = handle;
 	if ( guiMsgRestore ) {
 		common->DPrintf( "idSessionLocal::SetGUI: cleared an active message box\n" );
@@ -116,6 +118,7 @@ idSessionLocal::ExitMenu
 */
 void idSessionLocal::ExitMenu( void ) {
 	guiActive = NULL;
+	if (cvarSystem->GetCVarBool("com_hitchTrace")) common->Printf("HITCH_UI wall=%u state=%s\n",Sys_Milliseconds(),HitchState());
 
 	// go back to the game sounds
 	soundSystem->SetPlayingSoundWorld( sw );
@@ -177,6 +180,7 @@ idSessionLocal::SetSaveGameGuiVars
 ===============
 */
 void idSessionLocal::SetSaveGameGuiVars( void ) {
+	idHitchScope hitch("menu_save_list", "save_metadata");
 	int i;
 	idStr name;
 	idStrList fileList;
@@ -288,6 +292,7 @@ idSessionLocal::SetMainMenuGuiVars
 ===============
 */
 void idSessionLocal::SetMainMenuGuiVars( void ) {
+	idHitchScope hitch("menu_setup", "main_menu");
 
 	guiMainMenu->SetStateString( "serverlist_sel_0", "-1" );
 	guiMainMenu->SetStateString( "serverlist_selid_0", "-1" );
@@ -538,6 +543,7 @@ idSessionLocal::RescanMaps
 ==============
 */
 void idSessionLocal::RescanMaps() {
+	idHitchScope hitch("menu_map_list", "map_metadata");
 	const char *gametype = cvarSystem->GetCVarString( "si_gameType" );
 	if ( gametype == NULL || *gametype == 0 || idStr::Icmp( gametype, "singleplayer" ) == 0 ) {
 		gametype = "Deathmatch";

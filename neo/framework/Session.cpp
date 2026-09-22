@@ -1621,6 +1621,14 @@ void idSessionLocal::ExecuteMapChange( bool noFadeWipe ) {
 		}
 	}
 
+	// Browsing map metadata must not precache every map. Retain the selected map's media.
+	const idDeclEntityDef *selectedMap = static_cast<const idDeclEntityDef *>(declManager->FindType(DECL_MAPDEF, mapString.c_str(), false));
+	if (selectedMap) game->CacheDictionaryMedia(&selectedMap->dict);
+	if (cvarSystem->GetCVarBool("com_assetPreload") && !idAsyncNetwork::IsActive()) {
+		const idSoundShader *menuMusic = declManager->FindSound("guisounds_menu_music", false);
+		if (menuMusic) menuMusic->PreloadSamples();
+	}
+
 	// actually purge/load the media
 	if ( !reloadingSameMap ) {
 		renderSystem->EndLevelLoad();
@@ -2659,7 +2667,10 @@ void idSessionLocal::Frame() {
 		if ( !com_asyncInput.GetBool() && eventLoop->JournalLevel() == 0 ) {
 			// Collect motion arriving during the limiter wait before building the
 			// next usercmd. Do not execute the command buffer a second time.
-			Sys_GenerateEvents();
+			{
+				idHitchScope hitch("input_pump", "post_wait_events");
+				Sys_GenerateEvents();
+			}
 			eventLoop->RunEventLoop( false );
 		}
 		minTic = latchedTicNumber;

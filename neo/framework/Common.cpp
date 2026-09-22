@@ -37,6 +37,7 @@ If you have questions concerning this license or the applicable additional terms
 #include "../renderer/Image.h"
 
 #include "Session_local.h"
+#include "HitchTrace.h"
 
 #include "../tools/compilers/dmap/dmap.h"
 
@@ -2477,12 +2478,19 @@ void idCommonLocal::Frame( void ) {
 	try {
 		const bool hitchTrace = com_hitchTrace.GetBool();
 		const double hitchStart = hitchTrace ? Sys_PresentationMilliseconds() : 0.0;
+		const char *hitchStartState = sessLocal.HitchState();
 
 		// pump all the events
-		Sys_GenerateEvents();
+		{
+			idHitchScope hitch("input_pump", "system_events");
+			Sys_GenerateEvents();
+		}
 
 		// write config file if anything changed
-		WriteConfiguration();
+		{
+			idHitchScope hitch("config_write", "configuration");
+			WriteConfiguration();
+		}
 
 		// change SIMD implementation if required
 		if ( com_forceGenericSIMD.IsModified() ) {
@@ -2501,7 +2509,10 @@ void idCommonLocal::Frame( void ) {
 
 		com_frameTime = com_ticNumber * USERCMD_MSEC;
 
-		idAsyncNetwork::RunFrame();
+		{
+			idHitchScope hitch("network_update", "network");
+			idAsyncNetwork::RunFrame();
+		}
 		const double hitchEvents = hitchTrace ? Sys_PresentationMilliseconds() : 0.0;
 		double hitchGame = hitchEvents;
 
@@ -2526,9 +2537,9 @@ void idCommonLocal::Frame( void ) {
 		if ( hitchTrace ) {
 			const double end = Sys_PresentationMilliseconds();
 			if ( end - hitchStart >= com_hitchThreshold.GetFloat() ) {
-				Printf("HITCH_FRAME wall=%u frame=%d total_ms=%.3f events_ms=%.3f session_ms=%.3f render_ms=%.3f map=%s\n",
+				Printf("HITCH_FRAME wall=%u frame=%d total_ms=%.3f events_ms=%.3f session_ms=%.3f render_ms=%.3f state=%s start_state=%s map=%s\n",
 					Sys_Milliseconds(), com_frameNumber, end-hitchStart, hitchEvents-hitchStart,
-					hitchGame-hitchEvents, end-hitchGame, session->GetCurrentMapName());
+					hitchGame-hitchEvents, end-hitchGame, sessLocal.HitchState(), hitchStartState, session->GetCurrentMapName());
 			}
 		}
 		if ( com_speeds.GetBool() ) {

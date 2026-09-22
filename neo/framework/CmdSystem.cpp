@@ -28,6 +28,7 @@ If you have questions concerning this license or the applicable additional terms
 
 #include "precompiled.h"
 #pragma hdrstop
+#include "HitchTrace.h"
 
 /*
 ===============================================================================
@@ -464,6 +465,8 @@ idCmdSystemLocal::ExecuteTokenizedString
 ============
 */
 void idCmdSystemLocal::ExecuteTokenizedString( const idCmdArgs &args ) {
+	// Only the command name is recorded, never arguments or typed values.
+	idHitchScope hitch("command", args.Argv(0));
 	commandDef_t *cmd, **prev;
 
 	// execute the command line

@@ -97,6 +97,7 @@ public:
 	virtual void		PacifierUpdate();
 
 	virtual void		Frame();
+	const char *HitchState() const { return insideExecuteMapChange ? "loading" : guiActive ? "menu" : mapSpawned ? "gameplay" : "idle"; }
 
 	virtual bool		IsMultiplayer();
 
