@@ -29,6 +29,7 @@ If you have questions concerning this license or the applicable additional terms
 #pragma hdrstop
 
 #include "tr_local.h"
+#include "../framework/HitchTrace.h"
 
 idRenderSystemLocal	tr;
 idRenderSystem	*renderSystem = &tr;
@@ -145,6 +146,7 @@ static void R_IssueRenderCommands( void ) {
 	// r_skipRender is usually more usefull, because it will still
 	// draw 2D graphics
 	if ( !r_skipBackEnd.GetBool() ) {
+		idHitchScope hitch("render_backend", "commands_including_present");
 		RB_ExecuteBackEndCommands( frameData->cmdHead );
 	}
 
@@ -661,6 +663,7 @@ Returns the number of msec spent in the back end
 =============
 */
 void idRenderSystemLocal::EndFrame( int *frontEndMsec, int *backEndMsec ) {
+	idHitchScope hitch("render_end", "submit_and_present");
 	emptyCommand_t *cmd;
 
 	if ( !glConfig.isInitialized ) {
@@ -928,7 +931,10 @@ void idRenderSystemLocal::CaptureRenderToFile( const char *fileName, bool fixAlp
 	int	c = ( rc->width + 3 ) * rc->height;
 	byte *data = (byte *)R_StaticAlloc( c * 3 );
 
-	qglReadPixels( rc->x, rc->y, rc->width, rc->height, GL_RGB, GL_UNSIGNED_BYTE, data );
+	{
+		idHitchScope hitch("capture_readback", "gpu_pixels");
+		qglReadPixels( rc->x, rc->y, rc->width, rc->height, GL_RGB, GL_UNSIGNED_BYTE, data );
+	}
 
 	byte *data2 = (byte *)R_StaticAlloc( c * 4 );
 
@@ -939,7 +945,10 @@ void idRenderSystemLocal::CaptureRenderToFile( const char *fileName, bool fixAlp
 		data2[ i * 4 + 3 ] = 0xff;
 	}
 
-	R_WriteTGA( fileName, data2, rc->width, rc->height, true );
+	{
+		idHitchScope hitch("capture_write", "tga_file");
+		R_WriteTGA( fileName, data2, rc->width, rc->height, true );
+	}
 
 	R_StaticFree( data );
 	R_StaticFree( data2 );

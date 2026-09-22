@@ -1880,13 +1880,20 @@ bool idSessionLocal::SaveGame( const char *saveName, bool autosave, const char* 
 	}
 
 	// let the game save its state
-	game->SaveGame( fileOut );
+	{
+		idHitchScope hitch("save_state", "serialize_and_write");
+		game->SaveGame( fileOut );
+	}
 
 	// close the sava game file
-	fileSystem->CloseFile( fileOut );
+	{
+		idHitchScope hitch("save_close", "flush_and_close");
+		fileSystem->CloseFile( fileOut );
+	}
 
 	// Write screenshot
 	if ( !autosave ) {
+		idHitchScope hitch("save_thumbnail", "preview");
 		renderSystem->CropRenderSize( 320, 240, false );
 		game->Draw( 0 );
 		renderSystem->CaptureRenderToFile( previewFile, true );
@@ -2557,10 +2564,16 @@ void idSessionLocal::UpdateScreen( bool outOfSequence ) {
 		Sys_GrabMouseCursor( false );
 	}
 
-	renderSystem->BeginFrame( renderSystem->GetScreenWidth(), renderSystem->GetScreenHeight() );
+	{
+		idHitchScope hitch("render_begin", "frame_setup");
+		renderSystem->BeginFrame( renderSystem->GetScreenWidth(), renderSystem->GetScreenHeight() );
+	}
 
 	// draw everything
-	Draw();
+	{
+		idHitchScope hitch("render_frontend", "scene_and_gui");
+		Draw();
+	}
 
 	if ( com_speeds.GetBool() ) {
 		renderSystem->EndFrame( &time_frontend, &time_backend );

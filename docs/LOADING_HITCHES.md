@@ -115,3 +115,7 @@ exercise real menu, gameplay and transition labels. That run overlapped build/UI
 verification activity and is not a performance benchmark. A controlled gameplay
 asset was learned, a menu-only asset was excluded, and the learned cache verified
 byte-for-byte after reload. Both source builds and native launcher verification pass.
+
+### Save and rendering stage diagnostics
+
+The existing hitch trace also measures save-state serialization and writes, save-file close, and thumbnail generation. Thumbnail capture separates GPU pixel readback from TGA writing. Rendering separates frame setup, scene/GUI preparation, backend commands, individual views/copies, explicit GPU waits, and buffer presentation. Scopes below 2 ms are omitted. Nested durations overlap and must not be summed; these are CPU elapsed times, including driver waits and scheduling, not GPU timer queries. No extra GPU synchronization is introduced.

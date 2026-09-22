@@ -29,6 +29,7 @@ If you have questions concerning this license or the applicable additional terms
 #pragma hdrstop
 
 #include "tr_local.h"
+#include "../framework/HitchTrace.h"
 
 static idCVar r_fillWindowAlphaChan( "r_fillWindowAlphaChan", "-1", CVAR_SYSTEM | CVAR_NOCHEAT | CVAR_ARCHIVE | CVAR_NEW, "Make sure alpha channel of windows default framebuffer is completely opaque at the end of each frame. Needed at least when using Wayland with older drivers.\n 1: do this, 0: don't do it, -1: let the engine decide (default)" );
 
@@ -602,11 +603,13 @@ const void	RB_SwapBuffers( const void *data ) {
 
 	// force a gl sync if requested
 	if ( r_finish.GetBool() ) {
+		idHitchScope hitch("render_finish", "explicit_gpu_wait");
 		qglFinish();
 	}
 
 	// don't flip if drawing to front buffer
 	if ( !r_frontBuffer.GetBool() ) {
+		idHitchScope hitch("render_present", "swap_buffers");
 		GLimp_SwapBuffers();
 	}
 }
@@ -662,7 +665,10 @@ void RB_ExecuteBackEndCommands( const emptyCommand_t *cmds ) {
 		case RC_NOP:
 			break;
 		case RC_DRAW_VIEW:
-			RB_DrawView( cmds );
+			{
+				idHitchScope hitch("render_view", "draw_view");
+				RB_DrawView( cmds );
+			}
 			if ( ((const drawSurfsCommand_t *)cmds)->viewDef->viewEntitys ) {
 				c_draw3d++;
 			}
@@ -679,7 +685,10 @@ void RB_ExecuteBackEndCommands( const emptyCommand_t *cmds ) {
 			c_swapBuffers++;
 			break;
 		case RC_COPY_RENDER:
-			RB_CopyRender( cmds );
+			{
+				idHitchScope hitch("render_copy", "copy_render");
+				RB_CopyRender( cmds );
+			}
 			c_copyRenders++;
 			break;
 		default:
