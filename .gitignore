@@ -1,0 +1,21 @@
+/build/
+/output/
+/dist/
+/validation/
+/engine/
+/userdata/
+/Prey-settings.json
+/Play-Prey2006-Custom.bat
+/Prey Settings.exe
+/PreyConfigurator/native/build/
+/PreyConfigurator/publish/
+**/__pycache__/
+*.save
+*.iso
+*.pk4
+*.pdb
+*.dmp
+preykey
+xpkey
+.env
+.env.*

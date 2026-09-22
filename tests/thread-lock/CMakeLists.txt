@@ -1,0 +1,6 @@
+cmake_minimum_required(VERSION 3.20)
+project(ThreadLockRegression LANGUAGES CXX)
+add_executable(thread_lock_test critical_section_test.cpp)
+target_compile_features(thread_lock_test PRIVATE cxx_std_11)
+enable_testing()
+add_test(NAME exception_releases_recursive_lock COMMAND thread_lock_test)

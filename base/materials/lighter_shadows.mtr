@@ -1,0 +1,14 @@
+// Retail lighter illumination with shadow casting enabled for the experimental option.
+// Keep the retail activation, flicker, falloff and texture movement unchanged.
+lights/playerlighter_shadows
+{
+    lightfalloffimage makeintensity( lights/lighterfade.tga )
+    {
+        map lights/lighterlight.tga
+        red (lighteractivater[(time - parm4) * 1.5] * lighterflicker[time * 0.3]) * parm0
+        green (lighteractivateg[(time - parm4) * 1.5] * lighterflicker[time * 0.3]) * parm1
+        blue (lighteractivateb[(time - parm4) * 1.5] * lighterflicker[time * 0.3]) * parm2
+        zeroclamp
+        scroll 0.02 * lighterwiggle[time * 0.5], 0.01 * lighterwiggle[time * 0.3]
+    }
+}

@@ -1,0 +1,49 @@
+// Regression fixture: uses retail assets, which are not distributed here.
+windowDef Desktop {
+    rect 0, 0, 640, 480
+    backcolor 0.06, 0.07, 0.09, 1
+    menugui 1
+    onTime 0 { set "CreditEffect::onCallEnable" "1"; }
+    superWindowDef Frame {
+        rect 80, 80, 480, 240
+        cornerMat "guis/assets/menu/pictureframe_corner.tga"
+        leftMat "guis/assets/menu/pictureframe_left.tga"
+        topMat "guis/assets/menu/pictureframe_strip.tga"
+        cornerSize 16, 16
+        edgeSize 8, 8
+        margins 8, 8, 8, 8
+        backcolor 0.29, 0.32, 0.39, 0.8
+        noevents 1
+    }
+    splineDef TextEffect {
+        rect 100, 130, 440, 120
+        text "PREY compatibility"
+        textscale 0.5
+        textalign 1
+        forecolor 1, 1, 1, 1
+        duration 1500
+        trails 6
+        splinePoints 5
+        trailOffset 0.025
+        splineIn 1
+        onTime 0 { set "onStart" "1"; }
+    }
+    creditDef CreditEffect {
+        rect 100, 250, 440, 60
+        text "Credit activation"
+        textscale 0.3
+        textalign 1
+        forecolor 1, 1, 1, 1
+        noTime 1
+        duration 1500
+        trails 4
+        onTime 0 { set "onStart" "1"; }
+    }
+    windowDef Label {
+        rect 80, 350, 480, 60
+        text "Frame sides, inset background, spline text"
+        textscale 0.3
+        textalign 1
+        forecolor 1, 1, 1, 1
+    }
+}
