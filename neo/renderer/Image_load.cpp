@@ -1928,6 +1928,11 @@ void idImage::CopyFramebuffer( int x, int y, int imageWidth, int imageHeight, bo
 	GetDownsize( imageWidth, imageHeight );
 	GetDownsize( potWidth, potHeight );
 
+	// A retained allocation must not shrink one axis when the other grows.
+	if ( useOversizedBuffer ) {
+		potWidth = Max( potWidth, uploadWidth );
+		potHeight = Max( potHeight, uploadHeight );
+	}
 	qglReadBuffer( GL_BACK );
 
 	// only resize if the current dimensions can't hold it at all,
@@ -1982,13 +1987,13 @@ void idImage::CopyFramebuffer( int x, int y, int imageWidth, int imageHeight, bo
 	}
 
 	// if the image isn't a full power of two, duplicate an extra row and/or column to fix bilerps
-	if ( imageWidth != potWidth ) {
+	if ( imageWidth < uploadWidth ) {
 		{
 			idHitchScope hitch("bloom_copy_edge", imgName.c_str(), traceBloom);
 			qglCopyTexSubImage2D( GL_TEXTURE_2D, 0, imageWidth, 0, x+imageWidth-1, y, 1, imageHeight );
 		}
 	}
-	if ( imageHeight != potHeight ) {
+	if ( imageHeight < uploadHeight ) {
 		{
 			idHitchScope hitch("bloom_copy_edge", imgName.c_str(), traceBloom);
 			qglCopyTexSubImage2D( GL_TEXTURE_2D, 0, 0, imageHeight, x, y+imageHeight-1, imageWidth, 1 );

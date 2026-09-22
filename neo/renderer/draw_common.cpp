@@ -1971,7 +1971,7 @@ static void RB_GlowRecoveredKernel( void ) {
 // With the RGB8 input this gives c*c weights and fixed-point rounding per draw.
 struct retailGlowProgram_t {
     bool valid, supported;
-    int size, steps;
+    int size, textureSize, steps;
     float alpha, change;
 };
 static const int RETAIL_GLOW_CACHE_SIZE = 8;
@@ -1989,7 +1989,7 @@ void RB_InvalidateRetailGlowPrograms( void ) {
 // of thin neon tubes. Resample the retail kernel onto the actual texel grid,
 // preserving its total gain and normalized radius. Adjacent taps share one
 // bilinear fetch. The 256-square reference still uses the captured GL draws.
-static bool RB_GlowRetailProgram( int axis, int size ) {
+static bool RB_GlowRetailProgram( int axis, int size, int textureSize ) {
     if ( !glConfig.ARBFragmentProgramAvailable ) {
         return false;
     }
@@ -1999,7 +1999,7 @@ static bool RB_GlowRetailProgram( int axis, int size ) {
     // thumbnails, main view). Fixed reserved IDs bound driver resource use.
     for ( int slot = 0; slot < RETAIL_GLOW_CACHE_SIZE; ++slot ) {
         const retailGlowProgram_t &entry = retailGlowPrograms[axis][slot];
-        if ( entry.valid && entry.size == size && entry.steps == steps &&
+        if ( entry.valid && entry.size == size && entry.textureSize == textureSize && entry.steps == steps &&
              entry.alpha == alpha && entry.change == change ) {
             retailGlowActiveProgram[axis] = FPROG_RETAIL_GLOW_CACHE + axis * RETAIL_GLOW_CACHE_SIZE + slot;
             return entry.supported;
@@ -2012,7 +2012,7 @@ static bool RB_GlowRetailProgram( int axis, int size ) {
     idHitchScope compileHitch("bloom_program_build", axis == 0 ? "horizontal" : "vertical");
     cached.valid = true;
     cached.supported = false;
-    cached.size = size; cached.steps = steps; cached.alpha = alpha; cached.change = change;
+    cached.size = size; cached.textureSize = textureSize; cached.steps = steps; cached.alpha = alpha; cached.change = change;
 
     float retailWeights[257] = { 1.0f };
     float color = alpha, gain = 1.0f;
@@ -2050,7 +2050,6 @@ static bool RB_GlowRetailProgram( int axis, int size ) {
         total += weight;
     }
     const float scale = gain / total;
-    const float textureSize = MakePowerOfTwo( size );
     idStr program = "!!ARBfp1.0\nTEMP uv, sample, sum;\nPARAM bounds = program.local[0];\n";
     idStr instructions = "MOV sum, 0.0;\n";
     int tap = 0;
@@ -2123,7 +2122,7 @@ static void RB_GlowRetailCopy( idImage *image ) {
     image->CopyFramebuffer( tr.viewportOffset[0] + view->viewport.x1,
         tr.viewportOffset[1] + view->viewport.y1,
         view->viewport.x2 - view->viewport.x1 + 1,
-        view->viewport.y2 - view->viewport.y1 + 1, false, false );
+        view->viewport.y2 - view->viewport.y1 + 1, !globalImages->image_forceDownSize.GetBool(), false );
 }
 
 static idScreenRect RB_GlowRetailScissor( const idScreenRect &source, int width, int height, int targetWidth, int targetHeight ) {
@@ -2169,8 +2168,9 @@ static bool RB_GlowPrepareRetail( drawSurf_t **drawSurfs, int numDrawSurfs, int 
     const int resolution = r_glowResolution.GetInteger();
     glowWidth = resolution > 0 ? Min( resolution, width ) : width;
     glowHeight = resolution > 0 ? Min( resolution, height ) : height;
+    const bool retainStorage = !globalImages->image_forceDownSize.GetBool();
     bool smoothKernel = glowWidth != GLOW_KERNEL_SIZE || glowHeight != GLOW_KERNEL_SIZE;
-    if ( smoothKernel && ( !RB_GlowRetailProgram( 0, glowWidth ) || !RB_GlowRetailProgram( 1, glowHeight ) ) ) {
+    if ( smoothKernel && ( !RB_GlowRetailProgram( 0, glowWidth, (retainStorage ? Max( globalImages->glowScreenImage->uploadWidth, MakePowerOfTwo( glowWidth ) ) : MakePowerOfTwo( glowWidth )) ) || !RB_GlowRetailProgram( 1, glowHeight, (retainStorage ? Max( globalImages->glowCompositeImage->uploadHeight, MakePowerOfTwo( glowHeight ) ) : MakePowerOfTwo( glowHeight )) ) ) ) {
         glowWidth = Min( GLOW_KERNEL_SIZE, width );
         glowHeight = Min( GLOW_KERNEL_SIZE, height );
         smoothKernel = false;
