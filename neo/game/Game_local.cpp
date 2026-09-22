@@ -1527,9 +1527,10 @@ bool idGameLocal::InitFromSaveGame( const char *mapName, idRenderWorld *renderWo
 
 	savegame.ReadInt( i );		// HUMANHEAD pdm
 	g_wicked.SetInteger( i );
-	if ( !isMultiplayer && g_forceCherokee.GetBool() ) {
-		g_wicked.SetBool( true );
-		common->Printf( "Force Cherokee: overriding saved difficulty.\n" );
+	if ( !isMultiplayer && g_forceCherokee.GetInteger() != 0 ) {
+		g_wicked.SetBool( g_forceCherokee.GetInteger() == 1 );
+		common->Printf( "Difficulty override: %s (saved: %s).\n",
+			g_wicked.GetBool() ? "Cherokee" : "Normal", i ? "Cherokee" : "Normal" );
 	}
 
 	savegame.ReadInt( i );		// HUMANHEAD pdm

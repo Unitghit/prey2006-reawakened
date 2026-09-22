@@ -48,7 +48,7 @@ All game cvars should be defined here.
 idCVar g_tips(						"g_tips",						"1",			CVAR_GAME | CVAR_BOOL | CVAR_ARCHIVE,	"allow hud tips to display" );
 idCVar g_jawflap(					"g_jawflap",					"1",			CVAR_GAME | CVAR_BOOL | CVAR_ARCHIVE,	"controls jawflapping" );
 idCVar g_wicked(					"g_wicked",						"0",			CVAR_GAME | CVAR_BOOL,					"if wicked mode is active" );
-idCVar g_forceCherokee( "g_forceCherokee", "0", CVAR_GAME | CVAR_BOOL | CVAR_ARCHIVE, "force Cherokee difficulty when loading a single-player save" );
+idCVar g_forceCherokee( "g_forceCherokee", "0", CVAR_GAME | CVAR_INTEGER | CVAR_ARCHIVE, "save difficulty override: 0 respect save, 1 Cherokee, 2 Normal", 0, 2 );
 idCVar g_casino(					"g_casino",						"0",			CVAR_GAME | CVAR_BOOL,					"if casino mode is active" );
 idCVar g_roadhouseCompleted(		"g_roadhouseCompleted",			"0",			CVAR_GAME | CVAR_ARCHIVE | CVAR_BOOL,	"if roadhouse map has been completed once" );
 idCVar g_precache(					"com_precache",					"1",			CVAR_BOOL | CVAR_SYSTEM | CVAR_NOCHEAT, "if on, precaches needed resources" );	// HUMANHEAD pdm: game side version

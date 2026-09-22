@@ -1,16 +1,22 @@
-# Force Cherokee on save load
+# Save difficulty modes
 
-Prey Settings > Controls & gameplay > Force Cherokee on save load controls
-archived boolean g_forceCherokee. The engine default is off to respect existing
-save difficulty. Enabled in this user's settings and custom launcher by request.
+The launcher defaults to Respect saved difficulty (g_forceCherokee 0).
+Existing saved launcher choices remain intact. The legacy CVar name is retained
+for compatibility: 1 forces Cherokee, and 2 forces Normal. It is now an archived
+integer constrained to 0..2, rather than a boolean.
 
-After reading the saved g_wicked value, single-player save restoration overrides
-it with 1 when enabled. Disabled leaves the saved value intact. This does not
-rewrite existing saves; subsequent saves naturally record the active difficulty.
-It does not force new games or multiplayer difficulty.
+Prey records g_wicked in SaveGame and restores it in InitFromSaveGame.
+g_skill is unused for this game's difficulty, and g_nightmare only controls
+whether Cherokee is unlocked. The override is applied after reading the saved
+g_wicked value. It applies to single-player save loading, not new-game selection.
+Existing saves are not rewritten; future saves record the effective mode.
 
-Release build and configurator publish/layout/serialization verification passed.
-Muted isolated test made a Normal fixture, loaded it with the option enabled
-(g_wicked 1), then disabled the option and reloaded the same fixture (g_wicked 0).
-See validation/cherokee/fixed/base/result.log. User save files were untouched.
-Settings launcher now targets validation/cherokee-build.
+Muted isolated validation created both Normal and Cherokee fixtures, set the
+opposite live difficulty, and loaded each with override 0. Both restored their
+saved values. Loading Normal with override 1 produced Cherokee; loading Cherokee
+with override 2 produced Normal. All four checks passed. Evidence remains in the
+local development workspace under validation/difficulty-modes/base/result.log;
+no personal save files or captures are distributed.
+
+This validates current behavior and does not establish the cause of a reported
+difficulty reversion in an earlier build.

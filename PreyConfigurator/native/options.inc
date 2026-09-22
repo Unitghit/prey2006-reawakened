@@ -14,7 +14,7 @@ const std::vector<Setting>& Options() {
         {L"Controls",L"Invert controller look",L"joy_invertLook",L"0",L"",{{L"Enabled",L"1"},{L"Disabled",L"0"}}},
         {L"Controls",L"Controller dead zone",L"joy_deadZone",L"0.25",L"",{{L"10%",L"0.1"},{L"15%",L"0.15"},{L"25% (default)",L"0.25"}}},
         {L"Gameplay",L"Alien screen text",L"gui_translateAlienFontDistance",L"0",L"Translate nearby interactive screens when you approach them.",{{L"Untranslated (default)",L"0"},{L"English",L"200"}}},
-        {L"Gameplay",L"Difficulty override",L"g_forceCherokee",L"0",L"Cherokee is always unlocked. Always Cherokee forces hard difficulty when loading saves; saves made afterward retain it.",{{L"Respect saved difficulty",L"0"},{L"Always Cherokee",L"1"}}},
+        {L"Gameplay",L"Difficulty override",L"g_forceCherokee",L"0",L"Respect saved difficulty restores the mode stored in each save. Overrides apply when loading saves; subsequent saves record the chosen mode. Cherokee is always unlocked.",{{L"Respect saved difficulty (default)",L"0"},{L"Always Cherokee",L"1"},{L"Always Normal",L"2"}}},
     };
     return options;
 }
