@@ -284,11 +284,16 @@ void hhPlayer::SynchronizeDoom3Shotgun() {
 		if (!definition || !definition->GetBool("rw_saveCompatible")) { continue; }
 		const bool enabled = g_doom3Shotgun.GetBool();
 		const bool held = (inventory.weapons & bit) != 0;
-		const bool rifleOwned = (inventory.weapons & (1 << 2)) != 0;
-		const bool owned = held || rifleOwned || spawnArgs.GetBool( va("rw_weapon_%s_owned", name) );
+		const int parentSlot = variant == 0 ? 2 : 4;
+		const bool parentOwned = (inventory.weapons & (1 << parentSlot)) != 0;
+		// Old prototypes granted the Machine Gun with the rifle. Its new unlock
+		// must depend on the Leech Gun, even when that old grant was saved.
+		const bool owned = variant == 1 ? parentOwned :
+			(held || parentOwned || spawnArgs.GetBool(va("rw_weapon_%s_owned", name)));
 		const bool changed = idStr::Icmp( GetWeaponName(slot), defName ) ||
 			spawnArgs.GetInt( va("rw_weapon_%s_enabled", name), "-1" ) != int(enabled) ||
-			held != (enabled && owned);
+			held != (enabled && owned) ||
+			spawnArgs.GetBool(va("rw_weapon_%s_owned", name)) != owned;
 		if ( changed ) {
 			spawnArgs.Set( va("def_weapon%d", slot), defName );
 			spawnArgs.SetBool( va("weapon%d_allowempty", slot), true );
@@ -309,14 +314,14 @@ void hhPlayer::SynchronizeDoom3Shotgun() {
 					currentWeapon, idealWeapon, health, GetOrigin().ToString() );
 			}
 		}
-		// Follow the rifle's authored lock state, including cinematics and spirit
+		// Follow the parent weapon's authored lock state, including cinematics and spirit
 		// sequences. Enabling a mod must never unlock weapons in a scripted scene.
-		if ( enabled && (weaponFlags & HH_WEAPON_RIFLE) ) {
+		if ( enabled && owned && (weaponFlags & (1 << (parentSlot - 1))) ) {
 			weaponFlags |= flag;
 		} else {
 			weaponFlags &= ~flag;
 		}
-		if ( !enabled ) {
+		if ( !enabled || !owned ) {
 			int fallback = 0;
 			for ( int candidate = 1; candidate < 8; ++candidate ) {
 				if ( (inventory.weapons & (1 << candidate)) && !IsLocked(candidate) ) {
@@ -1565,7 +1570,7 @@ hhPlayer::SkipWeapon
 */
 bool hhPlayer::SkipWeapon( int weaponNum ) const {
 	if ( (weaponNum == 8 || weaponNum == 10) && spawnArgs.FindKey("rw_weapon_d3shotgun_enabled") &&
-		!g_doom3Shotgun.GetBool() ) {
+		(!g_doom3Shotgun.GetBool() || (weaponNum == 10 && !(inventory.weapons & (1 << 4)))) ) {
 		return true;
 	}
 	//No bow if not in spirit mode
@@ -5606,7 +5611,7 @@ void hhPlayer::ForceWeapon( int weaponNum ) {
 	// A saved spirit/vehicle hand archive may still reference the addon slot.
 	// Resolve it to an owned physical weapon before constructing the view model.
 	if ( (weaponNum == 8 || weaponNum == 10) && spawnArgs.FindKey("rw_weapon_d3shotgun_enabled") &&
-		!g_doom3Shotgun.GetBool() ) {
+		(!g_doom3Shotgun.GetBool() || (weaponNum == 10 && !(inventory.weapons & (1 << 4)))) ) {
 		if ( inventory.weapons & (1 << 2) ) { weaponNum = 2; }
 		else if ( inventory.weapons & (1 << 1) ) { weaponNum = 1; }
 	}

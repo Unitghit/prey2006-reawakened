@@ -1,9 +1,10 @@
 # Doom 3 weapon prototype
 
-Optional additional Shotgun and Machine Gun for Prey2006 Reawakened. Both share
-HUD slot 2 with the Hunter Rifle. Press 2 repeatedly to cycle Rifle (blue),
-Shotgun (orange), Machine Gun (red). Both the silhouette and surrounding
-highlight change color. Wheel/controller cycling visits all available guns.
+Optional additional Shotgun and Machine Gun for Prey2006 Reawakened. Press 2
+to cycle Hunter Rifle / Shotgun, or 4 to cycle Leech Gun / Machine Gun.
+Original weapons are blue and the first addition in each slot is orange.
+Both silhouette and surrounding highlight change color. Wheel/controller
+cycling visits all available guns.
 This is single-player experimental work, not the completed arsenal conversion.
 The expansion's Super Shotgun and Doom-only mode are not implemented yet.
 
@@ -26,29 +27,34 @@ importer validates dependencies before writing and records hashes in
 only the historical standalone shotgun prototype.
 
 Enable **Gameplay > Doom 3 weapons > Enabled (prototype)** in the launcher.
-Owning the Hunter Rifle unlocks both additions, including on existing saves.
+Owning the Hunter Rifle unlocks the Shotgun. Owning the Leech Gun unlocks the
+Machine Gun, including in existing saves. Old rifle-only Machine Gun grants
+are hidden until the Leech Gun is acquired; their ammo remains stored.
 Normal campaign saves use the same folder with the option enabled or disabled.
 Keep imported assets installed when disabling the option.
 
-Rifle pickups split into three independent reserves:
+Rifle pickups split between the unlocked independent reserves. Leech Gun
+energy absorption is unchanged and never supplies Machine Gun bullets:
 
 | Weapon | Total ammunition, including loaded rounds | Magazine |
 | --- | --- | --- |
-| Hunter Rifle | 50 | Original behavior |
-| Shotgun | **32 shells** | 8 |
-| Machine Gun | 200 rounds | 60 |
+| Hunter Rifle | 75 before Leech unlock, then 50 | Original behavior |
+| Shotgun | **16 shells** | 8 |
+| Machine Gun | **120 rounds** | 60 |
 
-The shotgun's cap remains 32 with either two or three weapons installed. The
-Machine Gun's original 600-round capacity is divided by three. A 30-round rifle
-pickup gives 10 rifle rounds, 6.4 shells and 40 Machine Gun rounds when all
-three reserves have room. Fractional credit survives pickups and saves. Incoming
+The shotgun remains capped at 16 shells with either two or three weapons
+unlocked; the Machine Gun is capped at 120 total rounds, including its loaded
+60. A 30-round rifle pickup gives 15 rifle rounds and 3.2 shells before the
+Leech Gun unlock. Afterwards it gives 10 rifle rounds, 3.2 shells and 24 Machine
+Gun rounds when all three reserves have room. Fractional credit survives pickups and saves. Incoming
 overflow is redistributed to reserves with room; acquired ammunition never
 transfers between guns. Reloading only moves rounds into the magazine.
 
 Original shared-ammo saves receive a one-time normalized split. Upgrading an
 already independent shotgun save preserves its bullets and shells; the new
 Machine Gun starts empty and receives its share from subsequent pickups.
-Existing shell totals above 32 are clamped to 32, while legitimate rifle ammo
+Existing addon totals are clamped to 16 shells and 120 Machine Gun rounds
+when enabled. Legitimate rifle ammo
 above its reduced cap remains until spent. Disabling/re-enabling preserves
 reserves and magazines without splitting or refilling them again. Rifle sniper
 ammo and the authored low-ammo puzzle recharge remain rifle-only. Dynamic
@@ -195,3 +201,14 @@ retail warning/background animation. Implicit GUI materials must retain
 the dark translucent test-digit backing becomes opaque white "88" over the
 live counter. This material-only correction preserves the GUI window tree and
 versioned script, so existing weapon saves receive it without migration.
+
+## Slot-4 unlock and balance revision
+
+Selection groups and ammo-supply groups are independent. Machine Gun selection
+now uses slot 4 and follows the Leech Gun's lock/unlock state, while rifle
+pickups still supply its own bullet pool. Existing saves without a Leech Gun
+cannot select the earlier prototype grant. Acquiring the Leech Gun or loading
+a save that owns it activates the Machine Gun. No extra tooltip was added.
+Hidden, muted validation covers both unlock paths, slot-2/slot-4 cycling,
+new total caps, fractional pickup allocation, mode toggles, and saved ownership.
+Earlier validation figures above describe the historical balance at that time.

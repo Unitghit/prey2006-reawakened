@@ -1,9 +1,9 @@
-// Additional slot-2 weapon; stable inventory index 10 and independent bullets.
+// Additional slot-4 weapon; stable inventory index 10 and independent bullets.
 entityDef weaponobj_d3machinegun {
     "rw_saveCompatible" "1"
-    "rw_weaponGroup" "2"
-    "rw_weaponVariant" "2"
-    "rw_ammoCapacity" "600"
+    "rw_weaponGroup" "4"
+    "rw_weaponVariant" "1"
+    "rw_ammoCapacity" "120"
     "rw_addonScript" "script/reawakened/weapon_d3machinegun_v1.script"
     "gui" "guis/reawakened/machinegun_v1.gui"
     "inherit" "weaponobj_default"

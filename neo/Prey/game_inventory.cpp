@@ -261,13 +261,13 @@ bool hhInventory::SynchronizeWeaponAmmo(hhPlayer *owner) {
 		const int shells = AmmoIndexForAmmoClass("ammo_d3shells");
 		const int rifleFull = idInventory::MaxAmmoForAmmoClass(owner, "ammo_rifle");
 		const int count = RifleGroupAmmoCount(owner);
-		const int shellFull = 32 * count;
+		const int shellFull = 16 * count;
 		if (ammo[rifle] < 0) { ammo[shells] = -1; if (count == 3) { ammo[11] = -1; } }
 		else if (rifleFull > 0 && shellFull > 0) {
 			const double total = ammo[rifle] + WeaponAmmoFraction(owner, rifle);
 			StoreWeaponAmmo(owner, rifle, total / count);
 			StoreWeaponAmmo(owner, shells, total / count * shellFull / rifleFull);
-			if (count == 3) { StoreWeaponAmmo(owner, 11, total / count * 600 / rifleFull); }
+			if (count == 3) { StoreWeaponAmmo(owner, 11, total * 120 / rifleFull); }
 		}
 		owner->spawnArgs.SetBool("rw_weapon_ammo_initialized", true);
 		// Older prototype magazines referenced the same total. They are not
@@ -281,6 +281,14 @@ bool hhInventory::SynchronizeWeaponAmmo(hhPlayer *owner) {
 		const int shells = AmmoIndexForAmmoClass("ammo_d3shells");
 		const int capacity = MaxAmmoForAmmoClass(owner, "ammo_d3shells");
 		const int count = RifleGroupAmmoCount(owner);
+		if (owner->spawnArgs.GetInt("rw_weapon_machinegun_capacity", "-1") != 120) {
+			owner->spawnArgs.SetInt("rw_weapon_machinegun_capacity", 120);
+			changed = true;
+		}
+		if (ammo[11] >= 0 && ammo[11] + WeaponAmmoFraction(owner, 11) > 120) {
+			StoreWeaponAmmo(owner, 11, 120);
+			changed = true;
+		}
 		if (owner->spawnArgs.GetInt("rw_weapon_ammo_group_count") != count) {
 			// Upgrading an already split inventory preserves all acquired ammunition.
 			// The new gun receives subsequent pickup supply, without stealing shells.
@@ -308,7 +316,7 @@ bool hhInventory::GiveRifleGroupAmmo(hhPlayer *owner, int amount) {
 	if (amount <= 0) { return false; }
 	const int count = RifleGroupAmmoCount(owner);
 	const int indices[] = { AmmoIndexForAmmoClass("ammo_rifle"), AmmoIndexForAmmoClass("ammo_d3shells"), 11 };
-	const double full[] = { double(idInventory::MaxAmmoForAmmoClass(owner, "ammo_rifle")), 32.0 * count, 600.0 };
+	const double full[] = { double(idInventory::MaxAmmoForAmmoClass(owner, "ammo_rifle")), 16.0 * count, 120.0 * count };
 	if (full[0] <= 0) { return false; }
 	double totals[3], room[3];
 	for (int i = 0; i < count; ++i) {
@@ -338,9 +346,9 @@ int hhInventory::MaxAmmoForAmmoClass( idPlayer *owner, const char *ammo_classnam
 	int max = 0;
 	if (ammo_classname && UsesIndependentWeaponAmmo(owner)) {
 		if (!idStr::Icmp(ammo_classname, "ammo_d3shells")) {
-			return 32; // Stable total cap, including the eight loaded shells.
+			return 16; // Stable total cap, including the eight loaded shells.
 		}
-		if (!idStr::Icmp(ammo_classname, "ammo_d3bullets")) { return 600 / (SplitRifleAmmo(owner) ? RifleGroupAmmoCount(owner) : 1); }
+		if (!idStr::Icmp(ammo_classname, "ammo_d3bullets")) { return 120; }
 		if (!idStr::Icmp(ammo_classname, "ammo_rifle") && SplitRifleAmmo(owner)) {
 			return idInventory::MaxAmmoForAmmoClass(owner, ammo_classname) / RifleGroupAmmoCount(owner);
 		}

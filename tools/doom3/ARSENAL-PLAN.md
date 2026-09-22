@@ -20,9 +20,9 @@ unchanged. Import retail assets locally, never into the source repository.
 | Key | Original weapon (blue) | First Doom weapon (orange) | Second Doom weapon (red) |
 | --- | --- | --- | --- |
 | 1 | Wrench | Chainsaw | |
-| 2 | Hunter Rifle | Shotgun | Machine Gun |
+| 2 | Hunter Rifle | Shotgun | |
 | 3 | Crawler Grenades | Grenades | |
-| 4 | Leech Gun | Chaingun | |
+| 4 | Leech Gun | Machine Gun | Chaingun (planned) |
 | 5 | Autocannon | Plasma Gun | |
 | 6 | Acid Sprayer | Super Shotgun, Doom-only mode | |
 | 7 | Rocket Launcher | Rocket Launcher | |
@@ -46,7 +46,9 @@ counterparts for weapons already owned when enabling a mode on an existing save.
 Each acquired, enabled weapon gets an equal share of its group's supply budget,
 expressed relative to that weapon's full reserve, not equal bullet counts.
 Divide reserve capacities and incoming supplies by the active group size.
-Explicit balance exception: keep the shotgun capped at 32 total shells.
+Explicit balance exception: keep the shotgun capped at 16 total shells and the Machine Gun at 120 rounds.
+The Machine Gun unlocks with the Leech Gun (also on existing saves), but still
+receives rifle-group pickup supply. Leech Gun energy absorption is unchanged.
 Preserve fractional pickup credit. Redistribute incoming pickup supplies from
 full reserves to other reserves in the same group that have room. Once acquired,
 ammunition belongs exclusively to its gun: firing/reloading must never consume
