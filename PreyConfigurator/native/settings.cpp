@@ -124,9 +124,10 @@ Values Load(const fs::path& root) {
 }
 std::vector<std::pair<std::wstring,std::wstring>> Variables(const Values& v) {
     Validate(v); std::vector<std::pair<std::wstring,std::wstring>> result;
-    for (const auto& s : Options()) if (s.key != L"resolution" && s.key != L"bloom" && s.key != L"smoothMotion" && s.key != L"r_fullscreen") result.emplace_back(s.key,v.at(s.key));
+    for (const auto& s : Options()) if (s.key != L"resolution" && s.key != L"bloom" && s.key != L"smoothMotion" && s.key != L"r_fullscreen" && s.key != L"weaponPack") result.emplace_back(s.key,v.at(s.key));
     const auto& size = v.at(L"resolution"); auto x = size.find(L'x');
     const std::vector<std::pair<std::wstring,std::wstring>> fixed = {
+        {L"fs_game",v.at(L"weaponPack")==L"doom3shotgun"?L"doom3shotgun":L""},
         {L"r_mode",L"-1"},{L"r_customWidth",size.substr(0,x)},{L"r_customHeight",size.substr(x+1)},
         {L"gui_translateAlienFont",L"fonts"},{L"g_stopTime",L"0"},
         {L"r_fullscreen",v.at(L"r_fullscreen")==L"0"?L"0":L"1"},{L"r_fullscreenDesktop",v.at(L"r_fullscreen")==L"desktop"?L"1":L"0"},
@@ -142,7 +143,7 @@ std::vector<std::pair<std::wstring,std::wstring>> Variables(const Values& v) {
 std::string Launcher(const Values& v) {
     std::string build = Utf8(EngineDirectory); std::replace(build.begin(),build.end(),'/','\\');
     std::string result = "@echo off\r\nsetlocal\r\npushd \"%~dp0" + build + "\" || exit /b 1\r\nprey06.exe +set fs_basepath \"%~dp0" + build + "\" +set fs_cdpath \"%~dp0engine\" +set fs_savepath \"%~dp0userdata\" +set fs_configpath \"%~dp0userdata\" ";
-    bool first = true; for (const auto& p : Variables(v)) { if (!first) result += ' '; first=false; result += "+set " + Utf8(p.first) + " " + Utf8(p.second); }
+    bool first = true; for (const auto& p : Variables(v)) { if (!first) result += ' '; first=false; result += "+set " + Utf8(p.first) + " " + (p.second.empty()?"\"\"":Utf8(p.second)); }
     return result + "\r\nset \"preyExitCode=%errorlevel%\"\r\npopd\r\nexit /b %preyExitCode%\r\n";
 }
 void Atomic(const fs::path& file, const std::string& contents) {
@@ -155,8 +156,20 @@ void Atomic(const fs::path& file, const std::string& contents) {
 }
 void Save(const fs::path& root, const Values& v) {
     Validate(v); Atomic(root/L"Prey-settings.json",Json(v)); Atomic(root/L"Play-Prey2006-Custom.bat",Launcher(v));
+    if (v.at(L"weaponPack") == L"doom3shotgun") {
+        const auto source = root/L"userdata/base/prey06.cfg";
+        const auto target = root/L"userdata/doom3shotgun/prey06.cfg";
+        if (fs::exists(source) && !fs::exists(target)) {
+            fs::create_directories(target.parent_path());
+            fs::copy_file(source,target);
+        }
+    }
 }
 std::vector<std::wstring> Arguments(const fs::path& root, const Values& v) {
+    if (v.at(L"weaponPack") == L"doom3shotgun" &&
+        !fs::exists(root/EngineDirectory/L"doom3shotgun/import-manifest.json")) {
+        throw std::runtime_error("Import the original Doom 3 shotgun assets before enabling this prototype. See tools/doom3/README.md.");
+    }
     std::vector<std::wstring> args;
     auto set = [&](const std::wstring& key, const std::wstring& value) { args.insert(args.end(),{L"+set",key,value}); };
     set(L"fs_basepath",(root/EngineDirectory).wstring()); set(L"fs_cdpath",(root/L"engine").wstring());
@@ -188,12 +201,13 @@ void Launch(const fs::path& exe, const std::vector<std::wstring>& args) {
 void VerifyConfiguration(const fs::path& output) {
     fs::create_directories(output);
     auto require = [](bool ok) { if (!ok) throw std::runtime_error("Configuration verification failed"); };
-    auto defaults = Defaults(); require(defaults.size()==17 && defaults.at(L"g_bunnyHop")==L"0" && defaults.at(L"com_maxFPS")==L"-1");
+    auto defaults = Defaults(); require(defaults.size()==18 && defaults.at(L"g_bunnyHop")==L"0" && defaults.at(L"com_maxFPS")==L"-1");
     Save(output,defaults); require(Load(output)==defaults);
     Atomic(output/L"default-launcher.bat",Launcher(defaults));
     for (const auto& s : Options()) for (const auto& c : s.choices) {
         auto v = defaults; v[s.key]=c.value; Validate(v); require(Migrate(ParseJson(Json(v)))==v);
         auto pairs = Variables(v); Values vars(pairs.begin(),pairs.end());
+        require(vars.at(L"fs_game")==(v[L"weaponPack"]==L"doom3shotgun"?L"doom3shotgun":L""));
         require(vars.at(L"r_portalMaxDepth")==L"3" && vars.at(L"r_correctspecular")==L"1");
         require(vars.at(L"r_fullscreen")== (v[L"r_fullscreen"]==L"0"?L"0":L"1"));
         require(vars.at(L"r_fullscreenDesktop")== (v[L"r_fullscreen"]==L"desktop"?L"1":L"0"));

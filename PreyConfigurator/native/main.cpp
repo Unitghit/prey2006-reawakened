@@ -348,7 +348,7 @@ void App::Verify(const fs::path& output) {
     require(!IsWindowEnabled(rows[1].combo) && !IsWindowEnabled(rows[10].combo) && !IsWindowEnabled(rows[11].combo),"Dependency state failed");
     auto before=Read();SendMessageW(rows[0].combo,WM_MOUSEWHEEL,MAKEWPARAM(0,(WORD)-WHEEL_DELTA),0);require(Read()==before,"Mouse wheel changed a choice");
     SetValues(initial);Fit(work);Snapshot(window,output/L"settings.bmp");
-    Atomic(output/L"layout-pass.txt","PASS: 17 controls, row/group containment, small-screen scrolling, 96/120/144/192 DPI at 640/850/1100 widths, wheel forwarding and dependency state.\n");
+    Atomic(output/L"layout-pass.txt","PASS: 18 controls, row/group containment, small-screen scrolling, 96/120/144/192 DPI at 640/850/1100 widths, wheel forwarding and dependency state.\n");
 
     // Exercise the actual button handlers against an isolated root and child
     // probe, including spaces/Unicode in paths. Never launches the real game.
