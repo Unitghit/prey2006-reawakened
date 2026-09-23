@@ -2671,6 +2671,29 @@ static void Cmd_PortalGun_f(const idCmdArgs &args) {
         player->Give("weapon", "weaponobj_wrench");
         player->playerView.Fade(vec4_origin, 0);
     }
+    if (cvarSystem->GetCVarBool("developer") && args.Argc() == 2 && !idStr::Icmp(args.Argv(1), "hop")) {
+        player->GetPhysics()->SetLinearVelocity(-player->GetPhysics()->GetGravityNormal()*270);
+    }
+    if (cvarSystem->GetCVarBool("developer") && args.Argc() == 2 && !idStr::Icmp(args.Argv(1), "probe")) {
+        trace_t trace;
+        idPhysics *physics = player->GetPhysics();
+        gameLocal.clip.Translation(trace, player->GetOrigin(), player->GetOrigin() + player->GetRenderView()->viewaxis[0]*128,
+            physics->GetClipModel(), physics->GetAxis(), physics->GetClipMask(), player);
+        gameLocal.Printf("PORTAL_PROBE fraction=%f end=%s normal=%s entity=%d material=%s\n", trace.fraction, trace.endpos.ToString(),
+            trace.c.normal.ToString(), trace.c.entityNum, trace.c.material ? trace.c.material->GetName() : "none");
+    }
+    if (cvarSystem->GetCVarBool("developer") && args.Argc() == 3 && !idStr::Icmp(args.Argv(1), "projectile")) {
+        gameLocal.Printf("PORTAL_TEST_PROJECTILE %s\n", args.Argv(2));
+        const idDict *def = gameLocal.FindEntityDefDict(args.Argv(2), false);
+        idEntity *ent = NULL;
+        if (def && gameLocal.SpawnEntityDef(*def, &ent) && ent && ent->IsType(hhProjectile::Type)) {
+            hhProjectile *shot = static_cast<hhProjectile *>(ent);
+            const idVec3 start = player->GetEyePosition();
+            const idMat3 axis = player->GetRenderView()->viewaxis;
+            shot->Create(player, start, axis);
+            shot->Launch(start, axis, vec3_origin);
+        } else if (ent) ent->PostEventMS(&EV_Remove, 0);
+    }
     if (args.Argc() > 1 && !idStr::Icmp(args.Argv(1), "blue")) player->PlaceGunPortal(0);
     else if (args.Argc() > 1 && !idStr::Icmp(args.Argv(1), "orange")) player->PlaceGunPortal(1);
     else if (args.Argc() > 1 && !idStr::Icmp(args.Argv(1), "select")) player->SelectPortalGun(true);

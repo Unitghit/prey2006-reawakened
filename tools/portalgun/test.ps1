@@ -12,7 +12,7 @@ $base=Join-Path $Profile 'base'
 New-Item -ItemType Directory -Path "$base/maps","$base/materials" -Force | Out-Null
 Copy-Item "$PSScriptRoot/tests/rw_portal_lab.map" "$base/maps/"
 Copy-Item "$PSScriptRoot/tests/portal_lab.mtr" "$base/materials/"
-foreach($name in @('input','regression','floor','ceiling','blocked','replacement')) {
+foreach($name in @('input','regression','floor','ceiling','blocked','replacement','access','floor_edge')) {
     Copy-Item "$PSScriptRoot/tests/$name.cfg" "$base/test.cfg" -Force
     $arguments='+set fs_basepath "'+$Engine+'" +set fs_cdpath "'+(Split-Path $RetailBase -Parent)+'" +set fs_devpath "'+$Profile+'" +set fs_savepath "'+$Profile+'" +set fs_configpath "'+$Profile+'" +set fs_game "" +set r_fullscreen 0 +set r_fullscreenDesktop 0 +set r_mode -1 +set r_customWidth 960 +set r_customHeight 540 +set r_multiSamples 0 +set s_volume_dB -60 +set com_unlockedFPS 0 +set com_fixedTic 1 +set r_gammaInShader 1 +set developer 1 +set ai_disable 1 +set logfile 2 +exec test.cfg'
     $process=Start-Process (Join-Path $Engine 'prey06.exe') -WorkingDirectory $Engine -ArgumentList $arguments -WindowStyle Hidden -PassThru
@@ -34,5 +34,11 @@ foreach($name in @('input','regression','floor','ceiling','blocked','replacement
         if($log -notmatch 'normal=0 0 1 up=0 1 0'){throw 'Angled floor placement orientation failed'}
         if($log -notmatch 'PORTAL_EXIT[\s\S]{0,100}collision_adjustment 0\.000000'){throw 'Replaced pair failed traversal after reload'}
     }
+    if($name -eq 'access') {
+        if(([regex]::Matches($log,'PORTAL_ENTITY_EXIT hhProjectile')).Count -lt 2){throw 'Projectile traversal failed'}
+        if($log -notmatch 'PORTAL_EXIT'){throw 'Standing floor entry failed'}
+        if($log -notmatch 'PORTAL_ENTITY_EXIT hhMoveable'){throw 'Movable prop traversal failed'}
+    }
+    if($name -eq 'floor_edge' -and $log -notmatch 'PORTAL_EXIT'){throw 'Floor edge clearance failed'}
     Write-Output "PASS $name"
 }

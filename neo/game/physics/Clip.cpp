@@ -32,6 +32,7 @@ If you have questions concerning this license or the applicable additional terms
 #include "../Game_local.h"
 
 // The game validates the entire swept hull before allowing a wall-face exclusion.
+extern bool RW_PortalCoverPlane(const idPlane &, const idVec3 &, idPlane &);
 extern bool RW_PortalClipPlane(const idEntity *, const idTraceModel *, const idMat3 &, const idVec3 &, const idVec3 &, idPlane &, float &);
 #define	MAX_SECTOR_DEPTH				12
 #define MAX_SECTORS						((1<<(MAX_SECTOR_DEPTH+1))-1)
@@ -1332,7 +1333,9 @@ bool idClip::Translation( trace_t &results, const idVec3 &start, const idVec3 &e
 		idClip::numTranslations++;
         { idPlane openingPlane; float openingLimit;
         const bool opening = RW_PortalClipPlane(passEntity, trm, trmAxis, start, end, openingPlane, openingLimit);
-        collisionModelManager->SetPortalClipPlane(opening ? &openingPlane : NULL);
+        idPlane coverPlane;
+        const bool cover = opening && RW_PortalCoverPlane(openingPlane, start, coverPlane);
+        collisionModelManager->SetPortalClipPlane(opening ? &openingPlane : NULL, cover ? &coverPlane : NULL);
 		collisionModelManager->Translation( &results, start, end, trm, trmAxis, contentMask, 0, vec3_origin, mat3_default );
         if (opening && openingLimit < results.fraction) {
             results.fraction = openingLimit;
@@ -1439,7 +1442,9 @@ bool idClip::TranslationWithExceptions( trace_t &results, const idVec3 &start, c
 		idClip::numTranslations++;
         { idPlane openingPlane; float openingLimit;
         const bool opening = RW_PortalClipPlane(passEntity, trm, trmAxis, start, end, openingPlane, openingLimit);
-        collisionModelManager->SetPortalClipPlane(opening ? &openingPlane : NULL);
+        idPlane coverPlane;
+        const bool cover = opening && RW_PortalCoverPlane(openingPlane, start, coverPlane);
+        collisionModelManager->SetPortalClipPlane(opening ? &openingPlane : NULL, cover ? &coverPlane : NULL);
 		collisionModelManager->Translation( &results, start, end, trm, trmAxis, contentMask, 0, vec3_origin, mat3_default );
         if (opening && openingLimit < results.fraction) {
             results.fraction = openingLimit;
@@ -1661,7 +1666,9 @@ bool idClip::Motion( trace_t &results, const idVec3 &start, const idVec3 &end, c
 		idClip::numTranslations++;
         { idPlane openingPlane; float openingLimit;
         const bool opening = RW_PortalClipPlane(passEntity, trm, trmAxis, start, end, openingPlane, openingLimit);
-        collisionModelManager->SetPortalClipPlane(opening ? &openingPlane : NULL);
+        idPlane coverPlane;
+        const bool cover = opening && RW_PortalCoverPlane(openingPlane, start, coverPlane);
+        collisionModelManager->SetPortalClipPlane(opening ? &openingPlane : NULL, cover ? &coverPlane : NULL);
 		collisionModelManager->Translation( &translationalTrace, start, end, trm, trmAxis, contentMask, 0, vec3_origin, mat3_default );
         if (opening && openingLimit < translationalTrace.fraction) {
             translationalTrace.fraction = openingLimit;
@@ -1840,7 +1847,9 @@ int idClip::Contacts( contactInfo_t *contacts, const int maxContacts, const idVe
 		idClip::numContacts++;
         { idPlane openingPlane; float openingLimit;
         const bool opening = RW_PortalClipPlane(passEntity, trm, trmAxis, start, start, openingPlane, openingLimit);
-        collisionModelManager->SetPortalClipPlane(opening ? &openingPlane : NULL);
+        idPlane coverPlane;
+        const bool cover = opening && RW_PortalCoverPlane(openingPlane, start, coverPlane);
+        collisionModelManager->SetPortalClipPlane(opening ? &openingPlane : NULL, cover ? &coverPlane : NULL);
 		numContacts = collisionModelManager->Contacts( contacts, maxContacts, start, dir, depth, trm, trmAxis, contentMask, 0, vec3_origin, mat3_default );
         collisionModelManager->SetPortalClipPlane(NULL); }
 	} else {
@@ -1920,7 +1929,9 @@ int idClip::Contents( const idVec3 &start, const idClipModel *mdl, const idMat3 
 		idClip::numContents++;
         { idPlane openingPlane; float openingLimit;
         const bool opening = RW_PortalClipPlane(passEntity, trm, trmAxis, start, start, openingPlane, openingLimit);
-        collisionModelManager->SetPortalClipPlane(opening ? &openingPlane : NULL);
+        idPlane coverPlane;
+        const bool cover = opening && RW_PortalCoverPlane(openingPlane, start, coverPlane);
+        collisionModelManager->SetPortalClipPlane(opening ? &openingPlane : NULL, cover ? &coverPlane : NULL);
 		contents = collisionModelManager->Contents( start, trm, trmAxis, contentMask, 0, vec3_origin, mat3_default );
         collisionModelManager->SetPortalClipPlane(NULL); }
 	} else {

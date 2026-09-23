@@ -388,6 +388,8 @@ void hhPortal::CheckPlayerDistances(void) {
 #define NEAR_CLIP	0 //6.5
 
 static void RW_UpdateGunPortalFloor(hhPortal *portal);
+static bool RW_GunPortalEntity(const idEntity *ent);
+static bool RW_PortalFits(const hhPortal *, const idTraceModel *, const idMat3 &, const idVec3 &, bool);
 
 void hhPortal::ResetGunPortalCrossings() {
     // Previous positions belong to the old portal frame. Do not interpret a
@@ -471,6 +473,22 @@ void hhPortal::Think( void ) {
 		}
 	}
 
+    // A freshly placed floor opening may already be above the feet by its
+    // decal clearance. Seed a real crossing instead of waiting for an origin
+    // which started behind the plane to cross it from the front.
+    if (spawnArgs.GetBool("rw_portalGun") && cameraTarget && player &&
+        GetAxis()[0] * -player->GetPhysics()->GetGravityNormal() > 0.95f) {
+        const float depth = (player->GetOrigin() - GetOrigin()) * GetAxis()[0];
+        const idClipModel *clip = player->GetPhysics()->GetClipModel();
+        if (depth <= 0 && depth >= -2 && clip && clip->IsTraceModel() &&
+            player->GetPhysics()->GetLinearVelocity() * GetAxis()[0] <= 0.1f &&
+            RW_PortalFits(this, clip->GetTraceModel(), player->GetPhysics()->GetAxis(), player->GetOrigin(), true)) {
+            AddProximityEntity(player);
+            for (int k = 0; k < proximityEntities.Num(); ++k) if (proximityEntities[k].entity.GetEntity() == player)
+                proximityEntities[k].lastPortalPoint = player->GetOrigin() + GetAxis()[0] * (0.25f - depth);
+        }
+    }
+
 	// Build a plane for the portal surface
 	plane.SetNormal(GetPhysics()->GetAxis()[0]);
 	plane.FitThroughPoint( GetPhysics()->GetOrigin() + plane.Normal() * (spawnArgs.GetBool("rw_portalGun") ? 0.0f : NEAR_CLIP) );
@@ -503,8 +521,7 @@ void hhPortal::Think( void ) {
 
 bool hhPortal::AttemptPortal( idPlane &plane, idEntity *hit, idVec3 location, idVec3 nextLocation ) {
 
-    // The experimental wall aperture currently supports player hulls only.
-    if (spawnArgs.GetBool("rw_portalGun") && !hit->IsType(hhPlayer::Type)) return false;
+    if (spawnArgs.GetBool("rw_portalGun") && !RW_GunPortalEntity(hit)) return false;
 
 	// Don't try to portal self
 	if( hit == this ) {
@@ -566,7 +583,12 @@ bool hhPortal::AttemptPortal( idPlane &plane, idEntity *hit, idVec3 location, id
     // The legacy path drops the remainder of this tick's movement. Players
     // use the actual endpoint and the same rigid transform as their velocity.
     const idVec3 crossingPoint = location + dir * scale;
-    const bool carryMotion = !gameLocal.isMultiplayer && hit->IsType(hhPlayer::Type) && (g_portalPreserveMotion.GetBool() || spawnArgs.GetBool("rw_portalGun"));
+    if (spawnArgs.GetBool("rw_portalGun")) {
+        const idClipModel *clip = hit->GetPhysics()->GetClipModel();
+        if (!clip || !clip->IsTraceModel() || !RW_PortalFits(this, clip->GetTraceModel(), hit->GetPhysics()->GetAxis(), crossingPoint, hit->IsType(hhPlayer::Type))) return false;
+    }
+    const bool carryMotion = !gameLocal.isMultiplayer && ((hit->IsType(hhPlayer::Type) && g_portalPreserveMotion.GetBool()) ||
+        (spawnArgs.GetBool("rw_portalGun") && !hit->IsType(hhProjectile::Type)));
     const bool portalled = carryMotion ? PortalEntity(hit, nextLocation, &crossingPoint) :
         PortalEntity(hit, location + dir * scale * 1.01f);
     if (!portalled) {
@@ -703,7 +725,7 @@ bool hhPortal::CheckPortal( const idEntity *other, int contentMask ) {
 		return true;
 	}
 
-	if ( other->fl.noPortal ) {
+	if ( other->fl.noPortal || (spawnArgs.GetBool("rw_portalGun") && !RW_GunPortalEntity(other)) ) {
 		return false; // Do not allow this entity to portal, make it collide with the portal instead
 	}
 
@@ -961,7 +983,7 @@ bool hhPortal::PortalTeleport( idEntity *ent, const idVec3 &origin, const idMat3
     const bool gunPortal = spawnArgs.GetBool("rw_portalGun");
     const bool blocked = gunPortal ? gameLocal.clip.Translation(transCheck, useOrigin, useOrigin, clip, axis, ent->GetPhysics()->GetClipMask(), ent) :
         gameLocal.clip.TranslationWithExceptions(transCheck, useOrigin, useOrigin, NULL, clip, axis, ent->GetPhysics()->GetClipMask(), ent);
-    if (blocked && gunPortal) { ent->GetPhysics()->SetLinearVelocity(originalVelocity); gameLocal.Printf("PORTALGUN blocked exit\n"); return false; }
+    if (blocked && gunPortal) { ent->GetPhysics()->SetLinearVelocity(originalVelocity); gameLocal.Printf("PORTALGUN blocked exit\n"); if (cvarSystem->GetCVarBool("developer")) gameLocal.Printf("PORTAL_BLOCK material=%s contents=%d normal=%s\n", transCheck.c.material ? transCheck.c.material->GetName() : "none", transCheck.c.contents, transCheck.c.normal.ToString()); return false; }
 	if (blocked) {
 		if (cameraTarget) {
 			bool safeSpot = true;
@@ -1046,6 +1068,11 @@ bool hhPortal::PortalTeleport( idEntity *ent, const idVec3 &origin, const idMat3
 		// Valid move.  This code is done in SetOrientation for the player.
 		ent->SetOrigin( useOrigin );
 		ent->SetAxis( axis );
+        if (gunPortal && ent->IsType(idMoveable::Type)) {
+            idVec3 angularVelocity = ent->GetPhysics()->GetAngularVelocity();
+            PortalRotate(angularVelocity, sourceAxis, destAxis, true);
+            ent->GetPhysics()->SetAngularVelocity(angularVelocity);
+        }
 	}
 
 	// Re-link the actor into the clip tree
@@ -1075,6 +1102,8 @@ bool hhPortal::PortalTeleport( idEntity *ent, const idVec3 &origin, const idMat3
 		}
 	}
 
+    if (gunPortal && cvarSystem->GetCVarBool("com_fpsTrace"))
+        gameLocal.Printf("PORTAL_ENTITY_EXIT %s\n", ent->GetClassname());
     if (ent->IsType(hhPlayer::Type) && cvarSystem->GetCVarBool("com_fpsTrace"))
         gameLocal.Printf("PORTAL_EXIT %d speed %.6f collision_adjustment %.6f\n", gameLocal.time,
             ent->GetPhysics()->GetLinearVelocity().Length(), (useOrigin-origin).Length());

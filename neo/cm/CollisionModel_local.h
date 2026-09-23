@@ -294,7 +294,22 @@ class idCollisionModelManagerLocal : public idCollisionModelManager {
 public:
     bool portalClipActive = false;
     idPlane portalClipPlane;
-    void SetPortalClipPlane(const idPlane *plane) { portalClipActive = plane != NULL; if (plane) portalClipPlane = *plane; }
+    bool portalCoverActive = false;
+    idPlane portalCoverPlane;
+    void SetPortalClipPlane(const idPlane *plane, const idPlane *cover = NULL) {
+        portalClipActive = plane != NULL; if (plane) portalClipPlane = *plane;
+        portalCoverActive = plane && cover; if (portalCoverActive) portalCoverPlane = *cover;
+    }
+    bool PortalCoverSurface(const idPlane &plane, int contents) const {
+        if (!portalCoverActive || !(contents & CONTENTS_PLAYERCLIP) || (contents & CONTENTS_SOLID)) return false;
+        const float facing = plane.Normal() * portalCoverPlane.Normal();
+        if (facing > 0.9999f) return idMath::Fabs(plane.Dist() - portalCoverPlane.Dist()) < 0.15f;
+        // A thin clip brush has a back face too. Leaving a portal must clear
+        // that face just as entering clears its front, including zero-length
+        // destination occupancy traces with a rotated hull.
+        const float thickness = plane.Dist() + portalCoverPlane.Dist();
+        return facing < -0.9999f && thickness >= -0.15f && thickness <= 32.0f;
+    }
     bool PortalClipSurface(const idPlane &plane) const {
         return portalClipActive && plane.Normal() * portalClipPlane.Normal() > 0.9999f &&
             idMath::Fabs(plane.Dist() - portalClipPlane.Dist()) < 0.15f;

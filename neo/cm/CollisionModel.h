@@ -166,7 +166,7 @@ public:
 	//HUMANHEAD END
 	// Scoped world exclusion for a validated player portal aperture.
 	// Appended to preserve the order of existing collision-manager virtuals.
-	virtual void SetPortalClipPlane(const idPlane *plane) = 0;
+	virtual void SetPortalClipPlane(const idPlane *plane, const idPlane *cover = NULL) = 0;
 
 };
 
