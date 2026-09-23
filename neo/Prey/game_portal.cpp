@@ -1051,6 +1051,41 @@ bool hhPortal::PortalEntity( idEntity *ent, const idVec3 &point, const idVec3 *c
                 gameLocal.Printf("PORTAL_REMAINDER %d fraction %.6f distance %.6f\n", gameLocal.time,
                     exitTrace.fraction, (newLocation-exitStart).Length());
         }
+        // Resolve a shallow edge snag before committing a gun-portal crossing.
+        // Search only along the opening, and require clear source travel plus
+        // destination occupancy and a reverse sweep back to the contact skin.
+        // This cannot skip a wall to reach an unrelated empty space.
+        if (spawnArgs.GetBool("rw_portalGun") && ent->IsType(hhPlayer::Type)) {
+            idClipModel *hull = ent->GetPhysics()->GetClipModel();
+            trace_t occupied;
+            if (hull && gameLocal.clip.Translation(occupied, newLocation, newLocation, hull, newEntAxis,
+                    ent->GetPhysics()->GetClipMask(), ent)) {
+                bool cleared = false;
+                const float limit = Min(pm_stepsize.GetFloat(), pm_bboxwidth.GetFloat()*0.5f);
+                for (float distance = 2; distance <= limit && !cleared; distance += 2) {
+                    for (int sample = 0; sample < 16 && !cleared; ++sample) {
+                        const float angle = sample*(idMath::TWO_PI/16.0f);
+                        const idVec3 offset = (destAxis[2]*idMath::Cos(angle) + destAxis[1]*idMath::Sin(angle))*distance;
+                        const idVec3 candidate = newLocation+offset;
+                        trace_t test;
+                        if (gameLocal.clip.Translation(test, candidate, candidate, hull, newEntAxis,
+                                ent->GetPhysics()->GetClipMask(), ent)) continue;
+                        gameLocal.clip.Translation(test, candidate, newLocation, hull, newEntAxis,
+                            ent->GetPhysics()->GetClipMask(), ent);
+                        if (test.fraction <= 0.0f || (test.endpos-newLocation).Length() > 2.0f) continue;
+                        idVec3 sourceOffset = offset;
+                        PortalRotate(sourceOffset, destAxis.Transpose(), GetAxis(), true);
+                        const idVec3 sourceCandidate = point+sourceOffset;
+                        if (!RW_PortalFits(this, hull->GetTraceModel(), ent->GetPhysics()->GetAxis(), sourceCandidate, true)) continue;
+                        if (gameLocal.clip.Translation(test, point, sourceCandidate, hull, ent->GetPhysics()->GetAxis(),
+                                ent->GetPhysics()->GetClipMask(), ent)) continue;
+                        newLocation = candidate;
+                        cleared = true;
+                        if (traceAlignment) gameLocal.Printf("PORTAL_EXIT_CLEARANCE distance=%.3f\n", distance);
+                    }
+                }
+            }
+        }
 		// Actually attempt to portal the entity
 		if ( PortalTeleport( ent, newLocation, newEntAxis, sourceAxis, destAxis, continuous ) ) {
             if (traceAlignment)
@@ -1467,3 +1502,5 @@ void hhPortal::Event_HideGlowPortal( void ) {
 }
 
 #include "portalgun.inl"
+
+

@@ -348,3 +348,10 @@ requires a clear source sweep, a valid aperture fit, and an unobstructed emerged
 hull at the destination. This does not disable collision with doors or props.
 The `portalstuck5` campaign regression released with a two-unit correction;
 `floor_clearance` and `static_exit` retain genuinely blocked exit coverage.
+
+Final player crossings also resolve shallow exit snags in the portal tangent
+plane. The search is bounded by step height and half the hull width. Candidates
+require clear destination occupancy, a reverse hull sweep reaching within two
+units of the original contact, a source-side swept hull, and aperture fit.
+Ordinary unobstructed crossings retain their exact position and momentum.
+The `portalstuck6` wall-to-wall campaign setup exercises a sloped static-mesh snag.
