@@ -288,3 +288,10 @@ Destination checks use the transformed physics hull, independent of view yaw.
 `floor_edge_slide` verifies an obstacle stops entry but allows movement toward
 a clear part of the opening, followed by a successful crossing.
 
+
+Portal occupancy tests filter individual contacts at or behind the supporting
+plane, including edge/plane intersections on polygons spanning both sides.
+This prevents hidden wall-trim corners from catching the un-emerged portion of
+the player. Geometry in front remains solid. `floor_corner` checks rotated
+static trim spanning the portal plane and a corresponding foreground obstacle.
+

@@ -84,6 +84,7 @@ bool idCollisionModelManagerLocal::TestTrmVertsInBrush( cm_traceWork_t *tw, cm_b
 
 	for ( j = 0; j < numVerts; j++ ) {
 		p = &tw->vertices[j].p;
+        if (portalClipActive && portalClipPlane.Distance(*p) <= 0.01f) continue;
 
 		// see if the point is inside the brush
 		bestPlane = 0;
@@ -206,6 +207,7 @@ bool idCollisionModelManagerLocal::TestTrmInPolygon( cm_traceWork_t *tw, cm_poly
 
 			for ( j = 0; j < 2; j++ ) {
 				v = &tw->model->vertices[edge->vertexNum[j]];
+                if (portalClipActive && portalClipPlane.Distance(v->p) <= 0.01f) continue;
 				// if this vertex is already tested
 				if ( v->checkcount == idCollisionModelManagerLocal::checkCount ) {
 					continue;
@@ -298,6 +300,17 @@ bool idCollisionModelManagerLocal::TestTrmInPolygon( cm_traceWork_t *tw, cm_poly
 #endif
 		}
 		if ( j >= p->numEdges ) {
+            // A polygon can straddle the opening plane. Its bounds alone do
+            // not tell us whether this contact belongs to the visible side.
+            // Use the actual edge/plane intersection, not the legacy endpoint
+            // stored in contactInfo, which may be well behind the portal.
+            if (portalClipActive) {
+                const idVec3 &a = tw->vertices[tw->edges[i].vertexNum[0]].p;
+                const idVec3 &b = tw->vertices[tw->edges[i].vertexNum[1]].p;
+                const float da = p->plane.Distance(a), db = p->plane.Distance(b);
+                const idVec3 contact = a + (b-a) * (da / (da-db));
+                if (portalClipPlane.Distance(contact) <= 0.01f) continue;
+            }
 			tw->trace.fraction = 0.0f;
 			tw->trace.c.type = CONTACT_EDGE;
 			tw->trace.c.normal = p->plane.Normal();
@@ -375,6 +388,12 @@ bool idCollisionModelManagerLocal::TestTrmInPolygon( cm_traceWork_t *tw, cm_poly
 #endif
 			}
 			if ( k >= tw->polys[j].numEdges ) {
+                if (portalClipActive) {
+                    const float da = tw->polys[j].plane.Distance(v1->p);
+                    const float db = tw->polys[j].plane.Distance(v2->p);
+                    const idVec3 contact = v1->p + (v2->p-v1->p) * (da / (da-db));
+                    if (portalClipPlane.Distance(contact) <= 0.01f) continue;
+                }
 				tw->trace.fraction = 0.0f;
 				tw->trace.c.type = CONTACT_EDGE;
 				tw->trace.c.normal = -tw->polys[j].plane.Normal();
