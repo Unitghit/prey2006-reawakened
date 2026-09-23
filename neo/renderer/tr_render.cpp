@@ -738,7 +738,9 @@ interaction into primitive interactions
 =============
 */
 void RB_CreateSingleDrawInteractions( const drawSurf_t *surf, void (*DrawInteraction)(const drawInteraction_t *) ) {
-    RB_SetSubviewClipPlane(true, surf);
+    // Opaque interactions use the clipped depth prepass. Enabling this plane
+    // here would leak it into the next stencil-shadow pass.
+    const scopedPortalBodyClip_t bodyClip(surf, backEnd.depthFunc == GLS_DEPTHFUNC_LESS);
 	const idMaterial	*surfaceShader = surf->material;
 	const float			*surfaceRegs = surf->shaderRegisters;
 	const viewLight_t	*vLight = backEnd.vLight;

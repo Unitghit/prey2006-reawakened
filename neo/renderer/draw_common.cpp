@@ -649,7 +649,7 @@ This is also called for the generated 2D rendering
 ==================
 */
 void RB_STD_T_RenderShaderPasses( const drawSurf_t *surf ) {
-    RB_SetSubviewClipPlane(true, surf);
+    const scopedPortalBodyClip_t bodyClip(surf);
 	int			stage;
 	const idMaterial	*shader;
 	const shaderStage_t *pStage;
@@ -969,17 +969,11 @@ Draw non-light dependent passes
 // Keep it out of screen-space bloom and stencil shadow volumes. World-space
 // postprocess surfaces (glass/refraction) must still obey the portal plane.
 void RB_SetSubviewClipPlane( bool enable, const drawSurf_t *surf ) {
-    static const viewDef_t *lastView = NULL;
-    static float lastCorrection = 0;
-    static bool active = false;
 	if ( !enable || !backEnd.viewDef->numClipPlanes ) {
-        active = false;
 		qglDisable( GL_CLIP_PLANE0 );
 		return;
 	}
 	const float correction = RB_PortalBodyClipCorrection(surf);
-    if (active && lastView == backEnd.viewDef && lastCorrection == correction) return;
-    active = true; lastView = backEnd.viewDef; lastCorrection = correction;
     idPlane plane = backEnd.viewDef->clipPlanes[0];
     plane[3] += correction;
 	const GLdouble equation[4] = { plane[0], plane[1], plane[2], plane[3] };
@@ -1340,7 +1334,7 @@ RB_T_BlendLight
 =====================
 */
 static void RB_T_BlendLight( const drawSurf_t *surf ) {
-    RB_SetSubviewClipPlane(true, surf);
+    const scopedPortalBodyClip_t bodyClip(surf);
     const bool bodyBias = RB_PortalBodyDepthBias(surf);
     if (bodyBias) { qglEnable(GL_POLYGON_OFFSET_FILL); RB_SetMaterialPolygonOffset(surf->material, true); }
 	const srfTriangles_t *tri;
@@ -1514,7 +1508,7 @@ RB_T_BasicFog
 =====================
 */
 static void RB_T_BasicFog( const drawSurf_t *surf ) {
-    RB_SetSubviewClipPlane(true, surf);
+    const scopedPortalBodyClip_t bodyClip(surf);
     const bool bodyBias = RB_PortalBodyDepthBias(surf);
     if (bodyBias) { qglEnable(GL_POLYGON_OFFSET_FILL); RB_SetMaterialPolygonOffset(surf->material, true); }
 	if ( backEnd.currentSpace != surf->space ) {

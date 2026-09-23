@@ -37,3 +37,32 @@ The body alone excludes the world-only clip margin. A 0.25-unit rendering-only o
 Verification includes the updated `multiportal3` save at zero and 4x MSAA, before/after silhouette captures, and the body, nested-view and decal-mask regression fixtures.
 
 The updated crossing test also exercises attachments that temporarily remain wholly on one side. Those uncut attachments now retain the virtual-eye exclusion, preventing an inside-head flash while another part of the body straddles the opening.
+
+## Scoped state, lighting and crossing corrections
+
+The player clip-plane exception is scoped to a single tagged body draw in
+ambient, translucent interaction, fog and blend-light passes, then restores the
+ordinary portal plane. Opaque light interactions use their existing clipped
+depth prepass. They must not enable GL_CLIP_PLANE0: leaking that state into
+stencil shadow-volume rendering caused camera-dependent black world flicker.
+The clip-plane setter no longer caches GL state independently of the renderer.
+
+MD5 snapshots normally defer normals/tangents until their first lighting draw.
+The split builder now asks the renderer to prepare them on the intact posed
+mesh before partitioning it. Both halves inherit the same smooth lighting
+basis, rather than copying uninitialized normals or computing a discontinuous
+basis independently along the cuts. Deferred tangent generation remains enabled
+for other models.
+
+On the teleport tick, the source body render origin can still describe the old
+room. Pose remapping now compares against the authoritative physics origin,
+not that stale render origin. This keeps the split pieces available during
+source-side camera interpolation without moving the physical player.
+
+Validation: multiportal4 with an isolated added test light reproduces the
+old all-black split body even with shadows disabled; the corrected lit split
+matches the intact model at successive positions toward the portal. Hidden,
+muted 4x-MSAA forward/reverse crossing captures from multiportal3 retain the
+player silhouette through the transition and report no physics-invariant or
+GL errors. The input, body split/save/reload, deep views, decal mask, continuous
+floor crossing, reverse crossing and through-portal shot fixtures pass.

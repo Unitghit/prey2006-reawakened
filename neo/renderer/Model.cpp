@@ -2336,3 +2336,10 @@ bool idRenderModelStatic::FindSurfaceWithId( int id, int &surfaceNum ) {
 	}
 	return false;
 }
+
+void idRenderModelStatic::EnsureSurfaceTangents() {
+	for (int i = 0; i < NumBaseSurfaces(); ++i) {
+		srfTriangles_t *tri = surfaces[i].geometry;
+		if (tri && !tri->tangentsCalculated) R_DeriveTangents(tri);
+	}
+}

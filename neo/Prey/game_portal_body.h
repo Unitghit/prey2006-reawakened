@@ -81,12 +81,15 @@ static void PortalBodySurface(idRenderModel *model, const modelSurface_t &source
     model->AddSurface(surface);
 }
 static int SplitPortalBodyModel(portalBodyPart_t &part, const renderEntity_t &pose, const idPlane *planes, int count, bool depthBias) {
-    const idRenderModel *model = pose.hModel;
+    idRenderModel *model = pose.hModel;
     if (model->IsDynamicModel() != DM_STATIC) {
         part.snapshot = pose.hModel->InstantiateDynamicModel(&pose, NULL, part.snapshot);
         model = part.snapshot;
     }
     if (!model) return 0;
+    // MD5 skinning defers these until drawing. Compute them on the intact
+    // pose so both cut pieces inherit the same smooth lighting basis.
+    model->EnsureSurfaceTangents();
     part.nearModel->InitEmpty("_portalBody_near"); part.farModel->InitEmpty("_portalBody_far");
     idPlane local[17];
     for (int i = 0; i < count; ++i) {
@@ -154,9 +157,10 @@ static bool ApplyPortalBodies(hhPlayer *player, const renderView_t &authoritativ
         portalBodyPose_t item; item.entity = ent; item.original = item.pose = *render;
         if (item.pose.callback) item.pose.callback(&item.pose, &view);
         if (crossing) {
-            // Bound head/world weapon can still carry the pre-teleport transform.
+            // The body or a bound attachment can still carry the pre-teleport
+            // render transform. Physics is already authoritative in the exit room.
             const idVec3 mapped = (item.pose.origin-presentationPortalSource)*presentationPortalRotation+presentationPortalDestination;
-            if ((mapped-body->origin).LengthSqr()+1 < (item.pose.origin-body->origin).LengthSqr()) {
+            if ((mapped-player->GetPhysics()->GetOrigin()).LengthSqr()+1 < (item.pose.origin-player->GetPhysics()->GetOrigin()).LengthSqr()) {
                 item.pose.origin = mapped; item.pose.axis *= presentationPortalRotation;
             }
             idVec3 drawEye = view.vieworg;

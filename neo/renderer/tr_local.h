@@ -1354,6 +1354,20 @@ void RB_DrawElementsWithCounters( const srfTriangles_t *tri );
 void RB_DrawShadowElementsWithCounters( const srfTriangles_t *tri, int numIndexes );
 void RB_STD_FillDepthBuffer( drawSurf_t **drawSurfs, int numDrawSurfs );
 void RB_SetSubviewClipPlane( bool enable, const drawSurf_t *surf = NULL );
+// A body-piece exception owns its state for one draw only. Ordinary geometry
+// and later stencil shadow passes retain the renderer's original clip state.
+class scopedPortalBodyClip_t {
+    bool changed;
+public:
+    explicit scopedPortalBodyClip_t(const drawSurf_t *surf, bool enabled = true) {
+        changed = enabled && RB_PortalBodyClipCorrection(surf) != 0.0f;
+        if (changed) RB_SetSubviewClipPlane(true, surf);
+    }
+    ~scopedPortalBodyClip_t() { if (changed) RB_SetSubviewClipPlane(true); }
+private:
+    scopedPortalBodyClip_t(const scopedPortalBodyClip_t &);
+    scopedPortalBodyClip_t &operator=(const scopedPortalBodyClip_t &);
+};
 void RB_BindVariableStageImage( const textureStage_t *texture, const float *shaderRegisters );
 void RB_BindStageTexture( const float *shaderRegisters, const textureStage_t *texture, const drawSurf_t *surf );
 void RB_FinishStageTexture( const textureStage_t *texture, const drawSurf_t *surf );

@@ -350,6 +350,9 @@ public:
 	// Writing to and reading from a demo file.
 	virtual void				ReadFromDemoFile( class idDemoFile *f ) = 0;
 	virtual void				WriteToDemoFile( class idDemoFile *f ) = 0;
+
+	// Prepare posed vertex lighting before render-only geometry is partitioned.
+	virtual void EnsureSurfaceTangents() = 0;
 };
 
 #endif /* !__MODEL_H__ */
