@@ -498,6 +498,7 @@ is still useful for displaying a bare model
 =================
 */
 bool idRenderWorldLocal::InitFromMap( const char *name ) {
+    R_ClearPortalHistory();
 	idLexer *		src;
 	idToken			token;
 	idStr			filename;

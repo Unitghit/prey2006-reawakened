@@ -345,10 +345,14 @@ void App::Verify(const fs::path& output) {
     RECT bounds;GetWindowRect(window,&bounds);require(bounds.right-bounds.left<=640 && bounds.bottom-bounds.top<=480 && contentHeight>pageHeight,"Small-screen layout failed");
     Snapshot(window,output/L"small-top.bmp");ScrollTo(contentHeight);Snapshot(window,output/L"small-bottom.bmp");
     auto v=Defaults();v[L"r_fullscreen"]=L"desktop";v[L"in_useGamepad"]=L"0";SetValues(v);
-    require(!IsWindowEnabled(rows[1].combo) && !IsWindowEnabled(rows[10].combo) && !IsWindowEnabled(rows[11].combo),"Dependency state failed");
+    for (size_t i=0; i<rows.size(); ++i) {
+        const auto& key=Options()[i].key;
+        if (key==L"resolution" || key==L"joy_invertLook" || key==L"joy_deadZone")
+            require(!IsWindowEnabled(rows[i].combo),"Dependency state failed");
+    }
     auto before=Read();SendMessageW(rows[0].combo,WM_MOUSEWHEEL,MAKEWPARAM(0,(WORD)-WHEEL_DELTA),0);require(Read()==before,"Mouse wheel changed a choice");
     SetValues(initial);Fit(work);Snapshot(window,output/L"settings.bmp");
-    Atomic(output/L"layout-pass.txt","PASS: 18 controls, row/group containment, small-screen scrolling, 96/120/144/192 DPI at 640/850/1100 widths, wheel forwarding and dependency state.\n");
+    Atomic(output/L"layout-pass.txt","PASS: all controls, row/group containment, small-screen scrolling, 96/120/144/192 DPI at 640/850/1100 widths, wheel forwarding and dependency state.\n");
 
     // Exercise the actual button handlers against an isolated root and child
     // probe, including spaces/Unicode in paths. Never launches the real game.

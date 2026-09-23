@@ -32,6 +32,14 @@ foreach($name in $Cases) {
     if($process.ExitCode -ne 0){throw "$name exited with $($process.ExitCode)"}
     $log=Get-Content -LiteralPath "$base/$name.log" -Raw
     if($log -match 'ERROR:|shutting down:'){throw "$name reported an engine error"}
+    if($name -eq 'deep_views') {
+        if($log -notmatch 'PORTAL_DEEP depth 6' -or $log -notmatch 'PORTAL_REPEAT_FALLBACK depth 7') { throw 'Deep portal views or repeating fallback did not activate' }
+        $noRepeat=Get-Content "$base/deep_no_repeat.log" -Raw
+        $standard=Get-Content "$base/deep_standard.log" -Raw
+        if($noRepeat -match 'PORTAL_REPEAT_FALLBACK' -or $noRepeat -notmatch 'PORTAL_DEEP depth 6') { throw 'No-repeat mode did not preserve real deep views' }
+        if($standard -match 'PORTAL_DEEP|PORTAL_REPEAT_FALLBACK' -or $standard -notmatch 'PORTAL_DEPTH_LIMIT depth 3') { throw 'Standard portal mode did not retain its limit' }
+        if(($log+$noRepeat+$standard) -match 'GL_INVALID|program error|ERROR:') { throw 'Deep portal renderer reported an error' }
+    }
     if($name -eq 'through_portals') {
         foreach($phase in @('PLAYER','SCRIPT','RELOAD','CHAIN')) {
             $part=[regex]::Match($log,"(?s)THROUGH_${phase}_BEGIN(.*?)THROUGH_${phase}_END").Groups[1].Value

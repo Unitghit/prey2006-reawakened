@@ -110,17 +110,22 @@ static bool R_PortalViewerPassesRetailGate( const renderEntity_t &portalEntity )
 static idCVar r_portalTrace("r_portalTrace", "0", CVAR_RENDERER | CVAR_BOOL, "log portal subview decisions");
 
 static idCVar r_portalMaxDepth("r_portalMaxDepth", "3", CVAR_RENDERER | CVAR_ARCHIVE | CVAR_INTEGER,
-    "maximum portal view layers, including the first portal", 1, 4);
+    "maximum portal view layers, including the first portal", 1, 8);
+static idCVar r_portalDeepViews("r_portalDeepViews", "0", CVAR_RENDERER | CVAR_ARCHIVE | CVAR_INTEGER,
+    "deep portal rendering: 0 legacy, 1 reduced resolution, 2 reduced resolution and guarded repeating fallback", 0, 2);
+static int portalDeepFrame = -1, portalDeepViews = 0;
+static int R_PortalDepth() {
+    int depth = 0;
+    for (const viewDef_t *v = tr.viewDef; v; v = v->superView)
+        if (v->subviewSurface && v->subviewSurface->material->GetSubviewClass() == SC_PORTAL) ++depth;
+    return depth;
+}
 
 static viewDef_t *R_PortalSubviewBySurface( drawSurf_t *drawSurf ) {
 	int depth = 0;
 	for (const viewDef_t *view = tr.viewDef; view; view = view->superView) {
 		const drawSurf_t *surface = view->subviewSurface;
 		if (surface && surface->material->GetSubviewClass() == SC_PORTAL) ++depth;
-	}
-	if (depth >= r_portalMaxDepth.GetInteger()) {
-		if (r_portalTrace.GetBool()) common->Printf("PORTAL_DEPTH_LIMIT depth %d limit %d\n", depth, r_portalMaxDepth.GetInteger());
-		return NULL;
 	}
 	const renderView_t *remoteRenderView = drawSurf->space->entityDef->parms.remoteRenderView;
 	if (r_portalTrace.GetBool()) common->Printf("PORTAL_TRACE entity %d depth %d remote %d gate %d\n", drawSurf->space->entityDef->parms.entityNum, depth, remoteRenderView ? 1 : 0, R_PortalViewerPassesRetailGate(drawSurf->space->entityDef->parms) ? 1 : 0);
@@ -154,6 +159,7 @@ static viewDef_t *R_PortalSubviewBySurface( drawSurf_t *drawSurf ) {
 	}
 
 	*parms = *tr.viewDef;
+    parms->portalCacheSlot = -1;
 	parms->isSubview = true;
 	parms->isMirror = false;
 	parms->renderView.viewID = 0;	// clear to allow player bodies to show up, and suppress view weapons
@@ -423,6 +429,7 @@ static viewDef_t *R_PortalSkyboxSubviewBySurface( drawSurf_t *drawSurf ) {
 }
 
 static void R_PortalRender( drawSurf_t *surf, textureStage_t *stage ) {
+    if (R_PortalDepth() >= r_portalMaxDepth.GetInteger()) return;
 	viewDef_t *parms;
 
 	if ( stage->dynamicFrameCount == tr.frameCount ) {
@@ -754,12 +761,106 @@ static void R_PortalBackgroundImage(idImage *image) {
     const byte black[16] = { 0 };
     image->GenerateImage(black, 2, 2, TF_NEAREST, false, TR_CLAMP, TD_HIGH_QUALITY);
 }
-static void R_PortalApertureCommand(const viewDef_t *parent, const drawSurf_t *surface,
+static portalApertureCommand_t *R_PortalApertureCommand(const viewDef_t *parent, const drawSurf_t *surface,
     const idScreenRect &scissor, idImage *image, bool restore) {
     portalApertureCommand_t *cmd = (portalApertureCommand_t *)R_GetCommandBuffer(sizeof(*cmd));
     cmd->commandId = RC_PORTAL_APERTURE;
     cmd->parent = parent; cmd->surface = surface; cmd->scissor = scissor;
     cmd->image = image; cmd->restore = restore;
+    cmd->composite = 0; cmd->textureWidth = cmd->textureHeight = 0;
+    return cmd;
+}
+
+static portalTargetCommand_t *R_PortalTargetCommand(const viewDef_t *parent, idImage *background, int level, int width, int height, bool begin) {
+    portalTargetCommand_t *cmd = (portalTargetCommand_t *)R_GetCommandBuffer(sizeof(*cmd));
+    cmd->commandId = RC_PORTAL_TARGET; cmd->parent = parent; cmd->background = background;
+    cmd->level = level; cmd->width = width; cmd->height = height; cmd->begin = begin;
+    return cmd;
+}
+
+// Previous-frame images are isolated by complete portal ancestry and endpoint poses.
+// A result is consumed only before its owning ancestor is rendered this frame.
+struct portalDeepCache_t {
+    unsigned int key;
+    int frame, usedFrame, time;
+    float fovX, fovY;
+    idVec3 eye;
+    idMat3 axis;
+    idScreenRect rect;
+    idImage *image;
+};
+static portalDeepCache_t portalDeepCache[32];
+void R_ClearPortalHistory() {
+    for (int i = 0; i < 32; ++i) {
+        portalDeepCache[i].key = 0;
+        portalDeepCache[i].frame = portalDeepCache[i].usedFrame = -1;
+    }
+    portalDeepFrame = -1;
+}
+static unsigned int R_PortalPathKey(const viewDef_t *view) {
+    unsigned int hash = 2166136261u;
+    for (const viewDef_t *v = view; v; v = v->superView) {
+        const drawSurf_t *s = v->subviewSurface;
+        if (!s || s->material->GetSubviewClass() != SC_PORTAL) continue;
+        const renderEntity_t &e = s->space->entityDef->parms;
+        const unsigned char *data = (const unsigned char *)e.origin.ToFloatPtr();
+        for (int i = 0; i < sizeof(idVec3); ++i) hash = (hash ^ data[i]) * 16777619u;
+        data = (const unsigned char *)e.axis.ToFloatPtr();
+        for (int i = 0; i < sizeof(idMat3); ++i) hash = (hash ^ data[i]) * 16777619u;
+        if (e.remoteRenderView) {
+            data = (const unsigned char *)e.remoteRenderView->vieworg.ToFloatPtr();
+            for (int i = 0; i < sizeof(idVec3); ++i) hash = (hash ^ data[i]) * 16777619u;
+            data = (const unsigned char *)e.remoteRenderView->viewaxis.ToFloatPtr();
+            for (int i = 0; i < sizeof(idMat3); ++i) hash = (hash ^ data[i]) * 16777619u;
+        }
+        hash = (hash ^ s->space->entityDef->parms.entityNum) * 16777619u;
+    }
+    hash = (hash ^ view->viewport.x2) * 16777619u;
+    hash = (hash ^ view->viewport.y2) * 16777619u;
+    const unsigned char *world = (const unsigned char *)&view->renderWorld;
+    for (int i = 0; i < sizeof(view->renderWorld); ++i) hash = (hash ^ world[i]) * 16777619u;
+    return hash;
+}
+static int R_PortalCacheSlot(const viewDef_t *view) {
+    const unsigned int key = R_PortalPathKey(view);
+    int oldest = -1;
+    for (int i = 0; i < 32; ++i) {
+        if (portalDeepCache[i].usedFrame == tr.frameCount) continue;
+        if (portalDeepCache[i].key == key) { oldest = i; break; }
+        if (oldest < 0 || portalDeepCache[i].frame < portalDeepCache[oldest].frame) oldest = i;
+    }
+    if (oldest < 0) return -1;
+    portalDeepCache_t &cache = portalDeepCache[oldest];
+    if (cache.key != key) cache.frame = -1;
+    cache.key = key; cache.usedFrame = tr.frameCount;
+    if (!cache.image) cache.image = globalImages->ImageFromFunction(va("_portalHistory%d", oldest), R_PortalBackgroundImage);
+    return oldest;
+}
+static bool R_PortalRepeatFallback(const drawSurf_t *surf, const viewDef_t *next, const idScreenRect &scissor) {
+    if (r_portalDeepViews.GetInteger() != 2) return false;
+    const viewDef_t *root = tr.viewDef;
+    while (root->superView) root = root->superView;
+    const float scale = float(root->viewport.x2 - root->viewport.x1 + 1) /
+        (tr.viewDef->viewport.x2 - tr.viewDef->viewport.x1 + 1);
+    if (Max(scissor.x2 - scissor.x1 + 1, scissor.y2 - scissor.y1 + 1) * scale > 96) return false;
+    for (const viewDef_t *v = tr.viewDef; v; v = v->superView) {
+        if (!v->subviewSurface || v->subviewSurface->material->GetSubviewClass() != SC_PORTAL ||
+            v->subviewSurface->space->entityDef != surf->space->entityDef || v->portalCacheSlot < 0) continue;
+        const portalDeepCache_t &cache = portalDeepCache[v->portalCacheSlot];
+        if (cache.frame != tr.frameCount - 1 || cache.fovX != root->renderView.fov_x || cache.fovY != root->renderView.fov_y || cache.time > root->renderView.time || root->renderView.time - cache.time > 100 ||
+            (cache.eye - root->renderView.vieworg).LengthSqr() > 16 ||
+            cache.axis[0] * root->renderView.viewaxis[0] < 0.9998f || cache.axis[1] * root->renderView.viewaxis[1] < 0.9998f) continue;
+        if (v->renderView.viewaxis[0] * next->renderView.viewaxis[0] < 0.9998f ||
+            v->renderView.viewaxis[1] * next->renderView.viewaxis[1] < 0.9998f) continue;
+        idVec3 delta = next->renderView.vieworg - v->renderView.vieworg;
+        delta -= v->renderView.viewaxis[0] * (delta * v->renderView.viewaxis[0]);
+        if (delta.LengthSqr() > 1.0f) continue;
+        portalApertureCommand_t *cmd = R_PortalApertureCommand(tr.viewDef, surf, scissor, cache.image, true);
+        cmd->composite = 3; cmd->textureRect = cache.rect;
+        if (r_portalTrace.GetBool()) common->Printf("PORTAL_REPEAT_FALLBACK depth %d\n", R_PortalDepth() + 1);
+        return true;
+    }
+    return false;
 }
 
 /*
@@ -888,16 +989,79 @@ bool	R_GenerateSurfaceSubview( drawSurf_t *drawSurf ) {
 			parms->scissor = scissor;
 			parms->superView = tr.viewDef;
 			parms->subviewSurface = drawSurf;
-            // Bracket the complete subtree, including nested views. Its rectangle
-            // must not overwrite the parent's skybox or another portal's pixels.
+            const viewDef_t *parent = tr.viewDef;
             int level = 0;
-            for (const viewDef_t *view = tr.viewDef; view; view = view->superView) ++level;
+            for (const viewDef_t *view = parent; view; view = view->superView) ++level;
+            const int depth = R_PortalDepth();
+            if (portalDeepFrame != tr.frameCount) { portalDeepFrame = tr.frameCount; portalDeepViews = 0; }
+            const bool reduced = r_portalDeepViews.GetInteger() && depth >= 2;
+            if (depth >= r_portalMaxDepth.GetInteger() || (reduced && portalDeepViews >= 12)) {
+                const bool reused = R_PortalRepeatFallback(drawSurf, parms, scissor);
+                if (r_portalTrace.GetBool()) common->Printf("PORTAL_DEPTH_LIMIT depth %d reused %d\n", depth, reused);
+                if (reused) R_ClipDecalsBehindPortal(parent, drawSurf);
+                return reused;
+            }
+            if (reduced) ++portalDeepViews;
             idImage *background = globalImages->ImageFromFunction(
                 va("_portalBackground%d", level), R_PortalBackgroundImage);
-            const viewDef_t *parent = tr.viewDef;
-            R_PortalApertureCommand(parent, drawSurf, scissor, background, false);
-			R_RenderView( parms );
-            R_PortalApertureCommand(parent, drawSurf, scissor, background, true);
+            if (reduced) {
+                const int pw = parent->viewport.x2 - parent->viewport.x1 + 1;
+                const int ph = parent->viewport.y2 - parent->viewport.y1 + 1;
+                // A whole-view target keeps projection and screen-space material coordinates
+                // identical. Its scissor follows the visible portal footprint.
+                const int tw = Min(pw, Max(16, pw / 2)), th = Min(ph, Max(16, ph / 2));
+                parms->portalCacheSlot = R_PortalCacheSlot(parms);
+                idScreenRect whole; whole.Clear(); whole.x1 = whole.y1 = 0;
+                whole.x2 = pw - 1; whole.y2 = ph - 1;
+                const bool target = level < 32 && R_PortalTargetsAvailable();
+                portalTargetCommand_t *targetBegin = NULL;
+                if (target) targetBegin = R_PortalTargetCommand(parent, background, level, tw, th, true);
+                else R_PortalApertureCommand(parent, NULL, whole, background, false);
+                parms->viewport.x1 = parms->viewport.y1 = 0;
+                parms->viewport.x2 = tw - 1; parms->viewport.y2 = th - 1;
+                parms->scissor.x1 = Max(0, scissor.x1 * tw / pw);
+                parms->scissor.y1 = Max(0, scissor.y1 * th / ph);
+                parms->scissor.x2 = Min(tw - 1, ((scissor.x2 + 1) * tw + pw - 1) / pw);
+                parms->scissor.y2 = Min(th - 1, ((scissor.y2 + 1) * th + ph - 1) / ph);
+                R_RenderView(parms);
+                if (targetBegin) {
+                    // Texture cameras can use a larger scratch viewport than the deep
+                    // view itself. Reserve their pixels too, without upscaling the view.
+                    for (const emptyCommand_t *c = (const emptyCommand_t *)targetBegin->next; c; c = (const emptyCommand_t *)c->next) {
+                        if (c->commandId == RC_DRAW_VIEW) {
+                            const viewDef_t *v = ((const drawSurfsCommand_t *)c)->viewDef;
+                            targetBegin->width = Max(targetBegin->width, int(v->viewport.x2) + 1);
+                            targetBegin->height = Max(targetBegin->height, int(v->viewport.y2) + 1);
+                        } else if (c->commandId == RC_COPY_RENDER) {
+                            const copyRenderCommand_t *copy = (const copyRenderCommand_t *)c;
+                            targetBegin->width = Max(targetBegin->width, copy->x + copy->imageWidth);
+                            targetBegin->height = Max(targetBegin->height, copy->y + copy->imageHeight);
+                        }
+                    }
+                }
+                idImage *result = parms->portalCacheSlot >= 0 ? portalDeepCache[parms->portalCacheSlot].image :
+                    globalImages->ImageFromFunction(va("_portalDeep%d", level), R_PortalBackgroundImage);
+                idScreenRect capture; capture.Clear(); capture.x1 = capture.y1 = 0;
+                capture.x2 = tw - 1; capture.y2 = th - 1;
+                R_PortalApertureCommand(parms, NULL, capture, result, false);
+                if (target) R_PortalTargetCommand(parent, background, level, tw, th, false);
+                else R_PortalApertureCommand(parent, NULL, whole, background, true)->composite = 1;
+                portalApertureCommand_t *compose = R_PortalApertureCommand(parent, drawSurf, scissor, result, true);
+                compose->composite = 2; compose->textureWidth = tw; compose->textureHeight = th;
+                if (parms->portalCacheSlot >= 0) {
+                    portalDeepCache_t &cache = portalDeepCache[parms->portalCacheSlot];
+                    const viewDef_t *root = parent; while (root->superView) root = root->superView;
+                    cache.frame = tr.frameCount; cache.time = root->renderView.time;
+                    cache.eye = root->renderView.vieworg; cache.axis = root->renderView.viewaxis;
+                    cache.rect = parms->scissor; cache.fovX = root->renderView.fov_x; cache.fovY = root->renderView.fov_y;
+                }
+                if (r_portalTrace.GetBool()) common->Printf("PORTAL_DEEP depth %d target %d %d\n", depth + 1, tw, th);
+            } else {
+                // Bracket the complete subtree so siblings and sky pixels survive.
+                R_PortalApertureCommand(parent, drawSurf, scissor, background, false);
+                R_RenderView(parms);
+                R_PortalApertureCommand(parent, drawSurf, scissor, background, true);
+            }
             R_ClipDecalsBehindPortal(parent, drawSurf);
 			return true;
 		}

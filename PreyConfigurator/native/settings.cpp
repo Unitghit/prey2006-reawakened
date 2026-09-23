@@ -133,7 +133,7 @@ std::vector<std::pair<std::wstring,std::wstring>> Variables(const Values& v) {
         {L"r_fullscreen",v.at(L"r_fullscreen")==L"0"?L"0":L"1"},{L"r_fullscreenDesktop",v.at(L"r_fullscreen")==L"desktop"?L"1":L"0"},
         {L"com_unlockedFPS",L"1"},{L"r_glowMode",L"2"},{L"r_skipGlowOverlay",v.at(L"bloom")==L"off"?L"1":L"0"},{L"r_glowResolution",v.at(L"bloom")==L"original"?L"256":L"0"},
         {L"r_glowStrength",L"0.5"},{L"r_glowAlpha",L"0.55"},{L"r_glowAlphaChange",L"0.85"},{L"r_glowSteps",L"8"},
-        {L"r_correctspecular",L"1"},{L"r_normalizebumpmap",L"1"},{L"r_cubemapNormalize",L"0"},{L"r_portalMaxDepth",L"3"},
+        {L"r_correctspecular",L"1"},{L"r_normalizebumpmap",L"1"},{L"r_cubemapNormalize",L"0"},{L"r_portalMaxDepth",v.at(L"r_portalDeepViews")==L"0"?L"3":L"6"},
         {L"r_glowPortals",L"1"},{L"g_portalLighter",L"1"},{L"g_portalWeaponLighting",L"1"},{L"g_portalPreserveMotion",L"1"},{L"g_nightmare",L"1"},{L"g_lateMouse",L"0"}
     };
     result.insert(result.end(),fixed.begin(),fixed.end());
@@ -229,7 +229,7 @@ void Launch(const fs::path& exe, const std::vector<std::wstring>& args) {
 void VerifyConfiguration(const fs::path& output) {
     fs::create_directories(output);
     auto require = [](bool ok) { if (!ok) throw std::runtime_error("Configuration verification failed"); };
-    auto defaults = Defaults(); require(defaults.size()==19 && defaults.at(L"g_portalGun")==L"0" && defaults.at(L"g_bunnyHop")==L"0" && defaults.at(L"com_maxFPS")==L"-1");
+    auto defaults = Defaults(); require(defaults.size()==20 && defaults.at(L"g_portalGun")==L"0" && defaults.at(L"g_bunnyHop")==L"0" && defaults.at(L"com_maxFPS")==L"-1");
     Save(output,defaults); require(Load(output)==defaults);
     Atomic(output/L"default-launcher.bat",Launcher(defaults));
     for (const auto& s : Options()) for (const auto& c : s.choices) {
@@ -237,7 +237,7 @@ void VerifyConfiguration(const fs::path& output) {
         auto pairs = Variables(v); Values vars(pairs.begin(),pairs.end());
         require(vars.at(L"fs_game").empty() && vars.at(L"g_doom3Shotgun")==(v[L"weaponPack"]==L"doom3shotgun"?L"1":L"0"));
         require(vars.at(L"g_portalGun")==v[L"g_portalGun"]);
-        require(vars.at(L"r_portalMaxDepth")==L"3" && vars.at(L"r_correctspecular")==L"1");
+        require(vars.at(L"r_portalMaxDepth")== (v[L"r_portalDeepViews"]==L"0"?L"3":L"6") && vars.at(L"r_correctspecular")==L"1");
         require(vars.at(L"r_fullscreen")== (v[L"r_fullscreen"]==L"0"?L"0":L"1"));
         require(vars.at(L"r_fullscreenDesktop")== (v[L"r_fullscreen"]==L"desktop"?L"1":L"0"));
         require(vars.at(L"r_skipGlowOverlay")== (v[L"bloom"]==L"off"?L"1":L"0"));

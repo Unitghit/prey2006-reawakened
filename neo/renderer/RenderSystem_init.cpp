@@ -766,6 +766,7 @@ and model information functions.
 ==================
 */
 void R_InitOpenGL( void ) {
+    R_ClearPortalHistory();
 	GLint			temp;
 	glimpParms_t	parms;
 	int				i;
@@ -1271,6 +1272,12 @@ void R_Benchmark_f( const idCmdArgs &args ) {
 		return;
 	}
 	view = tr.primaryRenderView;
+    // Measure this scene without altering screen size or invoking the context test.
+    if (args.Argc() == 2 && !idStr::Icmp(args.Argv(1), "view")) {
+        fps = R_RenderingFPS(&view);
+        common->Printf("view benchmark: %.2f ms %.1f fps\n", 1000.0f / fps, fps);
+        return;
+    }
 
 	for ( int size = 100 ; size >= 10 ; size -= 10 ) {
 		r_screenFraction.SetInteger( size );
@@ -2129,6 +2136,7 @@ void R_VidRestart_f( const idCmdArgs &args ) {
 	Sys_ShutdownInput();
 	globalImages->PurgeAllImages();
 	// free the context and close the window
+    R_ShutdownPortalTargets();
 	GLimp_Shutdown();
 	glConfig.isInitialized = false;
 
@@ -2467,6 +2475,7 @@ void idRenderSystemLocal::ShutdownOpenGL( void ) {
 	Sys_ShutdownInput();
 
 	// free the context and close the window
+    R_ShutdownPortalTargets();
 	GLimp_Shutdown();
 
 	glConfig.isInitialized = false;

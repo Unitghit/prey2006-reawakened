@@ -1935,7 +1935,7 @@ void idImage::CopyFramebuffer( int x, int y, int imageWidth, int imageHeight, bo
 		potWidth = Max( potWidth, uploadWidth );
 		potHeight = Max( potHeight, uploadHeight );
 	}
-	qglReadBuffer( GL_BACK );
+	qglReadBuffer( R_PortalTargetActive() ? GL_COLOR_ATTACHMENT0 : GL_BACK );
 
 	// only resize if the current dimensions can't hold it at all,
 	// otherwise subview renderings could thrash this

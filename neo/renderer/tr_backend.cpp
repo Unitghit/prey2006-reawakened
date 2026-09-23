@@ -662,11 +662,13 @@ static void RB_PortalAperture(const portalApertureCommand_t *cmd) {
     qglDisable(GL_TEXTURE_GEN_R); qglDisable(GL_TEXTURE_GEN_Q);
     qglMatrixMode(GL_TEXTURE); qglPushMatrix(); qglLoadIdentity();
     qglMatrixMode(GL_PROJECTION); qglPushMatrix(); qglLoadMatrixf(cmd->parent->projectionMatrix);
-    qglMatrixMode(GL_MODELVIEW); qglPushMatrix(); qglLoadMatrixf(surf->space->modelViewMatrix);
+    qglMatrixMode(GL_MODELVIEW); qglPushMatrix();
+    if (surf) qglLoadMatrixf(surf->space->modelViewMatrix); else qglLoadIdentity();
     GL_Cull(CT_TWO_SIDED);
     qglDisable(GL_DEPTH_TEST); qglEnable(GL_STENCIL_TEST);
     qglStencilMask(0xff); qglClearStencil(0); qglClear(GL_STENCIL_BUFFER_BIT);
     qglStencilFunc(GL_ALWAYS, 1, 0xff); qglStencilOp(GL_KEEP, GL_KEEP, GL_REPLACE);
+    if (cmd->composite != 1) {
     GL_State(GLS_COLORMASK | GLS_ALPHAMASK | GLS_DEPTHMASK);
     qglDisableClientState(GL_COLOR_ARRAY);
     qglDisableClientState(GL_TEXTURE_COORD_ARRAY);
@@ -676,20 +678,34 @@ static void RB_PortalAperture(const portalApertureCommand_t *cmd) {
     RB_DrawElementsWithCounters(surf->geo);
     if (r_portalDepthClampAvailable) qglDisable(GL_DEPTH_CLAMP);
 
-    // Restore exact pixels without FX downscaling or texture filtering.
-    qglStencilFunc(GL_EQUAL, 0, 0xff); qglStencilOp(GL_KEEP, GL_KEEP, GL_KEEP);
+    }
+    // Restore exact pixels, or composite a filtered deep view inside the aperture.
+    qglStencilFunc(GL_EQUAL, cmd->composite >= 2 ? 1 : 0, 0xff); qglStencilOp(GL_KEEP, GL_KEEP, GL_KEEP);
+    if (cmd->composite == 1) qglDisable(GL_STENCIL_TEST);
     GL_State(GLS_DEPTHMASK);
-    qglViewport(x, y, width, height);
+    if (cmd->composite == 2) {
+        qglViewport(tr.viewportOffset[0] + cmd->parent->viewport.x1, tr.viewportOffset[1] + cmd->parent->viewport.y1,
+            cmd->parent->viewport.x2 - cmd->parent->viewport.x1 + 1, cmd->parent->viewport.y2 - cmd->parent->viewport.y1 + 1);
+    } else qglViewport(x, y, width, height);
     qglMatrixMode(GL_PROJECTION); qglLoadIdentity(); qglOrtho(0, 1, 0, 1, -1, 1);
     qglMatrixMode(GL_MODELVIEW); qglLoadIdentity();
     cmd->image->Bind(); GL_TexEnv(GL_REPLACE);
-    const float u = float(width) / cmd->image->uploadWidth;
-    const float v = float(height) / cmd->image->uploadHeight;
+    const float u = float(cmd->composite == 2 ? cmd->textureWidth : width) / cmd->image->uploadWidth;
+    const float v = float(cmd->composite == 2 ? cmd->textureHeight : height) / cmd->image->uploadHeight;
+    qglTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, cmd->composite >= 2 ? GL_LINEAR : GL_NEAREST);
+    qglTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, cmd->composite >= 2 ? GL_LINEAR : GL_NEAREST);
+    float u0 = 0, v0 = 0, u1 = u, v1 = v;
+    if (cmd->composite == 3) {
+        u0 = float(cmd->textureRect.x1 + 0.5f) / cmd->image->uploadWidth;
+        v0 = float(cmd->textureRect.y1 + 0.5f) / cmd->image->uploadHeight;
+        u1 = float(cmd->textureRect.x2 + 0.5f) / cmd->image->uploadWidth;
+        v1 = float(cmd->textureRect.y2 + 0.5f) / cmd->image->uploadHeight;
+    }
     qglBegin(GL_QUADS);
-    qglTexCoord2f(0, 0); qglVertex2f(0, 0);
-    qglTexCoord2f(u, 0); qglVertex2f(1, 0);
-    qglTexCoord2f(u, v); qglVertex2f(1, 1);
-    qglTexCoord2f(0, v); qglVertex2f(0, 1);
+    qglTexCoord2f(u0, v0); qglVertex2f(0, 0);
+    qglTexCoord2f(u1, v0); qglVertex2f(1, 0);
+    qglTexCoord2f(u1, v1); qglVertex2f(1, 1);
+    qglTexCoord2f(u0, v1); qglVertex2f(0, 1);
     qglEnd();
     GL_TexEnv(GL_MODULATE);
     qglPopMatrix(); qglMatrixMode(GL_PROJECTION); qglPopMatrix();
@@ -697,6 +713,103 @@ static void RB_PortalAperture(const portalApertureCommand_t *cmd) {
     qglEnableClientState(GL_TEXTURE_COORD_ARRAY);
     qglDisable(GL_STENCIL_TEST); qglEnable(GL_DEPTH_TEST);
     GL_State(GLS_DEFAULT);
+}
+
+// Isolated color/depth/stencil targets avoid copying the parent's color buffer.
+// Functions are optional: the existing scratch/restore path remains available.
+static PFNGLGENFRAMEBUFFERSPROC portalGenFramebuffers;
+static PFNGLBINDFRAMEBUFFERPROC portalBindFramebuffer;
+static PFNGLDELETEFRAMEBUFFERSPROC portalDeleteFramebuffers;
+static PFNGLCHECKFRAMEBUFFERSTATUSPROC portalCheckFramebufferStatus;
+static PFNGLGENRENDERBUFFERSPROC portalGenRenderbuffers;
+static PFNGLBINDRENDERBUFFERPROC portalBindRenderbuffer;
+static PFNGLDELETERENDERBUFFERSPROC portalDeleteRenderbuffers;
+static PFNGLRENDERBUFFERSTORAGEPROC portalRenderbufferStorage;
+static PFNGLFRAMEBUFFERRENDERBUFFERPROC portalFramebufferRenderbuffer;
+static bool portalTargetsChecked, portalTargetsAvailable;
+static GLuint portalActiveTarget;
+static idCVar r_portalDeepTargets("r_portalDeepTargets", "1", CVAR_RENDERER | CVAR_BOOL,
+    "use isolated framebuffer targets for reduced-resolution portal views when supported");
+struct portalTarget_t { GLuint frame, color, depth, previous; int width, height; bool active; };
+static portalTarget_t portalTargets[32];
+bool R_PortalTargetsAvailable() {
+    if (!portalTargetsChecked) {
+        portalTargetsChecked = true;
+#define PORTAL_PROC(name, type) portal##name = (type)GLimp_ExtensionPointer("gl" #name)
+        PORTAL_PROC(GenFramebuffers, PFNGLGENFRAMEBUFFERSPROC);
+        PORTAL_PROC(BindFramebuffer, PFNGLBINDFRAMEBUFFERPROC);
+        PORTAL_PROC(DeleteFramebuffers, PFNGLDELETEFRAMEBUFFERSPROC);
+        PORTAL_PROC(CheckFramebufferStatus, PFNGLCHECKFRAMEBUFFERSTATUSPROC);
+        PORTAL_PROC(GenRenderbuffers, PFNGLGENRENDERBUFFERSPROC);
+        PORTAL_PROC(BindRenderbuffer, PFNGLBINDRENDERBUFFERPROC);
+        PORTAL_PROC(DeleteRenderbuffers, PFNGLDELETERENDERBUFFERSPROC);
+        PORTAL_PROC(RenderbufferStorage, PFNGLRENDERBUFFERSTORAGEPROC);
+        PORTAL_PROC(FramebufferRenderbuffer, PFNGLFRAMEBUFFERRENDERBUFFERPROC);
+#undef PORTAL_PROC
+        portalTargetsAvailable = portalGenFramebuffers && portalBindFramebuffer && portalDeleteFramebuffers &&
+            portalCheckFramebufferStatus && portalGenRenderbuffers && portalBindRenderbuffer && portalDeleteRenderbuffers &&
+            portalRenderbufferStorage && portalFramebufferRenderbuffer;
+    }
+    return portalTargetsAvailable && r_portalDeepTargets.GetBool();
+}
+bool R_PortalTargetActive() { return portalActiveTarget != 0; }
+void R_ShutdownPortalTargets() {
+    for (int i = 0; i < 32; ++i) {
+        portalTarget_t &t = portalTargets[i];
+        if (t.frame && portalDeleteFramebuffers) portalDeleteFramebuffers(1, &t.frame);
+        if (t.color && portalDeleteRenderbuffers) portalDeleteRenderbuffers(1, &t.color);
+        if (t.depth && portalDeleteRenderbuffers) portalDeleteRenderbuffers(1, &t.depth);
+    }
+    memset(portalTargets, 0, sizeof(portalTargets));
+    portalActiveTarget = 0; portalTargetsChecked = portalTargetsAvailable = false;
+}
+static void RB_PortalTarget(const portalTargetCommand_t *cmd) {
+    portalTarget_t &t = portalTargets[cmd->level];
+    portalApertureCommand_t backup = {};
+    backup.parent = cmd->parent; backup.image = cmd->background;
+    backup.scissor.Clear(); backup.scissor.x1 = backup.scissor.y1 = 0;
+    backup.scissor.x2 = cmd->parent->viewport.x2 - cmd->parent->viewport.x1;
+    backup.scissor.y2 = cmd->parent->viewport.y2 - cmd->parent->viewport.y1;
+    backup.composite = 1;
+    if (!cmd->begin) {
+        if (t.active) {
+            portalBindFramebuffer(GL_FRAMEBUFFER, t.previous);
+            portalActiveTarget = t.previous;
+        } else {
+            backup.restore = true; RB_PortalAperture(&backup);
+        }
+        return;
+    }
+    t.previous = portalActiveTarget;
+    if (!t.frame) {
+        portalGenFramebuffers(1, &t.frame);
+        portalGenRenderbuffers(1, &t.color);
+        portalGenRenderbuffers(1, &t.depth);
+    }
+    portalBindFramebuffer(GL_FRAMEBUFFER, t.frame);
+    if (t.width < cmd->width || t.height < cmd->height) {
+        t.width = Max(t.width, cmd->width); t.height = Max(t.height, cmd->height);
+        portalBindRenderbuffer(GL_RENDERBUFFER, t.color);
+        portalRenderbufferStorage(GL_RENDERBUFFER, GL_RGBA8, t.width, t.height);
+        portalBindRenderbuffer(GL_RENDERBUFFER, t.depth);
+        portalRenderbufferStorage(GL_RENDERBUFFER, GL_DEPTH24_STENCIL8, t.width, t.height);
+        portalFramebufferRenderbuffer(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_RENDERBUFFER, t.color);
+        portalFramebufferRenderbuffer(GL_FRAMEBUFFER, GL_DEPTH_ATTACHMENT, GL_RENDERBUFFER, t.depth);
+        portalFramebufferRenderbuffer(GL_FRAMEBUFFER, GL_STENCIL_ATTACHMENT, GL_RENDERBUFFER, t.depth);
+        portalBindRenderbuffer(GL_RENDERBUFFER, 0);
+    }
+    t.active = portalCheckFramebufferStatus(GL_FRAMEBUFFER) == GL_FRAMEBUFFER_COMPLETE;
+    if (!t.active) {
+        portalBindFramebuffer(GL_FRAMEBUFFER, t.previous);
+        RB_PortalAperture(&backup);
+        return;
+    }
+    portalActiveTarget = t.frame;
+    qglDrawBuffer(GL_COLOR_ATTACHMENT0); qglReadBuffer(GL_COLOR_ATTACHMENT0);
+    qglDisable(GL_SCISSOR_TEST);
+    GL_State(GLS_DEFAULT);
+    qglClearColor(0, 0, 0, 0); qglClear(GL_COLOR_BUFFER_BIT);
+    qglEnable(GL_SCISSOR_TEST);
 }
 
 /*
@@ -748,6 +861,9 @@ void RB_ExecuteBackEndCommands( const emptyCommand_t *cmds ) {
 			RB_SwapBuffers( cmds );
 			c_swapBuffers++;
 			break;
+		case RC_PORTAL_TARGET:
+            RB_PortalTarget((const portalTargetCommand_t *)cmds);
+            break;
 		case RC_PORTAL_APERTURE:
             RB_PortalAperture((const portalApertureCommand_t *)cmds);
             break;

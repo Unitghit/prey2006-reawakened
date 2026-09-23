@@ -384,6 +384,7 @@ typedef struct viewDef_s {
 	viewEntity_t		worldSpace;
 
 	idRenderWorldLocal *renderWorld;
+    int portalCacheSlot; // set explicitly on direct portal views; only consulted for reduced views
 
 	float				floatTime;
 
@@ -488,6 +489,7 @@ typedef enum {
 	RC_SET_BUFFER,
 	RC_COPY_RENDER,
 	RC_PORTAL_APERTURE,
+    RC_PORTAL_TARGET,
 	RC_SWAP_BUFFERS		// can't just assume swap at end of list because
 						// of forced list submission before syncs
 } renderCommand_t;
@@ -522,7 +524,20 @@ typedef struct {
     idScreenRect scissor;
     idImage *image;
     bool restore;
+    int composite; // 0: existing outside restore, 1: entire rectangle, 2: inside aperture
+    int textureWidth, textureHeight;
+    idScreenRect textureRect;
 } portalApertureCommand_t;
+typedef struct {
+    renderCommand_t commandId, *next;
+    const viewDef_t *parent;
+    idImage *background;
+    int level, width, height;
+    bool begin;
+} portalTargetCommand_t;
+bool R_PortalTargetsAvailable();
+bool R_PortalTargetActive();
+void R_ShutdownPortalTargets();
 
 
 
@@ -1784,5 +1799,8 @@ void R_DoneFreeType();
 #include "RenderWorld_local.h"
 #include "GuiModel.h"
 #include "VertexCache.h"
+
+// Invalidate temporal portal images on map/save reloads and GL restart.
+void R_ClearPortalHistory();
 
 #endif /* !__TR_LOCAL_H__ */
