@@ -103,8 +103,18 @@ static bool RW_GroundPortalPartialBlocked(hhPortal *portal, idEntity *entity, co
     const float eyeOffset = RW_GroundPortalEyeOffset(portal, entity);
     const idVec3 normal = portal->GetAxis()[0];
     const float depth = (origin-portal->GetOrigin())*normal;
-    if (eyeOffset <= 0 || depth >= -0.25f) return false;
+    // The visual opening is raised above the support surface. Standing on
+    // that surface has not entered the hole and must not consult the exit.
+    const float surfaceOffset = portal->spawnArgs.GetFloat("rw_portal_surface_offset", "1");
+    if (eyeOffset <= 0 || depth >= -surfaceOffset - 0.25f) return false;
     const idMat3 sourceHullAxis = entity->GetPhysics()->GetAxis();
+    // Proximity includes the surrounding floor. Only query the remote body
+    // once the same aperture test used by the collision cutout accepts it.
+    // Otherwise an obstacle at the mapped position creates an invisible fence
+    // outside the opening, where the player is still entirely in this world.
+    const idClipModel *sourceClip = entity->GetPhysics()->GetClipModel();
+    if (!sourceClip || !sourceClip->IsTraceModel() ||
+        !RW_PortalFits(portal, sourceClip->GetTraceModel(), sourceHullAxis, origin, true)) return false;
     const float upDot = sourceHullAxis[2]*normal;
     if (upDot < 0.95f) return false;
     idBounds emerged = entity->GetPhysics()->GetBounds();

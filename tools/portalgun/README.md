@@ -274,3 +274,9 @@ impulse is applied; the existing rigid transform preserves crossing velocity.
 normal and fast eye-plane crossings. Floor momentum assertions compare the speed
 immediately before and after crossing; the extra fall distance before eye entry
 naturally increases speed relative to the former feet-triggered transition.
+
+Remote partial-body checks are limited to hulls accepted by the entrance aperture
+and below the actual supporting surface. The raised visual plane alone does not
+mean a grounded player has entered. This prevents remote geometry from blocking
+approach beside a floor portal. `floor_approach` checks walking in from both ends.
+
