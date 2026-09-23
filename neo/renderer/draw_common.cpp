@@ -211,7 +211,8 @@ RB_FinishStageTexturing
 void RB_FinishStageTexturing( const shaderStage_t *pStage, const drawSurf_t *surf, idDrawVert *ac ) {
 	// unset privatePolygonOffset if necessary
 	if ( pStage->privatePolygonOffset && !surf->material->TestMaterialFlag(MF_POLYGONOFFSET) ) {
-		qglDisable( GL_POLYGON_OFFSET_FILL );
+        if (RB_PortalBodyDepthBias(surf)) RB_SetMaterialPolygonOffset(surf->material, true);
+        else qglDisable( GL_POLYGON_OFFSET_FILL );
 	}
 
 	if ( pStage->texture.texgen == TG_DIFFUSE_CUBE || pStage->texture.texgen == TG_SKYBOX_CUBE
@@ -302,7 +303,7 @@ void RB_T_FillDepthBuffer( const drawSurf_t *surf ) {
 		idPlane	plane;
 
 		R_GlobalPlaneToLocal( surf->space->modelMatrix, backEnd.viewDef->clipPlanes[0], plane );
-		plane[3] += 0.5;	// the notch is in the middle
+		plane[3] += 0.5f + RB_PortalBodyClipCorrection(surf);	// the notch is in the middle
 		qglTexGenfv( GL_S, GL_OBJECT_PLANE, plane.ToFloatPtr() );
 		GL_SelectTexture( 0 );
 	}
@@ -343,9 +344,9 @@ void RB_T_FillDepthBuffer( const drawSurf_t *surf ) {
 	}
 
 	// set polygon offset if necessary
-	if ( shader->TestMaterialFlag(MF_POLYGONOFFSET) ) {
+	if ( shader->TestMaterialFlag(MF_POLYGONOFFSET) || RB_PortalBodyDepthBias(surf) ) {
 		qglEnable( GL_POLYGON_OFFSET_FILL );
-		RB_SetMaterialPolygonOffset( shader );
+		RB_SetMaterialPolygonOffset( shader, RB_PortalBodyDepthBias(surf) );
 	}
 
 	// subviews will just down-modulate the color buffer by overbright
@@ -471,7 +472,7 @@ void RB_T_FillDepthBuffer( const drawSurf_t *surf ) {
 
 	// reset polygon offset
 	if (clampPortalDepth) qglDisable(GL_DEPTH_CLAMP);
-	if ( shader->TestMaterialFlag(MF_POLYGONOFFSET) ) {
+	if ( shader->TestMaterialFlag(MF_POLYGONOFFSET) || RB_PortalBodyDepthBias(surf) ) {
 		qglDisable( GL_POLYGON_OFFSET_FILL );
 	}
 
@@ -648,6 +649,7 @@ This is also called for the generated 2D rendering
 ==================
 */
 void RB_STD_T_RenderShaderPasses( const drawSurf_t *surf ) {
+    RB_SetSubviewClipPlane(true, surf);
 	int			stage;
 	const idMaterial	*shader;
 	const shaderStage_t *pStage;
@@ -699,9 +701,9 @@ void RB_STD_T_RenderShaderPasses( const drawSurf_t *surf ) {
 	GL_Cull( shader->GetCullType() );
 
 	// set polygon offset if necessary
-	if ( shader->TestMaterialFlag(MF_POLYGONOFFSET) ) {
+	if ( shader->TestMaterialFlag(MF_POLYGONOFFSET) || RB_PortalBodyDepthBias(surf) ) {
 		qglEnable( GL_POLYGON_OFFSET_FILL );
-		RB_SetMaterialPolygonOffset( shader );
+		RB_SetMaterialPolygonOffset( shader, RB_PortalBodyDepthBias(surf) );
 	}
 
 	if ( surf->space->weaponDepthHack ) {
@@ -947,7 +949,7 @@ void RB_STD_T_RenderShaderPasses( const drawSurf_t *surf ) {
 	}
 
 	// reset polygon offset
-	if ( shader->TestMaterialFlag(MF_POLYGONOFFSET) ) {
+	if ( shader->TestMaterialFlag(MF_POLYGONOFFSET) || RB_PortalBodyDepthBias(surf) ) {
 		qglDisable( GL_POLYGON_OFFSET_FILL );
 	}
 	if ( surf->space->weaponDepthHack || surf->space->modelDepthHack != 0.0f ) {
@@ -966,12 +968,20 @@ Draw non-light dependent passes
 // subview plane in eye space once, independent of each surface's model matrix.
 // Keep it out of screen-space bloom and stencil shadow volumes. World-space
 // postprocess surfaces (glass/refraction) must still obey the portal plane.
-void RB_SetSubviewClipPlane( bool enable ) {
+void RB_SetSubviewClipPlane( bool enable, const drawSurf_t *surf ) {
+    static const viewDef_t *lastView = NULL;
+    static float lastCorrection = 0;
+    static bool active = false;
 	if ( !enable || !backEnd.viewDef->numClipPlanes ) {
+        active = false;
 		qglDisable( GL_CLIP_PLANE0 );
 		return;
 	}
-	const idPlane &plane = backEnd.viewDef->clipPlanes[0];
+	const float correction = RB_PortalBodyClipCorrection(surf);
+    if (active && lastView == backEnd.viewDef && lastCorrection == correction) return;
+    active = true; lastView = backEnd.viewDef; lastCorrection = correction;
+    idPlane plane = backEnd.viewDef->clipPlanes[0];
+    plane[3] += correction;
 	const GLdouble equation[4] = { plane[0], plane[1], plane[2], plane[3] };
 	qglMatrixMode( GL_MODELVIEW );
 	qglPushMatrix();
@@ -1330,6 +1340,9 @@ RB_T_BlendLight
 =====================
 */
 static void RB_T_BlendLight( const drawSurf_t *surf ) {
+    RB_SetSubviewClipPlane(true, surf);
+    const bool bodyBias = RB_PortalBodyDepthBias(surf);
+    if (bodyBias) { qglEnable(GL_POLYGON_OFFSET_FILL); RB_SetMaterialPolygonOffset(surf->material, true); }
 	const srfTriangles_t *tri;
 
 	tri = surf->geo;
@@ -1361,6 +1374,7 @@ static void RB_T_BlendLight( const drawSurf_t *surf ) {
 	}
 
 	RB_DrawElementsWithCounters( tri );
+    if (bodyBias) qglDisable(GL_POLYGON_OFFSET_FILL);
 }
 
 
@@ -1500,6 +1514,9 @@ RB_T_BasicFog
 =====================
 */
 static void RB_T_BasicFog( const drawSurf_t *surf ) {
+    RB_SetSubviewClipPlane(true, surf);
+    const bool bodyBias = RB_PortalBodyDepthBias(surf);
+    if (bodyBias) { qglEnable(GL_POLYGON_OFFSET_FILL); RB_SetMaterialPolygonOffset(surf->material, true); }
 	if ( backEnd.currentSpace != surf->space ) {
 		idPlane	local;
 
@@ -1531,6 +1548,7 @@ local[0] = local[1] = local[2] = 0; local[3] = 0.5;
 	}
 
 	RB_T_RenderTriangleSurface( surf );
+    if (bodyBias) qglDisable(GL_POLYGON_OFFSET_FILL);
 }
 
 

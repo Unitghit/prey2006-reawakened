@@ -539,6 +539,7 @@ srfTriangles_t *R_CopyStaticTriSurf( const srfTriangles_t *tri ) {
 	newTri = R_AllocStaticTriSurf();
 	R_AllocStaticTriSurfVerts( newTri, tri->numVerts );
 	R_AllocStaticTriSurfIndexes( newTri, tri->numIndexes );
+	newTri->portalBodyDepthBias = tri->portalBodyDepthBias;
 	newTri->eyeballDeformed = tri->eyeballDeformed;
 	newTri->numVerts = tri->numVerts;
 	newTri->numIndexes = tri->numIndexes;

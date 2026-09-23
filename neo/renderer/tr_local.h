@@ -1317,7 +1317,9 @@ RENDER
 */
 
 void RB_EnterWeaponDepthHack();
-void RB_SetMaterialPolygonOffset( const idMaterial *material );
+bool RB_PortalBodyDepthBias( const drawSurf_t *surf );
+float RB_PortalBodyClipCorrection( const drawSurf_t *surf );
+void RB_SetMaterialPolygonOffset( const idMaterial *material, bool portalBody = false );
 void RB_EnterModelDepthHack( float depth );
 void RB_LeaveDepthHack();
 void RB_DrawElementsImmediate( const srfTriangles_t *tri );
@@ -1351,7 +1353,7 @@ DRAW_STANDARD
 void RB_DrawElementsWithCounters( const srfTriangles_t *tri );
 void RB_DrawShadowElementsWithCounters( const srfTriangles_t *tri, int numIndexes );
 void RB_STD_FillDepthBuffer( drawSurf_t **drawSurfs, int numDrawSurfs );
-void RB_SetSubviewClipPlane( bool enable );
+void RB_SetSubviewClipPlane( bool enable, const drawSurf_t *surf = NULL );
 void RB_BindVariableStageImage( const textureStage_t *texture, const float *shaderRegisters );
 void RB_BindStageTexture( const float *shaderRegisters, const textureStage_t *texture, const drawSurf_t *surf );
 void RB_FinishStageTexture( const textureStage_t *texture, const drawSurf_t *surf );

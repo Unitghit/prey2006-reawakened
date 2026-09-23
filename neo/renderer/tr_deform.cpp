@@ -1053,7 +1053,8 @@ static void R_FlattenPortalAperture( drawSurf_t *surf ) {
 	if (surf->material->GetSubviewClass() != SC_PORTAL) return;
 	const char *materialName = surf->material->GetName();
 	if (idStr::Icmp(materialName, "models/mapobjects/portal/portal_innerwarp") != 0 &&
-		idStr::Icmp(materialName, "textures/portals/portal") != 0) return;
+		idStr::Icmp(materialName, "textures/portals/portal") != 0 &&
+        idStr::Icmp(materialName, "reawakened/portalgun/retail_portal_innerwarp") != 0) return;
 	const srfTriangles_t *source = surf->geo;
 	if (!source || !source->verts || !source->numVerts) return;
 	srfTriangles_t *tri = (srfTriangles_t *)R_FrameAlloc(sizeof(*tri));

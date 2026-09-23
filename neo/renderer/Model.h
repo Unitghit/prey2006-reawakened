@@ -82,12 +82,16 @@ typedef struct shadowCache_s {
 
 const int SHADOW_CAP_INFINITE	= 64;
 
+// A subpixel overlap keeps separately resolved portal views watertight under MSAA.
+const float PORTAL_BODY_SEAM_OVERLAP = 0.25f;
+
 // our only drawing geometry type
 typedef struct srfTriangles_s {
 	idBounds					bounds;					// for culling
 
 	int							ambientViewCount;		// if == tr.viewCount, it is visible this view
 
+	bool                        portalBodyDepthBias;   // match the wall-mounted portal aperture depth offset
 	bool                        eyeballDeformed;        // eye UV projection already baked before clipping
 	bool						generateNormals;		// create normals from geometry, instead of using explicit ones
 	bool						tangentsCalculated;		// set when the vertex tangents have been calculated

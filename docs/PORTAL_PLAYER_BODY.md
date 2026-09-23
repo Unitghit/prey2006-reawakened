@@ -27,3 +27,13 @@ The renderer-only `benchmark view` command bypasses game-side presentation setup
 The remote piece must clear `suppressSurfaceInViewID` and `suppressShadowInViewID`: those flags refer to the player's main camera globally, not to a location. Inheriting them hid the emerging half even when it was directly visible in front of the exit. Its transformed-eye proximity exclusion remains active to avoid first-person head geometry during crossing.
 
 The `body_split` regression now points from the entrance toward the exit and requires an actual remote mesh submission in view ID 1. Merely allocating a remote mesh is not evidence of visibility. `multiportal3` comparison captures and unlocked forward/reverse crossing captures verify the corrected silhouette.
+
+## Boundary depth continuity
+
+A later `multiportal3` save revealed a narrow missing band, caused by the wall-mounted aperture's polygon offset overtaking the player and the 0.25-unit wall-exclusion clip margin trimming the other half. Split meshes for portal-gun pairs now carry a transient depth-bias marker. Depth, ambient, light-interaction, blend-light and fog passes all use the same offset as the opaque aperture. Interaction meshes inherit it through their ambient surface; no unrelated materials or global offset CVars change.
+
+The body alone excludes the world-only clip margin. A 0.25-unit rendering-only overlap across the shared cut, also allowed by the body clip plane, prevents the two separately resolved MSAA images from exposing background between their edge samples. World surfaces retain their wall-exclusion margin. The gun aperture is flattened to the teleport plane, removing its previous 0.06-unit visual displacement while leaving its decorative rims and physical portal placement untouched. This aligns the complementary mesh cuts with the visible boundary.
+
+Verification includes the updated `multiportal3` save at zero and 4x MSAA, before/after silhouette captures, and the body, nested-view and decal-mask regression fixtures.
+
+The updated crossing test also exercises attachments that temporarily remain wholly on one side. Those uncut attachments now retain the virtual-eye exclusion, preventing an inside-head flash while another part of the body straddles the opening.

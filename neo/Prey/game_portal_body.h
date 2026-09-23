@@ -67,19 +67,20 @@ static void PortalBodySplitPolygon(const idList<idDrawVert> &polygon, const idPl
         }
     }
 }
-static void PortalBodySurface(idRenderModel *model, const modelSurface_t &source, const idList<idDrawVert> &vertices) {
+static void PortalBodySurface(idRenderModel *model, const modelSurface_t &source, const idList<idDrawVert> &vertices, bool depthBias) {
     if (!vertices.Num()) return;
     modelSurface_t surface; surface.id = source.id; surface.shader = source.shader;
     surface.geometry = model->AllocSurfaceTriangles(vertices.Num(), vertices.Num());
     srfTriangles_t *tri = surface.geometry;
     tri->numVerts = tri->numIndexes = vertices.Num(); tri->bounds.Clear();
     tri->eyeballDeformed = source.shader->Deform() == DFRM_EYEBALL;
+    tri->portalBodyDepthBias = depthBias;
     for (int i = 0; i < vertices.Num(); ++i) {
         tri->verts[i] = vertices[i]; tri->indexes[i] = i; tri->bounds.AddPoint(vertices[i].xyz);
     }
     model->AddSurface(surface);
 }
-static int SplitPortalBodyModel(portalBodyPart_t &part, const renderEntity_t &pose, const idPlane *planes, int count) {
+static int SplitPortalBodyModel(portalBodyPart_t &part, const renderEntity_t &pose, const idPlane *planes, int count, bool depthBias) {
     const idRenderModel *model = pose.hModel;
     if (model->IsDynamicModel() != DM_STATIC) {
         part.snapshot = pose.hModel->InstantiateDynamicModel(&pose, NULL, part.snapshot);
@@ -107,14 +108,26 @@ static int SplitPortalBodyModel(portalBodyPart_t &part, const renderEntity_t &po
         for (int t = 0; t < mesh.numIndexes; t += 3) {
             polygon.Clear(); for (int k = 0; k < 3; ++k) polygon.Append(mesh.verts[mesh.indexes[t+k]]);
             for (int i = 0; i < count && polygon.Num() >= 3; ++i) {
-                PortalBodySplitPolygon(polygon, local[i], inside, outside);
+                idPlane plane = local[i];
+                if (depthBias && i == 0) plane[3] -= PORTAL_BODY_SEAM_OVERLAP;
+                PortalBodySplitPolygon(polygon, plane, inside, outside);
                 PortalBodyTriangles(outside, nearVerts); polygon = inside;
+            }
+            if (depthBias) {
+                // The two rooms resolve MSAA separately. Retain a narrow common
+                // band so resolving one half cannot expose background at the seam.
+                polygon.Clear(); for (int k = 0; k < 3; ++k) polygon.Append(mesh.verts[mesh.indexes[t+k]]);
+                for (int i = 0; i < count && polygon.Num() >= 3; ++i) {
+                    idPlane plane = local[i];
+                    if (i == 0) plane[3] += PORTAL_BODY_SEAM_OVERLAP;
+                    PortalBodySplitPolygon(polygon, plane, inside, outside); polygon = inside;
+                }
             }
             PortalBodyTriangles(polygon, farVerts);
         }
         farTriangles += farVerts.Num()/3;
-        PortalBodySurface(part.nearModel, *surface, nearVerts);
-        PortalBodySurface(part.farModel, *surface, farVerts);
+        PortalBodySurface(part.nearModel, *surface, nearVerts, depthBias);
+        PortalBodySurface(part.farModel, *surface, farVerts, depthBias);
     }
     part.nearModel->FinishSurfaces(); part.farModel->FinishSurfaces();
     return farTriangles;
@@ -175,13 +188,14 @@ static bool ApplyPortalBodies(hhPlayer *player, const renderView_t &authoritativ
     for (int i = 0; i < poses.Num(); ++i) {
         portalBodyPose_t &item = poses[i];
         portalBodyPart_t &part = PortalBodyPart(item.entity, item.pose.hModel);
-        const int farTriangles = SplitPortalBodyModel(part, item.pose, planes, count);
+        const int farTriangles = SplitPortalBodyModel(part, item.pose, planes, count, portal->spawnArgs.GetBool("rw_portalGun"));
+        // Even an attachment wholly on one side can contain the virtual eye
+        // for a crossing frame. Keep the own-eye guard on uncut parts as well.
+        item.pose.portalBodyEye = view.vieworg; item.pose.portalBodyEyeRadius = 12.0f;
         if (!farTriangles) {
-            if (crossing) {
-                presentationModelRestore_t saved; saved.handle = item.entity->GetModelDefHandle(); saved.model = item.original;
-                restore.Append(saved);
-                gameRenderWorld->UpdateEntityDef(saved.handle, &item.pose);
-            }
+            presentationModelRestore_t saved; saved.handle = item.entity->GetModelDefHandle(); saved.model = item.original;
+            restore.Append(saved);
+            gameRenderWorld->UpdateEntityDef(saved.handle, &item.pose);
             continue;
         }
         presentationModelRestore_t saved; saved.handle = item.entity->GetModelDefHandle(); saved.model = item.original;
