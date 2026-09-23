@@ -69,7 +69,7 @@ try {
     $states=[regex]::Matches($log,$pattern)
     $mg=[regex]::Matches($log,'MACHINEGUN ammo=(\d+) max=(\d+) fraction=([0-9.eE+-]+) clip=(-?\d+) held=(\d+)')
     if($states.Count -ne 22 -or $mg.Count -ne 22){throw "Expected 22 ammo records; got $($states.Count)/$($mg.Count)"}
-    $expected=@(@(0,0,0),@(1,0,4),@(3,1,8),@(5,1,12),@(4,1,12),@(4,0,12),@(4,0,11),@(4,0,11),@(50,0,0),@(50,3,24),@(0,16,0),@(10,16,24),@(50,16,180),@(50,16,180),@(50,16,180),@(125,16,180),@(125,16,180),@(125,16,180),@(125,16,180),@(125,16,180))
+    $expected=@(@(0,0,0),@(1,0,4),@(3,0,8),@(5,1,12),@(4,1,12),@(4,0,12),@(4,0,11),@(4,0,11),@(50,0,0),@(50,2,24),@(0,16,0),@(10,16,24),@(50,16,180),@(50,16,180),@(50,16,180),@(125,16,180),@(125,16,180),@(125,16,180),@(125,16,180),@(125,16,180))
     for($i=0;$i -lt $expected.Count;$i++) {
         $state=$states[$i+2]
         if([int]$state.Groups[1].Value -ne $expected[$i][0] -or [int]$state.Groups[2].Value -ne $expected[$i][1] -or [int]$mg[$i+2].Groups[1].Value -ne $expected[$i][2]){throw "Wrong three-way totals at record $($i+2): $($state.Value) / $($mg[$i+2].Value)"}
@@ -78,7 +78,7 @@ try {
     $culture=[Globalization.CultureInfo]::InvariantCulture
     foreach($idx in 8,9) {
         $sf=[double]::Parse($states[$idx].Groups[6].Value,$culture)
-        if([Math]::Abs($sf-0.6) -gt 0.000001){throw 'Fractional shells were lost during spending/save/load'}
+        if([Math]::Abs($sf-0.0) -gt 0.000001){throw 'Fractional shells were lost during spending/save/load'}
     }
     if([regex]::Matches($log,'AMMOPICKUP accepted=0').Count -ne 2){throw 'Full reserves must reject pickup'}
     'PASS: three independent pools, fixed thirds, fractional pickups, 16-shell/180-round caps, save persistence and non-refilling mode toggles.'

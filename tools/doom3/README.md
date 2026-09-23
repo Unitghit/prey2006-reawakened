@@ -290,3 +290,9 @@ spending, reloads, fractional/full pickups, enemy damage, portal shots, equipped
 and disabled saves, Spirit Walk and a real level transition. The repeatable
 test_plasma_ammo.ps1 checks ammo and save behavior. Set d3_plasmaTrace to 1 only
 for diagnostic bolt traversal/impact logs.
+
+## Shotgun pickup balance
+
+A standard 30-round rifle ammo pickup now supplies exactly two shotgun shells,
+with smaller/larger pickups scaled proportionally. Fractional shells accumulate.
+Rifle and Machine Gun supply rates are unchanged; the shotgun still holds 16 total.

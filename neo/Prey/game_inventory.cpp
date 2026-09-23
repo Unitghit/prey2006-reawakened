@@ -348,7 +348,7 @@ bool hhInventory::GiveRifleGroupAmmo(hhPlayer *owner, int amount) {
 	if (amount <= 0) { return false; }
 	const int count = RifleGroupAmmoCount(owner);
 	const int indices[] = { AmmoIndexForAmmoClass("ammo_rifle"), AmmoIndexForAmmoClass("ammo_d3shells"), 11 };
-	const double full[] = { double(idInventory::MaxAmmoForAmmoClass(owner, "ammo_rifle")), 48.0, 360.0 };
+	const double full[] = { double(idInventory::MaxAmmoForAmmoClass(owner, "ammo_rifle")), 30.0, 360.0 };
 	if (full[0] <= 0) { return false; }
 	bool accepted = false;
 	// Pickup supply is fixed independently of capacity and fullness. Keep the
