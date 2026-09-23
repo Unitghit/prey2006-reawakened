@@ -635,6 +635,70 @@ const void	RB_CopyRender( const void *data ) {
 	}
 }
 
+// A direct subview owns only its aperture, not its rectangular scissor.
+static void RB_PortalAperture(const portalApertureCommand_t *cmd) {
+    const int x = tr.viewportOffset[0] + cmd->parent->viewport.x1 + cmd->scissor.x1;
+    const int y = tr.viewportOffset[1] + cmd->parent->viewport.y1 + cmd->scissor.y1;
+    const int width = cmd->scissor.x2 - cmd->scissor.x1 + 1;
+    const int height = cmd->scissor.y2 - cmd->scissor.y1 + 1;
+    if (!cmd->restore) {
+        GL_SelectTexture(0);
+        cmd->image->CopyFramebuffer(x, y, width, height, true, false, false);
+        qglTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
+        qglTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
+        return;
+    }
+    const drawSurf_t *surf = cmd->surface;
+    qglDisable(GL_VERTEX_PROGRAM_ARB); qglDisable(GL_FRAGMENT_PROGRAM_ARB);
+    qglDisable(GL_CLIP_PLANE0); qglDisable(GL_ALPHA_TEST);
+    qglEnable(GL_SCISSOR_TEST); qglScissor(x, y, width, height);
+    qglViewport(tr.viewportOffset[0] + cmd->parent->viewport.x1,
+        tr.viewportOffset[1] + cmd->parent->viewport.y1,
+        cmd->parent->viewport.x2 - cmd->parent->viewport.x1 + 1,
+        cmd->parent->viewport.y2 - cmd->parent->viewport.y1 + 1);
+    GL_SelectTexture(1); globalImages->BindNull();
+    GL_SelectTexture(0); globalImages->whiteImage->Bind();
+    qglDisable(GL_TEXTURE_GEN_S); qglDisable(GL_TEXTURE_GEN_T);
+    qglDisable(GL_TEXTURE_GEN_R); qglDisable(GL_TEXTURE_GEN_Q);
+    qglMatrixMode(GL_TEXTURE); qglPushMatrix(); qglLoadIdentity();
+    qglMatrixMode(GL_PROJECTION); qglPushMatrix(); qglLoadMatrixf(cmd->parent->projectionMatrix);
+    qglMatrixMode(GL_MODELVIEW); qglPushMatrix(); qglLoadMatrixf(surf->space->modelViewMatrix);
+    GL_Cull(CT_TWO_SIDED);
+    qglDisable(GL_DEPTH_TEST); qglEnable(GL_STENCIL_TEST);
+    qglStencilMask(0xff); qglClearStencil(0); qglClear(GL_STENCIL_BUFFER_BIT);
+    qglStencilFunc(GL_ALWAYS, 1, 0xff); qglStencilOp(GL_KEEP, GL_KEEP, GL_REPLACE);
+    GL_State(GLS_COLORMASK | GLS_ALPHAMASK | GLS_DEPTHMASK);
+    qglDisableClientState(GL_COLOR_ARRAY);
+    qglDisableClientState(GL_TEXTURE_COORD_ARRAY);
+    const idDrawVert *verts = (const idDrawVert *)vertexCache.Position(surf->geo->ambientCache);
+    qglVertexPointer(3, GL_FLOAT, sizeof(idDrawVert), verts->xyz.ToFloatPtr());
+    if (r_portalDepthClampAvailable) qglEnable(GL_DEPTH_CLAMP);
+    RB_DrawElementsWithCounters(surf->geo);
+    if (r_portalDepthClampAvailable) qglDisable(GL_DEPTH_CLAMP);
+
+    // Restore exact pixels without FX downscaling or texture filtering.
+    qglStencilFunc(GL_EQUAL, 0, 0xff); qglStencilOp(GL_KEEP, GL_KEEP, GL_KEEP);
+    GL_State(GLS_DEPTHMASK);
+    qglViewport(x, y, width, height);
+    qglMatrixMode(GL_PROJECTION); qglLoadIdentity(); qglOrtho(0, 1, 0, 1, -1, 1);
+    qglMatrixMode(GL_MODELVIEW); qglLoadIdentity();
+    cmd->image->Bind(); GL_TexEnv(GL_REPLACE);
+    const float u = float(width) / cmd->image->uploadWidth;
+    const float v = float(height) / cmd->image->uploadHeight;
+    qglBegin(GL_QUADS);
+    qglTexCoord2f(0, 0); qglVertex2f(0, 0);
+    qglTexCoord2f(u, 0); qglVertex2f(1, 0);
+    qglTexCoord2f(u, v); qglVertex2f(1, 1);
+    qglTexCoord2f(0, v); qglVertex2f(0, 1);
+    qglEnd();
+    GL_TexEnv(GL_MODULATE);
+    qglPopMatrix(); qglMatrixMode(GL_PROJECTION); qglPopMatrix();
+    qglMatrixMode(GL_TEXTURE); qglPopMatrix(); qglMatrixMode(GL_MODELVIEW);
+    qglEnableClientState(GL_TEXTURE_COORD_ARRAY);
+    qglDisable(GL_STENCIL_TEST); qglEnable(GL_DEPTH_TEST);
+    GL_State(GLS_DEFAULT);
+}
+
 /*
 ====================
 RB_ExecuteBackEndCommands
@@ -684,6 +748,9 @@ void RB_ExecuteBackEndCommands( const emptyCommand_t *cmds ) {
 			RB_SwapBuffers( cmds );
 			c_swapBuffers++;
 			break;
+		case RC_PORTAL_APERTURE:
+            RB_PortalAperture((const portalApertureCommand_t *)cmds);
+            break;
 		case RC_COPY_RENDER:
 			{
 				idHitchScope hitch("render_copy", "copy_render");

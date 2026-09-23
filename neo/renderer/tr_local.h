@@ -487,6 +487,7 @@ typedef enum {
 	RC_DRAW_VIEW,
 	RC_SET_BUFFER,
 	RC_COPY_RENDER,
+	RC_PORTAL_APERTURE,
 	RC_SWAP_BUFFERS		// can't just assume swap at end of list because
 						// of forced list submission before syncs
 } renderCommand_t;
@@ -512,6 +513,17 @@ typedef struct {
 	idImage	*image;
 	int		cubeFace;					// when copying to a cubeMap
 } copyRenderCommand_t;
+
+// Restore a direct subview's saved background outside its actual aperture.
+typedef struct {
+    renderCommand_t commandId, *next;
+    const viewDef_t *parent;
+    const drawSurf_t *surface;
+    idScreenRect scissor;
+    idImage *image;
+    bool restore;
+} portalApertureCommand_t;
+
 
 
 //=======================================================================

@@ -195,7 +195,7 @@ public:
 						textureFilter_t filter, bool allowDownSize,
 						textureDepth_t depth );
 
-	void		CopyFramebuffer( int x, int y, int width, int height, bool useOversizedBuffer, bool honorLowResFX = true );
+	void		CopyFramebuffer( int x, int y, int width, int height, bool useOversizedBuffer, bool honorLowResFX = true, bool applyDownsize = true );
 
 	void		CopyDepthbuffer( int x, int y, int width, int height );
 

@@ -656,6 +656,18 @@ void R_XrayRender( drawSurf_t *surf, textureStage_t *stage, idScreenRect scissor
 	tr.UnCrop();
 }
 
+static void R_PortalBackgroundImage(idImage *image) {
+    const byte black[16] = { 0 };
+    image->GenerateImage(black, 2, 2, TF_NEAREST, false, TR_CLAMP, TD_HIGH_QUALITY);
+}
+static void R_PortalApertureCommand(const viewDef_t *parent, const drawSurf_t *surface,
+    const idScreenRect &scissor, idImage *image, bool restore) {
+    portalApertureCommand_t *cmd = (portalApertureCommand_t *)R_GetCommandBuffer(sizeof(*cmd));
+    cmd->commandId = RC_PORTAL_APERTURE;
+    cmd->parent = parent; cmd->surface = surface; cmd->scissor = scissor;
+    cmd->image = image; cmd->restore = restore;
+}
+
 /*
 ==================
 R_GenerateSurfaceSubview
@@ -782,7 +794,16 @@ bool	R_GenerateSurfaceSubview( drawSurf_t *drawSurf ) {
 			parms->scissor = scissor;
 			parms->superView = tr.viewDef;
 			parms->subviewSurface = drawSurf;
+            // Bracket the complete subtree, including nested views. Its rectangle
+            // must not overwrite the parent's skybox or another portal's pixels.
+            int level = 0;
+            for (const viewDef_t *view = tr.viewDef; view; view = view->superView) ++level;
+            idImage *background = globalImages->ImageFromFunction(
+                va("_portalBackground%d", level), R_PortalBackgroundImage);
+            const viewDef_t *parent = tr.viewDef;
+            R_PortalApertureCommand(parent, drawSurf, scissor, background, false);
 			R_RenderView( parms );
+            R_PortalApertureCommand(parent, drawSurf, scissor, background, true);
 			return true;
 		}
 		case SC_PORTAL_SKYBOX: {

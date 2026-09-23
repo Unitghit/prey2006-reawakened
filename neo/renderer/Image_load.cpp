@@ -1907,7 +1907,7 @@ void idImage::BindFragment() {
 CopyFramebuffer
 ====================
 */
-void idImage::CopyFramebuffer( int x, int y, int imageWidth, int imageHeight, bool useOversizedBuffer, bool honorLowResFX ) {
+void idImage::CopyFramebuffer( int x, int y, int imageWidth, int imageHeight, bool useOversizedBuffer, bool honorLowResFX, bool applyDownsize ) {
 	const bool traceBloom = imgName.Icmpn( "_preyGlow", 9 ) == 0;
 	{
 		idHitchScope hitch("bloom_texture_bind", imgName.c_str(), traceBloom);
@@ -1925,8 +1925,10 @@ void idImage::CopyFramebuffer( int x, int y, int imageWidth, int imageHeight, bo
 	potWidth = MakePowerOfTwo( imageWidth );
 	potHeight = MakePowerOfTwo( imageHeight );
 
-	GetDownsize( imageWidth, imageHeight );
-	GetDownsize( potWidth, potHeight );
+	if (applyDownsize) {
+		GetDownsize( imageWidth, imageHeight );
+		GetDownsize( potWidth, potHeight );
+	}
 
 	// A retained allocation must not shrink one axis when the other grows.
 	if ( useOversizedBuffer ) {
