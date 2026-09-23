@@ -417,6 +417,20 @@ bool RW_PortalCoverPlane(const idPlane &wall, const idVec3 &query, idPlane &cove
     }
     return false;
 }
+// Fixed scenery meshes use the same half-space collision cutout as the world.
+// Do not anchor portals to props, animated objects, or bound/moving geometry.
+static bool RW_PortalPlacementSurface(const trace_t &hit) {
+    if (hit.fraction >= 1) return false;
+    if (hit.c.entityNum == ENTITYNUM_WORLD) return true;
+    if (hit.c.entityNum < 0 || hit.c.entityNum >= MAX_GENTITIES) return false;
+    const idEntity *surface = gameLocal.entities[hit.c.entityNum];
+    if (!surface || !surface->IsType(idStaticEntity::Type) || surface->GetBindMaster() || surface->fl.takedamage) return false;
+    const idPhysics *physics = surface->GetPhysics();
+    const idClipModel *clip = physics->GetClipModel();
+    return physics->IsType(idPhysics_Static::Type) && physics->GetNumClipModels() == 1 &&
+        clip && !clip->IsTraceModel() && physics->GetLinearVelocity().LengthSqr() < 0.0001f &&
+        physics->GetAngularVelocity().LengthSqr() < 0.0001f;
+}
 // Check the full aperture volume, including solid obstacles between sample rays.
 static bool RW_PortalWindowClear(const idVec3 &center, const idMat3 &axis, const idEntity *ignore, float skin = 0.25f) {
     const float rimScale = 1.0f / idMath::Cos(idMath::PI / 8.0f);
@@ -445,7 +459,7 @@ static bool RW_PortalSurfaceSupports(const idVec3 &center, const idMat3 &axis, c
         trace_t support;
         gameLocal.clip.TracePoint(support, sample + axis[0]*2, sample - axis[0]*8.25f, MASK_SOLID, ignore);
         const float facing = support.c.normal * axis[0];
-        if (support.fraction >= 1 || support.c.entityNum != ENTITYNUM_WORLD || facing < 0.5f) return false;
+        if (!RW_PortalPlacementSurface(support) || facing < 0.5f) return false;
         const float depth = (sample * support.c.normal - support.c.dist) / facing;
         const bool flatCore = (sampleIndex >= 16 && sampleIndex < 32) || Square(py / 19.5f) + Square(pz / 24.5f) <= 1.0f;
         if (depth < -0.14f || depth > 8.0f ||
@@ -481,8 +495,8 @@ static bool RW_FitPortalGround(idVec3 &center, idMat3 &axis, const hhPlayer *pla
             const idVec3 sample = center+axis[1]*x+axis[2]*y;
             trace_t hit;
             gameLocal.clip.TracePoint(hit, sample+axis[0]*16, sample-axis[0]*16, MASK_SOLID, player);
-            if (hit.fraction >= 1 || hit.c.entityNum != ENTITYNUM_WORLD ||
-                hit.c.normal*axis[0] < (pass ? 0.94f : 0.7f)) return false;
+            if (!RW_PortalPlacementSurface(hit) ||
+                hit.c.normal*axis[0] < (pass ? 0.9f : 0.7f)) return false;
             // Remove the collision epsilon before fitting the physical surface.
             const idVec3 point = hit.endpos-hit.c.normal*(hit.endpos*hit.c.normal-hit.c.dist);
             const float height = (point-center)*axis[0];
@@ -502,8 +516,8 @@ static bool RW_FitPortalGround(idVec3 &center, idMat3 &axis, const hhPlayer *pla
             up.Normalize();
             axis = idMat3(normal, up.Cross(normal), up);
         } else {
-            // Four units of relief across the whole opening, including its rim.
-            if (highest-lowest > 4.0f || idMath::Fabs(highest) > 8.0f) return false;
+            // Eight units of relief across the whole opening, including its rim.
+            if (highest-lowest > 8.0f || idMath::Fabs(highest) > 8.0f) return false;
             // Leave a small numerical margin above the sampled high point.
             // The volume test below includes the plane itself, so an unsampled
             // peak cannot remain in front of the collision cutout.
@@ -534,7 +548,7 @@ static bool RW_PortalFloorCenter(idVec3 &center, const idMat3 &axis, const idVec
     trace_t floor;
     const idVec3 probe = center + axis[0] * 24;
     gameLocal.clip.TracePoint(floor, probe, probe - axis[2]*128, MASK_SOLID, ignore);
-    if (floor.fraction >= 1 || floor.c.entityNum != ENTITYNUM_WORLD || floor.c.normal * axis[2] < 0.99f) return false;
+    if (!RW_PortalPlacementSurface(floor) || floor.c.normal * axis[2] < 0.99f) return false;
     const float height = (center - floor.endpos) * axis[2];
     if (height < 8 || height > 120) return false;
     // The floor trace stops a clip epsilon above the actual plane. Use the
@@ -608,7 +622,7 @@ bool hhPlayer::PlaceGunPortal(int color, const idDict *shot) {
     if (shot && (hit.endpos - shot->GetVector("shot_target")).LengthSqr() > Square(2.0f)) {
         gameLocal.Printf("PORTALGUN rejected: target obstructed during flight\n"); return false;
     }
-    if (hit.fraction >= 1 || hit.c.entityNum != ENTITYNUM_WORLD) {
+    if (!RW_PortalPlacementSurface(hit)) {
         gameLocal.Printf("PORTALGUN rejected: aim at a stationary world surface\n"); return false;
     }
     idVec3 normal = hit.c.normal;

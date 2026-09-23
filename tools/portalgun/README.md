@@ -410,7 +410,7 @@ unchanged. `oblique` fires using actual camera aim (not the rounded developer
 
 Ground placement also tries a fitted rigid plane when the original flat-surface
 check fails. A symmetric grid and rim samples estimate the terrain slope, then
-resample the resulting plane. Relief must stay within four units across the
+resample the resulting plane. Relief must stay within eight units across the
 whole aperture; the plane can move at most eight units from its candidate.
 The final plane sits 0.25 units above the highest sampled point. A solid-volume
 check includes that plane, so an unsampled protrusion cannot remain in front of
@@ -426,3 +426,20 @@ checks physical emergence and save/reload traversal, and rejects a tall ridge,
 unsupported narrow platform, and insufficient standing headroom. The tilted
 brush is the floor in that portion of the fixture, without a second unrelated
 floor intersecting the player's partial passage underneath it.
+
+Placement also accepts unbound, non-damageable static scenery with non-trace
+collision geometry, using the same eligibility check for the aim hit and backing
+samples. Rigid-body props and moving/bound entities are excluded. Ground fitting
+allows eight units of relief and local normals within about 26 degrees of the
+fitted normal; the eight-unit displacement bound, full aperture volume check,
+backing requirement, and standing clearance remain enforced.
+
+Swept collision checks the actual contact against the validated portal half-space
+for vertex/face and edge/edge contacts. This handles large ground polygons whose
+remote parts cross the plane while the local contact lies behind the opening.
+Front contacts remain collidable, and ordinary traces without a portal cutout
+are unaffected. `mesh_ground` checks a tilted, independently authored convex
+static mesh over a broad floor, projectile placement, physical traversal after
+reload, and rejection of movable support. The private `portalnospawn` campaign
+save verifies placement on its scenery mesh and a center crossing through the
+original pair. No personal save or retail mesh is included in the source tests.

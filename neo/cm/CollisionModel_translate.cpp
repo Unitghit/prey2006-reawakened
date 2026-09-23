@@ -293,24 +293,8 @@ void idCollisionModelManagerLocal::TranslateTrmEdgeThroughPolygon( cm_traceWork_
 		}
 
 		if ( f2 < tw->trace.fraction ) {
-			tw->trace.fraction = f2;
-			// create plane with normal vector orthogonal to both the polygon edge and the trm edge
 			start = tw->model->vertices[edge->vertexNum[0]].p;
 			end = tw->model->vertices[edge->vertexNum[1]].p;
-			tw->trace.c.normal = ( end - start ).Cross( trmEdge->end - trmEdge->start );
-			// FIXME: do this normalize when we know the first collision
-			tw->trace.c.normal.Normalize();
-			tw->trace.c.dist = tw->trace.c.normal * start;
-			// make sure the collision plane faces the trace model
-			if ( tw->trace.c.normal * trmEdge->start - tw->trace.c.dist < 0.0f ) {
-				tw->trace.c.normal = -tw->trace.c.normal;
-				tw->trace.c.dist = -tw->trace.c.dist;
-			}
-			tw->trace.c.contents = poly->contents;
-			tw->trace.c.material = poly->material;
-			tw->trace.c.type = CONTACT_EDGE;
-			tw->trace.c.modelFeature = edgeNum;
-			tw->trace.c.trmFeature = trmEdge - tw->edges;
 			// calculate collision point
 			normal[0] = trmEdge->cross[2];
 			normal[1] = -trmEdge->cross[1];
@@ -325,7 +309,25 @@ void idCollisionModelManagerLocal::TranslateTrmEdgeThroughPolygon( cm_traceWork_
 				f1 = d1 / ( d1 - d2 );
 			}
 			//assert( f1 >= 0.0f && f1 <= 1.0f );
-			tw->trace.c.point = start + f1 * ( end - start );
+			const idVec3 contact = start + f1 * ( end - start );
+            if (portalClipActive && portalClipPlane.Distance(contact) <= 0.01f) continue;
+			tw->trace.fraction = f2;
+			// create plane with normal vector orthogonal to both the polygon edge and the trm edge
+			tw->trace.c.normal = ( end - start ).Cross( trmEdge->end - trmEdge->start );
+			// FIXME: do this normalize when we know the first collision
+			tw->trace.c.normal.Normalize();
+			tw->trace.c.dist = tw->trace.c.normal * start;
+			// make sure the collision plane faces the trace model
+			if ( tw->trace.c.normal * trmEdge->start - tw->trace.c.dist < 0.0f ) {
+				tw->trace.c.normal = -tw->trace.c.normal;
+				tw->trace.c.dist = -tw->trace.c.dist;
+			}
+			tw->trace.c.contents = poly->contents;
+			tw->trace.c.material = poly->material;
+			tw->trace.c.type = CONTACT_EDGE;
+			tw->trace.c.modelFeature = edgeNum;
+			tw->trace.c.trmFeature = trmEdge - tw->edges;
+			tw->trace.c.point = contact;
 			// if retrieving contacts
 			if ( tw->getContacts ) {
 				CM_AddContact( tw );
@@ -417,6 +419,12 @@ void idCollisionModelManagerLocal::TranslateTrmVertexThroughPolygon( cm_traceWor
 		if ( f < 0.0f ) {
 			f = 0.0f;
 		}
+        // Large polygons may cross the portal plane away from this contact.
+        if (portalClipActive) {
+            idVec3 contact = v->p + f * (v->endp - v->p);
+            contact -= poly->plane.Normal() * poly->plane.Distance(contact);
+            if (portalClipPlane.Distance(contact) <= 0.01f) return;
+        }
 		tw->trace.fraction = f;
 		// collision plane is the polygon plane
 		tw->trace.c.normal = poly->plane.Normal();
@@ -470,6 +478,12 @@ void idCollisionModelManagerLocal::TranslatePointThroughPolygon( cm_traceWork_t 
 		if ( f < 0.0f ) {
 			f = 0.0f;
 		}
+        // Large polygons may cross the portal plane away from this contact.
+        if (portalClipActive) {
+            idVec3 contact = v->p + f * (v->endp - v->p);
+            contact -= poly->plane.Normal() * poly->plane.Distance(contact);
+            if (portalClipPlane.Distance(contact) <= 0.01f) return;
+        }
 		tw->trace.fraction = f;
 		// collision plane is the polygon plane
 		tw->trace.c.normal = poly->plane.Normal();
@@ -514,6 +528,7 @@ void idCollisionModelManagerLocal::TranslateVertexThroughTrmPolygon( cm_traceWor
 		if ( f < 0.0f ) {
 			f = 0.0f;
 		}
+        if (portalClipActive && portalClipPlane.Distance(v->p) <= 0.01f) return;
 		tw->trace.fraction = f;
 		// collision plane is the inverse trm polygon plane
 		tw->trace.c.normal = -trmpoly->plane.Normal();

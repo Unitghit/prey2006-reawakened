@@ -2,7 +2,7 @@ param(
     [Parameter(Mandatory=$true)][string]$Engine,
     [Parameter(Mandatory=$true)][string]$RetailBase,
     [Parameter(Mandatory=$true)][string]$Profile,
-    [string[]]$Cases = @('input','regression','floor','ceiling','blocked','replacement','access','floor_edge','guidance','guide_lookaway','guide_steering','guide_fast','floor_exit','placement','objects','floor_escape','floor_partial','floor_continuous','floor_approach','floor_edge_slide','floor_corner','floor_clearance','surface_fit','ceiling_entry','floor_slab','wall_step','wall_approach','tapered_shell','sloped_ceiling','clip_column','oblique','terrain_fit','reverse','static_exit')
+    [string[]]$Cases = @('input','regression','floor','ceiling','blocked','replacement','access','floor_edge','guidance','guide_lookaway','guide_steering','guide_fast','floor_exit','placement','objects','floor_escape','floor_partial','floor_continuous','floor_approach','floor_edge_slide','floor_corner','floor_clearance','surface_fit','ceiling_entry','floor_slab','wall_step','wall_approach','tapered_shell','sloped_ceiling','clip_column','oblique','terrain_fit','mesh_ground','reverse','static_exit')
 )
 $ErrorActionPreference='Stop'
 $Engine=(Resolve-Path -LiteralPath $Engine).Path
@@ -21,6 +21,7 @@ Copy-Item "$PSScriptRoot/tests/rw_portal_terrain.map" "$base/maps/"
 Copy-Item "$PSScriptRoot/tests/portal_lab.mtr" "$base/materials/"
 Copy-Item "$PSScriptRoot/tests/portal_obstacle.ase" "$base/models/"
 Copy-Item "$PSScriptRoot/tests/portal_terrain_cap.ase" "$base/models/"
+Copy-Item "$PSScriptRoot/tests/portal_rough_ground.ase" "$base/models/"
 foreach($name in $Cases) {
     Copy-Item "$PSScriptRoot/tests/$name.cfg" "$base/test.cfg" -Force
     $arguments='+set fs_basepath "'+$Engine+'" +set fs_cdpath "'+(Split-Path $RetailBase -Parent)+'" +set fs_devpath "'+$Profile+'" +set fs_savepath "'+$Profile+'" +set fs_configpath "'+$Profile+'" +set fs_game "" +set r_fullscreen 0 +set r_fullscreenDesktop 0 +set r_mode -1 +set r_customWidth 960 +set r_customHeight 540 +set r_multiSamples 0 +set s_volume_dB -60 +set com_unlockedFPS 0 +set com_fixedTic 1 +set r_gammaInShader 1 +set developer 1 +set ai_disable 1 +set logfile 2 +exec test.cfg'
@@ -119,6 +120,18 @@ foreach($name in $Cases) {
         $positions=[regex]::Matches($part,'selected=\d+ current=\d+ origin=(-?[0-9.]+)\s+(-?[0-9.]+)\s+(-?[0-9.]+)')
         if(([regex]::Matches($part,'PORTAL_EXIT ')).Count -ne 1 -or !$positions.Count -or
             [double]$positions[$positions.Count-1].Groups[3].Value -ge 80){throw 'Player failed to fully emerge from sloped ceiling'}
+    }
+    if($name -eq 'mesh_ground') {
+        $place=[regex]::Match($log,'(?s)MESH_PLACE_BEGIN(.*?)MESH_PLACE_END').Groups[1].Value
+        if($place -notmatch 'PORTAL_TERRAIN_FIT' -or $place -notmatch 'PORTALGUN_SHOT impact blue success=1'){throw 'Static rough mesh placement failed'}
+        foreach($phase in @('CROSS','RELOAD')) {
+            $part=[regex]::Match($log,"(?s)MESH_${phase}_BEGIN(.*?)MESH_${phase}_END").Groups[1].Value
+            $positions=[regex]::Matches($part,'selected=\d+ current=\d+ origin=(-?[0-9.]+)\s+(-?[0-9.]+)\s+(-?[0-9.]+)')
+            if(([regex]::Matches($part,'PORTAL_EXIT ')).Count -ne 1 -or !$positions.Count -or
+                [double]$positions[$positions.Count-1].Groups[2].Value -ge 450){throw "$phase static mesh traversal failed"}
+        }
+        $movable=[regex]::Match($log,'(?s)MESH_MOVABLE_BEGIN(.*?)MESH_MOVABLE_END').Groups[1].Value
+        if($movable -notmatch 'PORTALGUN rejected: aim at a stationary world surface' -or $movable -match 'PORTALGUN placed'){throw 'Movable support was accepted'}
     }
     if($name -eq 'terrain_fit') {
         $gentle=[regex]::Match($log,'(?s)TERRAIN_GENTLE_BEGIN(.*?)TERRAIN_GENTLE_END').Groups[1].Value
