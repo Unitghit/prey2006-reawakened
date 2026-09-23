@@ -656,6 +656,100 @@ void R_XrayRender( drawSurf_t *surf, textureStage_t *stage, idScreenRect scissor
 	tr.UnCrop();
 }
 
+// Subtract the portal's projected opening from biased decal geometry. A depth
+// bias may pull a decal in front of the portal in screen space despite the
+// actual decal being on its backing surface. Preserve real foreground pieces.
+static void R_ClipDecalsBehindPortal(const viewDef_t *view, const drawSurf_t *portal) {
+    const srfTriangles_t *aperture = portal->geo;
+    if (!aperture || !aperture->verts || aperture->numVerts < 3) return;
+    const idVec3 normal = portal->space->entityDef->parms.axis[0];
+    idVec3 point;
+    R_LocalPointToGlobal(portal->space->modelMatrix, aperture->verts[0].xyz, point);
+    idPlane opening; opening.SetNormal(normal); opening.FitThroughPoint(point);
+    if (opening.Distance(view->renderView.vieworg) <= 0.001f) return;
+    idWinding hull(aperture->numVerts);
+    for (int i = 0; i < aperture->numVerts; ++i) {
+        R_LocalPointToGlobal(portal->space->modelMatrix, aperture->verts[i].xyz, point);
+        if (idMath::Fabs(opening.Distance(point)) > 0.05f) return;
+        hull.AddToConvexHull(point, normal, 0.001f);
+    }
+    if (hull.GetNumPoints() < 3) return;
+    idList<idPlane> worldPlanes;
+    worldPlanes.Append(opening);
+    const idVec3 center = hull.GetCenter();
+    for (int i = 0; i < hull.GetNumPoints(); ++i) {
+        idPlane side;
+        if (!side.FromPoints(view->renderView.vieworg, hull[i].ToVec3(),
+            hull[(i+1)%hull.GetNumPoints()].ToVec3())) return;
+        if (side.Distance(center) > 0) side = -side;
+        worldPlanes.Append(side);
+    }
+    for (int surfaceIndex = 0; surfaceIndex < view->numDrawSurfs; ++surfaceIndex) {
+        drawSurf_t *surf = view->drawSurfs[surfaceIndex];
+        const idMaterial *material = surf->material;
+        if (!material || material->HasSubview() || surf->space == portal->space ||
+            surf->space->weaponDepthHack || surf->space->modelDepthHack != 0) continue;
+        bool decal = material->TestMaterialFlag(MF_POLYGONOFFSET);
+        for (int stage = 0; !decal && stage < material->GetNumStages(); ++stage)
+            decal = material->GetStage(stage)->privatePolygonOffset != 0;
+        const srfTriangles_t *source = surf->geo;
+        if (!decal || !source || !source->verts || !source->numIndexes) continue;
+        idScreenRect overlap = surf->scissorRect; overlap.Intersect(portal->scissorRect);
+        if (overlap.IsEmpty()) continue;
+        idList<idPlane> planes;
+        for (int i = 0; i < worldPlanes.Num(); ++i) {
+            idPlane local; R_GlobalPlaneToLocal(surf->space->modelMatrix, worldPlanes[i], local);
+            planes.Append(local);
+        }
+        bool disjoint = false;
+        for (int i = 0; i < planes.Num(); ++i)
+            if (source->bounds.PlaneDistance(planes[i]) > 0.001f) { disjoint = true; break; }
+        if (disjoint) continue;
+        idList<idDrawVert> result;
+        bool changed = false;
+        for (int index = 0; index < source->numIndexes; index += 3) {
+            idList<idDrawVert> remaining, fragments;
+            for (int k = 0; k < 3; ++k) remaining.Append(source->verts[source->indexes[index+k]]);
+            for (int planeIndex = 0; planeIndex < planes.Num() && remaining.Num() >= 3; ++planeIndex) {
+                idList<idDrawVert> inside, outside;
+                const idPlane &plane = planes[planeIndex];
+                for (int k = 0; k < remaining.Num(); ++k) {
+                    const idDrawVert &a = remaining[k], &b = remaining[(k+1)%remaining.Num()];
+                    const float da = plane.Distance(a.xyz)-0.001f, db = plane.Distance(b.xyz)-0.001f;
+                    if (da <= 0) inside.Append(a); else outside.Append(a);
+                    if ((da <= 0) != (db <= 0)) {
+                        idDrawVert cut; cut.LerpAll(a, b, da/(da-db));
+                        inside.Append(cut); outside.Append(cut);
+                    }
+                }
+                for (int k = 1; k+1 < outside.Num(); ++k) {
+                    fragments.Append(outside[0]); fragments.Append(outside[k]); fragments.Append(outside[k+1]);
+                }
+                remaining = inside;
+            }
+            if (remaining.Num() < 3) {
+                for (int k = 0; k < 3; ++k) result.Append(source->verts[source->indexes[index+k]]);
+            } else {
+                changed = true;
+                result.Append(fragments);
+            }
+        }
+        if (!changed) continue;
+        srfTriangles_t *tri = (srfTriangles_t *)R_FrameAlloc(sizeof(*tri));
+        *tri = *source;
+        tri->numVerts = tri->numIndexes = result.Num();
+        tri->verts = (idDrawVert *)R_FrameAlloc(result.Num()*sizeof(idDrawVert));
+        tri->indexes = (glIndex_t *)R_FrameAlloc(result.Num()*sizeof(glIndex_t));
+        tri->bounds.Clear();
+        for (int i = 0; i < result.Num(); ++i) {
+            tri->verts[i] = result[i]; tri->indexes[i] = i; tri->bounds.AddPoint(result[i].xyz);
+        }
+        tri->indexCache = NULL;
+        tri->ambientCache = result.Num() ? vertexCache.AllocFrameTemp(tri->verts, result.Num()*sizeof(idDrawVert)) : NULL;
+        if (!result.Num() || tri->ambientCache) surf->geo = tri;
+    }
+}
+
 static void R_PortalBackgroundImage(idImage *image) {
     const byte black[16] = { 0 };
     image->GenerateImage(black, 2, 2, TF_NEAREST, false, TR_CLAMP, TD_HIGH_QUALITY);
@@ -804,6 +898,7 @@ bool	R_GenerateSurfaceSubview( drawSurf_t *drawSurf ) {
             R_PortalApertureCommand(parent, drawSurf, scissor, background, false);
 			R_RenderView( parms );
             R_PortalApertureCommand(parent, drawSurf, scissor, background, true);
+            R_ClipDecalsBehindPortal(parent, drawSurf);
 			return true;
 		}
 		case SC_PORTAL_SKYBOX: {

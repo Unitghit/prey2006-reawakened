@@ -1449,6 +1449,48 @@ static void RB_BlendLight( const drawSurf_t *drawSurfs,  const drawSurf_t *drawS
 
 //========================================================================
 
+// In a portal view the virtual eye can be inside fog behind the exit.
+// Integrate only the visible segment from the exit plane to each fragment.
+static bool portalFogActive, portalFogLoaded, portalFogSupported;
+static bool RB_PortalFogProgram() {
+    if (!backEnd.viewDef->numClipPlanes || !glConfig.ARBFragmentProgramAvailable ||
+        backEnd.viewDef->clipPlanes[0].Distance(backEnd.viewDef->renderView.vieworg) >= 0) return false;
+    if (!portalFogLoaded) {
+        const char *program =
+            "!!ARBfp1.0\n"
+            "PARAM k = {0.5, 1, 0.000001, 0};\n"
+            "TEMP ray, coord, distance, entering;\n"
+            "SUB ray.x, fragment.texcoord[0].z, program.local[0].x;\n"
+            "MAX ray.x, ray.x, k.z;\n"
+            "RCP ray.x, ray.x;\n"
+            "MUL_SAT ray.x, ray.x, -program.local[0].x;\n"
+            "SUB ray.y, k.y, ray.x;\n"
+            "MOV coord, fragment.texcoord[0];\n"
+            "SUB coord.x, coord.x, k.x;\n"
+            "MAD coord.x, coord.x, ray.y, k.x;\n"
+            "TEX distance, coord, texture[0], 2D;\n"
+            "MOV coord, fragment.texcoord[1];\n"
+            "LRP coord.x, ray.x, fragment.texcoord[1].y, fragment.texcoord[1].x;\n"
+            "TEX entering, coord, texture[1], 2D;\n"
+            "MUL distance, distance, entering;\n"
+            "MUL result.color, distance, fragment.color;\n"
+            "END\n";
+        qglBindProgramARB(GL_FRAGMENT_PROGRAM_ARB, FPROG_PORTAL_FOG);
+        qglProgramStringARB(GL_FRAGMENT_PROGRAM_ARB, GL_PROGRAM_FORMAT_ASCII_ARB, strlen(program), program);
+        GLint error;
+        qglGetIntegerv(GL_PROGRAM_ERROR_POSITION_ARB, &error);
+        portalFogLoaded = true;
+        portalFogSupported = error == -1;
+        if (!portalFogSupported) { common->Warning("Portal fog program error at %d", error); return false; }
+    }
+    if (!portalFogSupported) return false;
+    qglBindProgramARB(GL_FRAGMENT_PROGRAM_ARB, FPROG_PORTAL_FOG);
+    const float eyePlane[4] = { backEnd.viewDef->clipPlanes[0].Distance(backEnd.viewDef->renderView.vieworg), 0, 0, 0 };
+    qglProgramLocalParameter4fvARB(GL_FRAGMENT_PROGRAM_ARB, 0, eyePlane);
+    qglEnable(GL_FRAGMENT_PROGRAM_ARB);
+    return true;
+}
+
 static idPlane	fogPlanes[4];
 
 /*
@@ -1466,6 +1508,11 @@ static void RB_T_BasicFog( const drawSurf_t *surf ) {
 		R_GlobalPlaneToLocal( surf->space->modelMatrix, fogPlanes[0], local );
 		local[3] += 0.5;
 		qglTexGenfv( GL_S, GL_OBJECT_PLANE, local.ToFloatPtr() );
+        if (portalFogActive) {
+            R_GlobalPlaneToLocal(surf->space->modelMatrix, backEnd.viewDef->clipPlanes[0], local);
+            qglTexGenfv(GL_R, GL_OBJECT_PLANE, local.ToFloatPtr());
+        }
+
 
 //		R_GlobalPlaneToLocal( surf->space->modelMatrix, fogPlanes[1], local );
 //		local[3] += 0.5;
@@ -1582,6 +1629,12 @@ static void RB_FogPass( const drawSurf_t *drawSurfs,  const drawSurf_t *drawSurf
 	qglTexCoord2f( FOG_ENTER + s, FOG_ENTER );
 
 
+    portalFogActive = RB_PortalFogProgram();
+    if (portalFogActive) {
+        GL_SelectTexture(0);
+        qglTexGeni(GL_R, GL_TEXTURE_GEN_MODE, GL_OBJECT_LINEAR);
+        qglEnable(GL_TEXTURE_GEN_R);
+    }
 	// draw it
 	RB_RenderDrawSurfChainWithFunction( drawSurfs, RB_T_BasicFog );
 	RB_RenderDrawSurfChainWithFunction( drawSurfs2, RB_T_BasicFog );
@@ -1593,6 +1646,11 @@ static void RB_FogPass( const drawSurf_t *drawSurfs,  const drawSurf_t *drawSurf
 	RB_RenderDrawSurfChainWithFunction( &ds, RB_T_BasicFog );
 	GL_Cull( CT_FRONT_SIDED );
 
+    if (portalFogActive) {
+        GL_SelectTexture(0); qglDisable(GL_TEXTURE_GEN_R);
+        qglDisable(GL_FRAGMENT_PROGRAM_ARB);
+        portalFogActive = false;
+    }
 	GL_SelectTexture( 1 );
 	qglDisable( GL_TEXTURE_GEN_S );
 	qglDisable( GL_TEXTURE_GEN_T );
@@ -1618,6 +1676,7 @@ void RB_STD_FogAllLights( void ) {
 		return;
 	}
 
+	RB_SetSubviewClipPlane( true );
 	qglDisable( GL_STENCIL_TEST );
 
 	for ( vLight = backEnd.viewDef->viewLights ; vLight ; vLight = vLight->next ) {
@@ -1660,6 +1719,7 @@ void RB_STD_FogAllLights( void ) {
 		qglDisable( GL_STENCIL_TEST );
 	}
 
+	RB_SetSubviewClipPlane( false );
 	qglEnable( GL_STENCIL_TEST );
 }
 
@@ -1999,6 +2059,8 @@ static int retailGlowNextSlot[2];
 static int retailGlowActiveProgram[2];
 
 void RB_InvalidateRetailGlowPrograms( void ) {
+    // Both generated programs must be recreated after an OpenGL context reset.
+    portalFogLoaded = portalFogSupported = portalFogActive = false;
     memset( retailGlowPrograms, 0, sizeof( retailGlowPrograms ) );
     memset( retailGlowNextSlot, 0, sizeof( retailGlowNextSlot ) );
     memset( retailGlowActiveProgram, 0, sizeof( retailGlowActiveProgram ) );

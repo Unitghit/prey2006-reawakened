@@ -22,6 +22,8 @@ Copy-Item "$PSScriptRoot/tests/portal_lab.mtr" "$base/materials/"
 Copy-Item "$PSScriptRoot/tests/portal_obstacle.ase" "$base/models/"
 Copy-Item "$PSScriptRoot/tests/portal_terrain_cap.ase" "$base/models/"
 Copy-Item "$PSScriptRoot/tests/portal_rough_ground.ase" "$base/models/"
+Copy-Item "$PSScriptRoot/tests/portal_decal_test.ase" "$base/models/"
+Copy-Item "$PSScriptRoot/tests/portal_decal_test.mtr" "$base/materials/"
 foreach($name in $Cases) {
     Copy-Item "$PSScriptRoot/tests/$name.cfg" "$base/test.cfg" -Force
     $arguments='+set fs_basepath "'+$Engine+'" +set fs_cdpath "'+(Split-Path $RetailBase -Parent)+'" +set fs_devpath "'+$Profile+'" +set fs_savepath "'+$Profile+'" +set fs_configpath "'+$Profile+'" +set fs_game "" +set r_fullscreen 0 +set r_fullscreenDesktop 0 +set r_mode -1 +set r_customWidth 960 +set r_customHeight 540 +set r_multiSamples 0 +set s_volume_dB -60 +set com_unlockedFPS 0 +set com_fixedTic 1 +set r_gammaInShader 1 +set developer 1 +set ai_disable 1 +set logfile 2 +exec test.cfg'
@@ -30,6 +32,14 @@ foreach($name in $Cases) {
     if($process.ExitCode -ne 0){throw "$name exited with $($process.ExitCode)"}
     $log=Get-Content -LiteralPath "$base/$name.log" -Raw
     if($log -match 'ERROR:|shutting down:'){throw "$name reported an engine error"}
+    if($name -eq 'decal_mask') {
+        if($log -match 'GL_INVALID|program error|Couldn.t load.*test_decal'){throw 'Decal fixture rendering failed'}
+        foreach($capture in @('decal_clean.tga','decal_mask.tga')) {
+            if(!(Test-Path "$base/$capture")){throw "Missing $capture"}
+        }
+        # Visual regression: compare with decal_clean. Green must stay outside
+        # the aperture, and the small red foreground square must remain inside.
+    }
     if($name -eq 'input' -and ($log -notmatch 'PORTALGUN placed blue' -or $log -notmatch 'PORTALGUN placed orange')){throw 'Input placement failed'}
     if($name -eq 'viewmodel') {
         foreach($color in @('blue','orange')) {

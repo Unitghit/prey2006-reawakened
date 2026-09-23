@@ -1397,6 +1397,7 @@ typedef enum {
 	FPROG_PORTAL_ALL,
 	VPROG_PORTALGUN_PHONG,
 	FPROG_PORTALGUN_PHONG,
+	FPROG_PORTAL_FOG,
 	FPROG_RETAIL_GLOW_CACHE,
 	// Eight exact shader variants per axis; kept below user program IDs.
 	PROG_USER = FPROG_RETAIL_GLOW_CACHE + 16

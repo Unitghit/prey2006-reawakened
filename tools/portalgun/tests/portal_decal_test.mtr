@@ -1,0 +1,24 @@
+reawakened/portalgun/test_decal_back
+{
+    twoSided
+    noShadows
+    polygonOffset 100
+    sort decal
+    {
+        blend add
+        map _white
+        color 0, 1, 0, 1
+    }
+}
+reawakened/portalgun/test_decal_front
+{
+    twoSided
+    noShadows
+    polygonOffset 100
+    sort decal
+    {
+        blend add
+        map _white
+        color 1, 0, 0, 1
+    }
+}
