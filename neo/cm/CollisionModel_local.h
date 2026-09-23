@@ -302,6 +302,12 @@ public:
     }
     bool PortalCoverSurface(const idPlane &plane, int contents) const {
         if (!portalCoverActive || !(contents & CONTENTS_PLAYERCLIP) || (contents & CONTENTS_SOLID)) return false;
+        // Tapered actor-clip shells need not have parallel front/back faces.
+        // A back face exactly on the visible portal support is still part of
+        // the opening, even when the detected outer cover is angled. Restrict
+        // this to invisible player clip and the exact support plane.
+        if (plane.Normal() * portalClipPlane.Normal() < -0.9999f &&
+            idMath::Fabs(plane.Dist() + portalClipPlane.Dist()) < 0.15f) return true;
         const float facing = plane.Normal() * portalCoverPlane.Normal();
         if (facing > 0.9999f) return idMath::Fabs(plane.Dist() - portalCoverPlane.Dist()) < 0.15f;
         // A thin clip brush has a back face too. Leaving a portal must clear

@@ -374,3 +374,11 @@ no origin warp or collision exclusion is added. Steering outward overrides it.
 `wall_approach` verifies no idle movement, an edge approach, and walking at least
 48 units beyond the destination. Campaign `portalstuck6` is tested at five blue
 approach offsets (-30 through +30), requiring full physical exit in every case.
+
+Tapered invisible player-clip shells can have an angled outer face and a back
+face aligned with the visible wall. The portal collision cutout now recognizes
+that exact support-plane back face as well as the parallel thin-shell case.
+This remains restricted to non-solid player-clip surfaces with a detected cover;
+solid geometry and unrelated offset faces are unchanged. `tapered_shell` tests
+walking fully out through a tapered shell, not just observing a teleport event.
+`portalstuck7` reproduces this from its untouched saved pose with forward input.
