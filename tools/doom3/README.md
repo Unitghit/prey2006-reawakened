@@ -42,7 +42,7 @@ energy absorption is unchanged and never supplies Machine Gun bullets:
 | --- | --- | --- |
 | Hunter Rifle | 75 before Leech unlock, then 50 | Original behavior |
 | Shotgun | **16 shells** | 8 |
-| Machine Gun | **120 rounds** | 60 |
+| Machine Gun | **180 rounds** | 60 |
 | Autocannon (when Chaingun unlocked) | 200 primary rounds | Original behavior |
 | Chaingun | **300 rounds** | 60 |
 
@@ -53,17 +53,18 @@ unaffected. Existing Autocannon ammunition is retained when adding the Chaingun;
 its new reserve receives subsequent pickups, without a free refill.
 
 The shotgun remains capped at 16 shells with either two or three weapons
-unlocked; the Machine Gun is capped at 120 total rounds, including its loaded
-60. A 30-round rifle pickup gives 15 rifle rounds and 3.2 shells before the
-Leech Gun unlock. Afterwards it gives 10 rifle rounds, 3.2 shells and 24 Machine
-Gun rounds when all three reserves have room. Fractional credit survives pickups and saves. Incoming
-overflow is redistributed to reserves with room; acquired ammunition never
+unlocked; the Machine Gun is capped at 180 total rounds, including its loaded
+60. A 30-round rifle pickup gives 10 rifle rounds and 3.2 shells before the
+Leech Gun unlock. Afterwards it also gives 24 Machine Gun rounds. Each receives
+a fixed third of its original normalized pickup supply; slot 5 receives fixed
+halves. Full or locked partners never donate their unused share. Fractional
+credit survives pickups and saves; acquired ammunition never
 transfers between guns. Reloading only moves rounds into the magazine.
 
 Original shared-ammo saves receive a one-time normalized split. Upgrading an
 already independent shotgun save preserves its bullets and shells; the new
 Machine Gun starts empty and receives its share from subsequent pickups.
-Existing addon totals are clamped to 16 shells and 120 Machine Gun rounds
+Existing addon totals are clamped to 16 shells and 180 Machine Gun rounds
 when enabled. Legitimate rifle ammo
 above its reduced cap remains until spent. Disabling/re-enabling preserves
 reserves and magazines without splitting or refilling them again. Rifle sniper
@@ -248,3 +249,14 @@ Spirit Walk and a real level transition. A 56-round magazine and 116 total bulle
 survived Spirit Walk, transition and save/load without changing 100 Autocannon
 rounds or two grenades. The existing Machine Gun ammo regression still passes.
 Use test_chaingun_ammo.ps1 for the repeatable slot-5 arithmetic/save regression.
+
+## Fixed pickup shares and 180-round Machine Gun revision
+
+The Machine Gun capacity increase does not increase its pickup awards. All
+rifle ammo and weapon drops use fixed thirds, even before the Machine Gun unlock.
+Autocannon ammo and weapon drops use fixed halves. The regular 50-round ammo
+box supplies 25 Autocannon rounds and 37.5 Chaingun bullets; a regular weapon
+pickup supplies 50 and 75. Full partners no longer transfer their pickup share.
+Secondary ammunition remains untouched. Tests cover authored ammo entities,
+weapon pickups, dropped weapons, fractional persistence and full reserves.
+Historical validation figures above describe earlier revisions.

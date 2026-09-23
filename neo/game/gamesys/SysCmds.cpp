@@ -2629,6 +2629,10 @@ static void Cmd_ChaingunInfo_f(const idCmdArgs &args) {
 		player->inventory.MaxAmmoForAmmoClass(player, "ammo_autocannon"), player->inventory.MaxAmmoForAmmoClass(player, "ammo_d3belt"),
 		player->spawnArgs.GetString("rw_weapon_ammo_fraction_3", "0"), player->spawnArgs.GetString("rw_weapon_ammo_fraction_12", "0"),
 		player->inventory.clip[11], (player->inventory.weapons & (1 << 11)) != 0, player->inventory.ammo[4]);
+	if (player->hud) {
+		gameLocal.Printf("AMMOHUD count=%s percent=%s\n", player->hud->State().GetString("player_ammoamounttext"),
+			player->hud->State().GetString("player_ammopercent"));
+	}
 }
 
 void idGameLocal::InitConsoleCommands( void ) {

@@ -45,15 +45,16 @@ counterparts for weapons already owned when enabling a mode on an existing save.
 
 Each acquired, enabled weapon gets an equal share of its group's supply budget,
 expressed relative to that weapon's full reserve, not equal bullet counts.
-Divide reserve capacities and incoming supplies by the active group size.
-Explicit balance exception: keep the shotgun capped at 16 total shells and the Machine Gun at 120 rounds.
+Use fixed thirds for rifle-group pickups and fixed halves for slot-5 pickups,
+including ammo-only entities and dropped weapons. Pickup rates are independent
+of capacity: keep the shotgun capped at 16 total shells and Machine Gun at 180 rounds.
 The Machine Gun unlocks with the Leech Gun (also on existing saves), but still
 receives rifle-group pickup supply. Leech Gun energy absorption is unchanged.
 The Chaingun unlocks with the Autocannon and uses slot 5's primary supply only.
 Its independent reserve is capped at 300 including 60 loaded rounds; Autocannon
 primary capacity is 200 while paired. Secondary grenades remain unchanged.
-Preserve fractional pickup credit. Redistribute incoming pickup supplies from
-full reserves to other reserves in the same group that have room. Once acquired,
+Preserve fractional pickup credit. Full or locked reserves do not donate their
+unused pickup share to another gun. Once acquired,
 ammunition belongs exclusively to its gun: firing/reloading must never consume
 another gun's ammo. Mode toggles retain dormant reserves without conversion or
 refills. Existing shared-ammo prototype saves receive a one-time normalized split.

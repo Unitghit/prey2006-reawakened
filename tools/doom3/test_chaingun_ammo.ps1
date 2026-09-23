@@ -73,7 +73,7 @@ try {
     if($log.Contains('ERROR:') -or $log.Contains("Real Script checksum didn't match") -or $log.Contains('WARNING: script')){throw 'Game reported a script/save error'}
     $states=[regex]::Matches($log,'CHAINAMMO auto=(\d+) belt=(\d+) autoMax=(\d+) beltMax=(\d+) autoFraction=([0-9.eE+-]+) beltFraction=([0-9.eE+-]+) clip=(-?\d+) held=(\d+) alt=(\d+)')
     if($states.Count -ne 19){throw "Expected 19 ammo records, got $($states.Count)"}
-    $expected=@(@(0,0),@(0,0),@(1,1),@(1,1),@(2,3),@(200,0),@(200,60),@(0,300),@(40,300),@(200,300),@(200,300),@(200,300),@(100,120))
+    $expected=@(@(0,0),@(0,0),@(1,1),@(1,1),@(2,3),@(200,0),@(200,30),@(0,300),@(20,300),@(200,300),@(200,300),@(200,300),@(100,120))
     for($i=0;$i -lt $expected.Count;$i++) {
         if([int]$states[$i].Groups[1].Value -ne $expected[$i][0] -or [int]$states[$i].Groups[2].Value -ne $expected[$i][1]){throw "Wrong allocation at $i : $($states[$i].Value)"}
     }
@@ -91,7 +91,7 @@ try {
     }
     foreach($idx in 16,17){if($states[$idx].Groups[8].Value -ne '0'){throw 'Disabled gun remained selectable'}}
     if($states[18].Groups[8].Value -ne '1'){throw 'Autocannon ownership did not restore Chaingun'}
-    'PASS: slot-5 independent reserves, fractions, overflow, grenades, firing/reload and equipped/disabled saves.'
+    'PASS: slot-5 independent reserves, fractions, fixed halves, grenades, firing/reload and equipped/disabled saves.'
 } finally {
     if(!$process.HasExited){Stop-Process -Id $process.Id}
 }

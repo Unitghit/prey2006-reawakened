@@ -273,7 +273,7 @@ bool hhInventory::SynchronizeWeaponAmmo(hhPlayer *owner) {
 			const double total = ammo[rifle] + WeaponAmmoFraction(owner, rifle);
 			StoreWeaponAmmo(owner, rifle, total / count);
 			StoreWeaponAmmo(owner, shells, total / count * shellFull / rifleFull);
-			if (count == 3) { StoreWeaponAmmo(owner, 11, total * 120 / rifleFull); }
+			if (count == 3) { StoreWeaponAmmo(owner, 11, total * 180 / rifleFull); }
 		}
 		owner->spawnArgs.SetBool("rw_weapon_ammo_initialized", true);
 		// Older prototype magazines referenced the same total. They are not
@@ -287,12 +287,12 @@ bool hhInventory::SynchronizeWeaponAmmo(hhPlayer *owner) {
 		const int shells = AmmoIndexForAmmoClass("ammo_d3shells");
 		const int capacity = MaxAmmoForAmmoClass(owner, "ammo_d3shells");
 		const int count = RifleGroupAmmoCount(owner);
-		if (owner->spawnArgs.GetInt("rw_weapon_machinegun_capacity", "-1") != 120) {
-			owner->spawnArgs.SetInt("rw_weapon_machinegun_capacity", 120);
+		if (owner->spawnArgs.GetInt("rw_weapon_machinegun_capacity", "-1") != 180) {
+			owner->spawnArgs.SetInt("rw_weapon_machinegun_capacity", 180);
 			changed = true;
 		}
-		if (ammo[11] >= 0 && ammo[11] + WeaponAmmoFraction(owner, 11) > 120) {
-			StoreWeaponAmmo(owner, 11, 120);
+		if (ammo[11] >= 0 && ammo[11] + WeaponAmmoFraction(owner, 11) > 180) {
+			StoreWeaponAmmo(owner, 11, 180);
 			changed = true;
 		}
 		if (owner->spawnArgs.GetInt("rw_weapon_ammo_group_count") != count) {
@@ -333,28 +333,19 @@ bool hhInventory::GiveRifleGroupAmmo(hhPlayer *owner, int amount) {
 	if (amount <= 0) { return false; }
 	const int count = RifleGroupAmmoCount(owner);
 	const int indices[] = { AmmoIndexForAmmoClass("ammo_rifle"), AmmoIndexForAmmoClass("ammo_d3shells"), 11 };
-	const double full[] = { double(idInventory::MaxAmmoForAmmoClass(owner, "ammo_rifle")), 16.0 * count, 120.0 * count };
+	const double full[] = { double(idInventory::MaxAmmoForAmmoClass(owner, "ammo_rifle")), 48.0, 360.0 };
 	if (full[0] <= 0) { return false; }
-	double totals[3], room[3];
+	bool accepted = false;
+	// Pickup supply is fixed independently of capacity and fullness. Keep the
+	// original three-way rates even before the Machine Gun has been unlocked.
 	for (int i = 0; i < count; ++i) {
-		totals[i] = ammo[indices[i]] + WeaponAmmoFraction(owner, indices[i]);
-		room[i] = ammo[indices[i]] < 0 ? 0.0 : Max(0.0, 1.0 / count - totals[i] / full[i]);
+		if (ammo[indices[i]] < 0) { continue; }
+		const double total = ammo[indices[i]] + WeaponAmmoFraction(owner, indices[i]);
+		const double room = Max(0.0, double(MaxAmmoForAmmoClass(owner, idWeapon::GetAmmoNameForNum((ammo_t)indices[i]))) - total);
+		const double grant = Min(room, amount / full[0] * full[i] / 3.0);
+		if (grant > 1e-12) { StoreWeaponAmmo(owner, indices[i], total + grant); accepted = true; }
 	}
-	double budget = amount / full[0], accepted = 0;
-	// Divide incoming supply equally by normalized capacity. Overflow can be
-	// redirected, but already-acquired ammunition never moves between guns.
-	for (int pass = 0; pass < count && budget > 1e-12; ++pass) {
-		int recipients = 0;
-		for (int i = 0; i < count; ++i) { if (room[i] > 1e-12) { ++recipients; } }
-		if (!recipients) { break; }
-		const double share = budget / recipients;
-		for (int i = 0; i < count; ++i) {
-			const double grant = Min(room[i], share);
-			totals[i] += grant * full[i]; room[i] -= grant; budget -= grant; accepted += grant;
-		}
-	}
-	if (accepted <= 1e-12) { return false; }
-	for (int i = 0; i < count; ++i) { if (ammo[indices[i]] >= 0) { StoreWeaponAmmo(owner, indices[i], totals[i]); } }
+	if (!accepted) { return false; }
 	ammoPulse = true;
 	return true;
 }
@@ -365,26 +356,17 @@ bool hhInventory::GiveAutocannonGroupAmmo(hhPlayer *owner, int amount) {
 	const int indices[] = { AmmoIndexForAmmoClass("ammo_autocannon"), 12 };
 	const double full[] = { double(idInventory::MaxAmmoForAmmoClass(owner, "ammo_autocannon")), 600.0 };
 	if (full[0] <= 0) { return false; }
-	double totals[2], room[2];
+	bool accepted = false;
+	// A full partner never donates its share: all slot-5 pickups give half
+	// the original supply to each independent reserve that has room.
 	for (int i = 0; i < count; ++i) {
-		totals[i] = ammo[indices[i]] + WeaponAmmoFraction(owner, indices[i]);
-		room[i] = ammo[indices[i]] < 0 ? 0.0 : Max(0.0, 1.0 / count - totals[i] / full[i]);
+		if (ammo[indices[i]] < 0) { continue; }
+		const double total = ammo[indices[i]] + WeaponAmmoFraction(owner, indices[i]);
+		const double room = Max(0.0, double(MaxAmmoForAmmoClass(owner, idWeapon::GetAmmoNameForNum((ammo_t)indices[i]))) - total);
+		const double grant = Min(room, amount / full[0] * full[i] / 2.0);
+		if (grant > 1e-12) { StoreWeaponAmmo(owner, indices[i], total + grant); accepted = true; }
 	}
-	double budget = amount / full[0], accepted = 0;
-	// Divide incoming supply equally by normalized capacity. Overflow can be
-	// redirected, but already-acquired ammunition never moves between guns.
-	for (int pass = 0; pass < count && budget > 1e-12; ++pass) {
-		int recipients = 0;
-		for (int i = 0; i < count; ++i) { if (room[i] > 1e-12) { ++recipients; } }
-		if (!recipients) { break; }
-		const double share = budget / recipients;
-		for (int i = 0; i < count; ++i) {
-			const double grant = Min(room[i], share);
-			totals[i] += grant * full[i]; room[i] -= grant; budget -= grant; accepted += grant;
-		}
-	}
-	if (accepted <= 1e-12) { return false; }
-	for (int i = 0; i < count; ++i) { if (ammo[indices[i]] >= 0) { StoreWeaponAmmo(owner, indices[i], totals[i]); } }
+	if (!accepted) { return false; }
 	ammoPulse = true;
 	return true;
 }
@@ -395,7 +377,7 @@ int hhInventory::MaxAmmoForAmmoClass( idPlayer *owner, const char *ammo_classnam
 		if (!idStr::Icmp(ammo_classname, "ammo_d3shells")) {
 			return 16; // Stable total cap, including the eight loaded shells.
 		}
-		if (!idStr::Icmp(ammo_classname, "ammo_d3bullets")) { return 120; }
+		if (!idStr::Icmp(ammo_classname, "ammo_d3bullets")) { return 180; }
 		if (!idStr::Icmp(ammo_classname, "ammo_d3belt")) { return 300; }
 		if (!idStr::Icmp(ammo_classname, "ammo_autocannon") && SplitAutocannonAmmo(owner)) {
 			return idInventory::MaxAmmoForAmmoClass(owner, ammo_classname) / 2;
