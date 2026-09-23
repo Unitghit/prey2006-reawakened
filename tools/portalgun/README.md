@@ -37,6 +37,19 @@ boost or position correction. Occupied exits block traversal instead of telefrag
 This is a sandbox experiment: portals can bypass campaign triggers and puzzles.
 Not a complete recreation of Valve's portal mechanics.
 
+## Replacement and floor orientation
+
+Each color reuses its existing endpoint: a valid shot removes the old opening
+and immediately reconnects the opposite color to the new location. Invalid shots
+leave the existing pair intact. Replacement clears crossing history from the old
+coordinate frame and is blocked only while the player's hull straddles an opening,
+not merely because the player is standing nearby.
+
+Floor and ceiling placements orient the oval along the projected aiming direction.
+Straight-down/up shots retain the player's viewing heading. Upright walls continue
+to align with local gravity. All placements still require a sufficiently large,
+flat static surface.
+
 ## Walk-through wall portals
 
 Upright portals within step range of a flat floor align their centers 73 units
@@ -64,6 +77,8 @@ the initial prototype to generate the adjusted local materials.
 box-room map and tests primary/secondary placement, wall traversal in both
 directions, solid wall outside the oval, save/reload, disabling/re-enabling,
 floor-to-wall and floor-to-ceiling momentum, and an enemy blocking the exit.
+Repeated replacement tests cover both colors, placement near the previous opening,
+angled and vertical floor shots, and traversal of the relocated pair after reload.
 The room is a collision fixture, not a representative lighting scene.
 Campaign testing additionally checked slot-1 toggling, wheel cycling with the
 Doom weapons, and save/reload of the selected tool.

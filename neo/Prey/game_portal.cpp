@@ -389,6 +389,16 @@ void hhPortal::CheckPlayerDistances(void) {
 
 static void RW_UpdateGunPortalFloor(hhPortal *portal);
 
+void hhPortal::ResetGunPortalCrossings() {
+    // Previous positions belong to the old portal frame. Do not interpret a
+    // relocation as player movement across the newly placed portal plane.
+    for (int i = 0; i < proximityEntities.Num(); ++i) {
+        idEntity *ent = proximityEntities[i].entity.GetEntity();
+        if (ent && ent->IsType(hhPlayer::Type)) static_cast<hhPlayer *>(ent)->SetPortalColliding(false);
+    }
+    proximityEntities.Clear();
+}
+
 void hhPortal::Think( void ) {
     if (spawnArgs.GetBool("rw_portalGun")) {
         if (!cvarSystem->GetCVarBool("g_portalGun")) { Hide(); GetPhysics()->SetContents(0); return; }

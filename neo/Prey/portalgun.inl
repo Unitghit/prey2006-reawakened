@@ -8,6 +8,18 @@ static hhPortal *RW_GunPortal(int color) {
     idEntity *ent = gameLocal.FindEntity(RW_PortalName(color));
     return ent && ent->IsType(hhPortal::Type) ? static_cast<hhPortal *>(ent) : NULL;
 }
+// Only defer replacement while the player's hull actually straddles an opening.
+static bool RW_PortalOccupied(const hhPortal *portal, const idPhysics *physics) {
+    if (!portal) return false;
+    idBounds local;
+    local.Clear();
+    const idBounds &bounds = physics->GetBounds();
+    for (int i = 0; i < 8; ++i) {
+        const idVec3 corner(bounds[(i&1)!=0].x, bounds[(i&2)!=0].y, bounds[(i&4)!=0].z);
+        local.AddPoint((physics->GetOrigin() + corner * physics->GetAxis() - portal->GetOrigin()) * portal->GetAxis().Transpose());
+    }
+    return local.IntersectsBounds(idBounds(idVec3(-2, -49, -87), idVec3(2, 49, 73)));
+}
 static bool RW_PortalFits(const hhPortal *portal, const idTraceModel *trm, const idMat3 &axis, const idVec3 &origin) {
     if (!trm) return false;
     // Upright wall portals must not turn the oval's narrowing lower edge into
@@ -139,14 +151,19 @@ bool hhPlayer::PlaceGunPortal(int color) {
     }
     idVec3 normal = hit.c.normal;
     normal.Normalize();
-    idVec3 up = -GetPhysics()->GetGravityNormal();
-    up -= normal * (up * normal);
-    if (up.Normalize() < 0.1f) {
-        up = firstPersonViewAxis[0] - normal * (firstPersonViewAxis[0] * normal);
-        if (up.Normalize() < 0.1f) up = firstPersonViewAxis[2];
-        up -= normal * (up * normal);
-        if (up.Normalize() < 0.1f) { up.Set(1, 0, 0); up -= normal*(up*normal); up.Normalize(); }
+    const idVec3 gravityUp = -GetPhysics()->GetGravityNormal();
+    idVec3 up = gravityUp - normal * (gravityUp * normal);
+    if (idMath::Fabs(gravityUp * normal) > 0.95f) {
+        // Floor/ceiling ovals follow the shooter's approach, not world axes.
+        up = shotDirection - normal * (shotDirection * normal);
+        if (up.Normalize() < 0.1f) {
+            // A vertical shot has no projected forward direction. View-left
+            // retains yaw even at the pitch limit, so use it to recover heading.
+            up = firstPersonViewAxis[1].Cross(gravityUp);
+            up -= normal * (up * normal);
+        }
     }
+    up.Normalize();
     idVec3 side = up.Cross(normal); side.Normalize(); up = normal.Cross(side); up.Normalize();
     const idMat3 axis(normal, side, up);
     idVec3 center = hit.endpos - normal * (hit.endpos * normal - hit.c.dist);
@@ -163,8 +180,7 @@ bool hhPlayer::PlaceGunPortal(int color) {
     if (other && (other->GetOrigin()-center).Length() < 160) {
         gameLocal.Printf("PORTALGUN rejected: too close to other endpoint\n"); return false;
     }
-    if ((portal && (GetOrigin()-portal->GetOrigin()).Length() < 120) ||
-        (portal && other && (GetOrigin()-other->GetOrigin()).Length() < 120)) {
+    if (portal && (RW_PortalOccupied(portal, GetPhysics()) || RW_PortalOccupied(other, GetPhysics()))) {
         gameLocal.Printf("PORTALGUN rejected: leave the opening before replacing it\n"); return false;
     }
     if (!portal) {
@@ -179,7 +195,11 @@ bool hhPlayer::PlaceGunPortal(int color) {
         if (!gameLocal.SpawnEntityDef(args, &created) || !created || !created->IsType(hhPortal::Type)) return false;
         portal = static_cast<hhPortal *>(created);
     }
+    portal->ResetGunPortalCrossings();
+    if (other) other->ResetGunPortalCrossings();
     portal->SetOrigin(center + normal * RW_PORTAL_SURFACE_OFFSET); portal->SetAxis(axis);
+    portal->spawnArgs.SetVector("origin", portal->GetOrigin());
+    portal->spawnArgs.SetMatrix("rotation", axis);
     portal->spawnArgs.SetFloat("rw_portal_surface_offset", RW_PORTAL_SURFACE_OFFSET);
     portal->spawnArgs.SetBool("rw_portal_floor_aligned", true);
     portal->SetModel(color ? "models/reawakened/portalgun/orange_closed.ase" : "models/reawakened/portalgun/blue_closed.ase");
