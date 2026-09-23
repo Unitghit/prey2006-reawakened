@@ -3,7 +3,41 @@
 Enable Portal gun in the native launcher. Press 1 again while holding the wrench
 (or cycle weapons) to select the portal tool. Primary places blue; secondary
 places orange. Both endpoints must be placed before traversal is possible.
-No viewmodel is supplied in this mechanics prototype.
+An optional first-person Portal gun model can be imported locally as described
+below. Without that import the mechanics-only tool remains available.
+
+## Portal first-person model
+
+The local importer uses the installed PC Portal game and the command-line Crowbar
+decompiler to convert its gun mesh, weighted skeleton, and ten animation sequences
+into Prey's MD5 format. It requires Python with numpy and Pillow:
+
+```
+python tools/portalgun/import_viewmodel.py <Portal-install> <Crowbar-CLI-exe> <runtime-base> <temporary-work-folder>
+```
+
+Use [Crowbar Command Line](https://github.com/UltraTechX/Crowbar-Command-Line),
+tested at revision `0c5950af196fe1edcce55b2b54d3c159490e5db0`, built against .NET
+Framework 4.8. This is an external conversion dependency; neither its executable
+nor extracted Valve content is included in this repository.
+
+The existing launcher Portal gun option controls the feature. When imported files
+are present, selecting the tool in slot 1 displays the model. Draw, idle, firing,
+holster and lowered animations use the imported sequences; both shots use Portal's
+fire animation and their corresponding sounds. Placement is still controlled by
+our existing portal mechanics, not by weapon projectiles or animation events.
+
+Prey's native weapon renderer handles lighting and portal presentation. Source's
+Phong shader and particle system are not reproduced exactly; the materials use
+Prey diffuse/normal/specular stages and a tinted additive glass stage. No dropped
+or third-person world model is imported in this first pass. Keep imported files
+installed when loading saves that contain the model; disabling the launcher option
+is supported and restores the wrench without changing weapon inventory slots.
+
+The converter inserts a stationary root so Prey's removal of root motion does not
+erase Source's camera-relative offsets. The recovered bind pose was checked to
+within 0.001 game units. The optional `viewmodel` regression case requires imported
+assets and checks both fire inputs, save/reload, disabling and re-enabling.
 
 The renderer uses the player's retail Prey oval mesh, original UVs and animated
 orange/blue portal materials. The importer flattens the free-standing funnel

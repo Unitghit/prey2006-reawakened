@@ -1986,6 +1986,7 @@ hhPlayer::GetWeaponNum
 =====================
 */
 int hhPlayer::GetWeaponNum( const char* weaponName ) const {
+    if (!idStr::Icmp(weaponName, "weaponobj_portalgun")) return 1;
 	for( int i = 1; i < MAX_WEAPONS; ++i ) {
 		if( !idStr::Icmp(GetWeaponName(i), weaponName) ) {
 			return i;
@@ -5232,7 +5233,7 @@ void hhPlayer::Think( void ) {
 		}
 	}
 
-    if (weapon.IsValid() && PortalGunSelected() && currentWeapon == 1) weapon->Hide();
+    UpdatePortalGunView();
 	if (InVehicle()) {
 		UpdateHud( GetVehicleInterfaceLocal()->GetHUD() );
 	}

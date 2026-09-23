@@ -254,6 +254,9 @@ bool hhPlayer::PortalGunSelected() const {
     return g_portalGun.GetBool() && !gameLocal.isMultiplayer && !*cvarSystem->GetCVarString("fs_game") && idealWeapon == 1 &&
         spawnArgs.GetBool("rw_weapon_portal_selected") && !IsSpiritOrDeathwalking();
 }
+bool hhPlayer::PortalGunViewAvailable() const {
+    return gameLocal.FindEntityDef("weaponobj_portalgun", false) != NULL;
+}
 void hhPlayer::SelectPortalGun(bool selected) {
     SelectWeapon(1, false);
     spawnArgs.SetBool("rw_weapon_portal_selected", selected);
@@ -356,13 +359,52 @@ void hhPlayer::UpdatePortalGun() {
         if (weapon.IsValid()) weapon->ShowWeapon();
     }
     const bool selected = PortalGunSelected() && currentWeapon == 1;
+    // The tool remains a variant of slot 1; no weapon-array/save-layout change.
+    // Replace its presentation entity when toggling between wrench and tool.
+    if (idealWeapon == 1 && currentWeapon == 1 && weapon.IsValid()) {
+        const char *desired = selected && PortalGunViewAvailable() ? "weaponobj_portalgun" : spawnArgs.GetString("def_weapon1");
+        if (idStr::Icmp(weapon->spawnArgs.GetString("classname"), desired)) {
+            SAFE_REMOVE(weapon);
+            weapon = SpawnWeapon(desired);
+            animPrefix = "wrench";
+            weapon->Raise();
+            spawnArgs.SetInt("rw_portal_view_anim_end", 0);
+            if (cvarSystem->GetCVarBool("developer")) gameLocal.Printf("PORTALGUN_VIEW selected %s\n", desired);
+        }
+    }
     const int buttons = usercmd.buttons & (BUTTON_ATTACK | BUTTON_ATTACK_ALT);
     const int previous = spawnArgs.GetInt("rw_weapon_portal_buttons");
     spawnArgs.SetInt("rw_weapon_portal_buttons", buttons);
     if (!selected) return;
     if (!ActiveGui() && !gameLocal.inCinematic && !bFrozen && health > 0) {
-        if ((buttons & BUTTON_ATTACK) && !(previous & BUTTON_ATTACK)) PlaceGunPortal(0);
-        if ((buttons & BUTTON_ATTACK_ALT) && !(previous & BUTTON_ATTACK_ALT)) PlaceGunPortal(1);
+        if ((buttons & BUTTON_ATTACK) && !(previous & BUTTON_ATTACK)) {
+            PlaceGunPortal(0);
+            spawnArgs.SetInt("rw_portal_view_fire", 1);
+        }
+        if ((buttons & BUTTON_ATTACK_ALT) && !(previous & BUTTON_ATTACK_ALT)) {
+            PlaceGunPortal(1);
+            spawnArgs.SetInt("rw_portal_view_fire", 2);
+        }
     }
     usercmd.buttons &= ~(BUTTON_ATTACK | BUTTON_ATTACK_ALT);
+}
+void hhPlayer::UpdatePortalGunView() {
+    const int shot = spawnArgs.GetInt("rw_portal_view_fire");
+    spawnArgs.SetInt("rw_portal_view_fire", 0);
+    if (!weapon.IsValid() || !PortalGunSelected() || currentWeapon != 1) return;
+    if (!PortalGunViewAvailable()) { weapon->Hide(); return; }
+    idAnimator *animator = weapon->GetAnimator();
+    if (!animator || idStr::Icmp(weapon->spawnArgs.GetString("classname"), "weaponobj_portalgun")) { weapon->Hide(); return; }
+    if (shot) {
+        const int anim = animator->GetAnim("fire");
+        animator->PlayAnim(ANIMCHANNEL_ALL, anim, gameLocal.time, 0);
+        spawnArgs.SetInt("rw_portal_view_anim_end", gameLocal.time + animator->AnimLength(anim));
+        weapon->SetShaderParm(5, shot == 2 ? 1.0f : 0.0f);
+        weapon->StartSound(shot == 2 ? "snd_altfire" : "snd_fire", SND_CHANNEL_WEAPON, 0, false, NULL);
+        if (cvarSystem->GetCVarBool("developer")) gameLocal.Printf("PORTALGUN_VIEW fire %s\n", shot == 2 ? "orange" : "blue");
+    } else if (spawnArgs.GetInt("rw_portal_view_anim_end") > 0 &&
+               gameLocal.time >= spawnArgs.GetInt("rw_portal_view_anim_end") && weapon->IsReady()) {
+        animator->CycleAnim(ANIMCHANNEL_ALL, animator->GetAnim("idle"), gameLocal.time, 80);
+        spawnArgs.SetInt("rw_portal_view_anim_end", 0);
+    }
 }

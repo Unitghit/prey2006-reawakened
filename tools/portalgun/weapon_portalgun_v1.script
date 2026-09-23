@@ -1,0 +1,18 @@
+// Presentation only. hhPlayer::UpdatePortalGun owns placement and input edges.
+object weapon_rwportalgun : weapon_base {
+    void init();
+    void Idle();
+};
+void weapon_rwportalgun::init() {
+    nextAttack = 0;
+    WEAPON_ALTMODE = false;
+}
+void weapon_rwportalgun::Idle() {
+    weaponReady();
+    PlayCycle("idle");
+    while (1) {
+        CheckLower(2);
+        CheckAside(2);
+        waitFrame();
+    }
+}

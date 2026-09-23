@@ -22,6 +22,12 @@ foreach($name in $Cases) {
     $log=Get-Content -LiteralPath "$base/$name.log" -Raw
     if($log -match 'ERROR:|shutting down:'){throw "$name reported an engine error"}
     if($name -eq 'input' -and ($log -notmatch 'PORTALGUN placed blue' -or $log -notmatch 'PORTALGUN placed orange')){throw 'Input placement failed'}
+    if($name -eq 'viewmodel') {
+        foreach($color in @('blue','orange')) {
+            if(([regex]::Matches($log,"PORTALGUN_VIEW fire $color")).Count -ne 1){throw "Viewmodel $color firing failed"}
+        }
+        if($log -notmatch 'Saved viewmodel' -or $log -notmatch 'PORTALGUN_VIEW selected weaponobj_wrench' -or $log -notmatch 'PORTALGUN_VIEW selected weaponobj_portalgun'){throw 'Viewmodel save/toggle failed'}
+    }
     if($name -in @('regression','floor','ceiling') -and $log -notmatch 'PORTAL_EXIT[\s\S]{0,100}collision_adjustment 0\.000000'){throw "$name failed continuous traversal"}
     if($name -eq 'regression' -and $log -notmatch 'origin=495\.75 100'){throw 'Solid-wall control failed'}
     if($name -in @('floor','ceiling') -and $log -notmatch 'PORTAL_EXIT[^\r\n]*speed 596\.960'){throw "$name lost fall velocity"}

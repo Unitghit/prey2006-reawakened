@@ -1,0 +1,34 @@
+entityDef weaponobj_portalgun {
+    "inherit" "weaponobj_wrench"
+    "weaponname" "Portal Gun"
+    "scriptobject" "weapon_rwportalgun"
+    "rw_addonScript" "script/reawakened/weapon_portalgun_v1.script"
+    "model" "rw_portalgun_view"
+    "model_world" ""
+    "def_fireInfo" "fireinfo_rwportalgun"
+    "def_altFireInfo" "fireinfo_rwportalgun"
+    "snd_fire" "rw_portalgun_blue"
+    "snd_altfire" "rw_portalgun_orange"
+    "snd_raise" ""
+    "snd_putaway" ""
+    "crosshair" "1"
+}
+entityDef fireinfo_rwportalgun {
+    "inherit" "fireinfo_wrench"
+    "joint_barrel" "ValveBiped.Front_Cover"
+    "crosshair" "1"
+}
+model rw_portalgun_view {
+    mesh models/reawakened/portalgun/view/view.md5mesh
+    anim idle models/reawakened/portalgun/view/idle.md5anim
+    anim raise models/reawakened/portalgun/view/draw.md5anim
+    anim initialPickup models/reawakened/portalgun/view/draw.md5anim
+    anim raise_mp models/reawakened/portalgun/view/draw.md5anim
+    anim putaway models/reawakened/portalgun/view/holster.md5anim
+    anim putaway_mp models/reawakened/portalgun/view/holster.md5anim
+    anim down models/reawakened/portalgun/view/lowidle.md5anim
+    anim put_aside models/reawakened/portalgun/view/idletolow.md5anim
+    anim aside models/reawakened/portalgun/view/lowidle.md5anim
+    anim upright models/reawakened/portalgun/view/lowtoidle.md5anim
+    anim fire models/reawakened/portalgun/view/fire1.md5anim
+}

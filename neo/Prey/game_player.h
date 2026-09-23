@@ -67,7 +67,9 @@ class hhPlayer : public idPlayer {
 
 public:
     bool PortalGunSelected() const;
+    bool PortalGunViewAvailable() const;
     void UpdatePortalGun();
+    void UpdatePortalGunView();
     bool PlaceGunPortal(int color);
     void SelectPortalGun(bool selected);
 
