@@ -763,7 +763,8 @@ bool hhPlayer::PlaceGunPortal(int color, const idDict *shot) {
     portal->spawnArgs.SetFloat("rw_portal_surface_offset", RW_PORTAL_SURFACE_OFFSET);
     portal->spawnArgs.SetBool("rw_portal_floor_aligned", true);
     portal->GetPhysics()->SetContents(0);
-    portal->SetGravity(GetPhysics()->GetGravity());
+    portal->SetGravity(shot && shot->GetInt("shot_hops") > 0 ?
+        hhUtils::GetLocalGravity(portal->GetOrigin(), portal->GetPhysics()->GetBounds(), gameLocal.GetGravity()) : GetPhysics()->GetGravity());
     if (other) {
         portal->cameraTarget = other; other->cameraTarget = portal;
         portal->spawnArgs.Set("cameraTarget", other->GetName()); other->spawnArgs.Set("cameraTarget", portal->GetName());
@@ -800,6 +801,34 @@ static void RW_PortalShotImpact(const idVec3 &point, const idVec3 &normal, int c
     }
 }
 
+static void RW_SetPortalShotVector(idDict &args, const char *key, const idVec3 &value);
+static hhPortal *RW_FindShotPortal(const idVec3 &start, const idVec3 &end, float &fraction,
+    idVec3 &remote, idMat3 &rotation) {
+    hhPortal *nearest = NULL;
+    fraction = 1.0f;
+    for (idEntity *entity = gameLocal.spawnedEntities.Next(); entity; entity = entity->spawnNode.Next()) {
+        if (!entity->IsType(hhPortal::Type)) continue;
+        hhPortal *portal = static_cast<hhPortal *>(entity);
+        float f; idVec3 position; idMat3 transform;
+        if (portal->TracePortalShot(start, end, f, position, transform) && (!nearest || f < fraction)) {
+            nearest = portal; fraction = f; remote = position; rotation = transform;
+        }
+    }
+    return nearest;
+}
+// Aim at the first opening, preserving eye/crosshair accuracy despite the muzzle
+// offset. Further segments are acquired only when the flying shot crosses it.
+static void RW_TraceShotSegment(trace_t &hit, const idVec3 &start, const idVec3 &direction,
+    float range, const idEntity *owner) {
+    const idVec3 end = start+direction*range;
+    gameLocal.clip.TracePoint(hit, start, end, MASK_SOLID, owner);
+    float fraction; idVec3 remote; idMat3 rotation;
+    if (RW_FindShotPortal(start, end, fraction, remote, rotation) && fraction <= hit.fraction) {
+        hit.endpos = start+(end-start)*fraction;
+        hit.fraction = fraction;
+    }
+}
+
 void hhPortalShot::Think() {
     idEntity *entity = gameLocal.FindEntity(spawnArgs.GetString("shot_owner"));
     hhPlayer *owner = entity && entity->IsType(hhPlayer::Type) ? static_cast<hhPlayer *>(entity) : NULL;
@@ -808,14 +837,58 @@ void hhPortalShot::Think() {
         owner->spawnArgs.GetInt(va("rw_shot_serial_%d", color)) != spawnArgs.GetInt("shot_serial")) {
         Hide(); BecomeInactive(TH_THINK); PostEventMS(&EV_Remove, 0); return;
     }
-    const int start = spawnArgs.GetInt("shot_start"), end = spawnArgs.GetInt("shot_end");
-    const idVec3 target = spawnArgs.GetVector("shot_target");
-    const float fraction = idMath::ClampFloat(0, 1, float(gameLocal.time-start)/Max(1,end-start));
-    const idVec3 next = spawnArgs.GetVector("shot_muzzle") * (1-fraction) + target*fraction;
+    int start = spawnArgs.GetInt("shot_start");
+    idVec3 target;
+    float fraction = 0;
     trace_t obstacle;
-    gameLocal.clip.TracePoint(obstacle, GetOrigin(), next, MASK_SOLID, owner);
-    const bool blocked = obstacle.fraction < 1 && (obstacle.endpos-target).LengthSqr() > Square(2.0f);
-    SetOrigin(blocked ? obstacle.endpos : next);
+    bool blocked = false;
+    for (int step = 0; step <= 8; ++step) {
+        const int end = spawnArgs.GetInt("shot_end");
+        target = spawnArgs.GetVector("shot_target");
+        fraction = idMath::ClampFloat(0, 1, float(gameLocal.time-start)/Max(1,end-start));
+        const idVec3 next = spawnArgs.GetVector("shot_muzzle")*(1-fraction)+target*fraction;
+        gameLocal.clip.TracePoint(obstacle, GetOrigin(), next, MASK_SOLID, owner);
+        float crossing; idVec3 remote; idMat3 rotation;
+        hhPortal *portal = RW_FindShotPortal(GetOrigin(), next, crossing, remote, rotation);
+        if (portal && crossing <= obstacle.fraction) {
+            const idVec3 point = GetOrigin()+(next-GetOrigin())*crossing;
+            const idVec3 segmentStart = spawnArgs.GetVector("shot_muzzle");
+            const float segmentLength = (target-segmentStart).Length();
+            const int crossingTime = start + int((end-start)*(point-segmentStart).Length()/Max(0.001f, segmentLength));
+            const float remaining = spawnArgs.GetFloat("shot_remaining", "8192")-
+                (point-spawnArgs.GetVector("shot_eye")).Length();
+            const int hops = spawnArgs.GetInt("shot_hops")+1;
+            if (hops > 8 || remaining <= 1) { blocked = true; obstacle.endpos = point; obstacle.c.normal = portal->GetAxis()[0]; break; }
+            idVec3 direction = spawnArgs.GetVector("shot_direction")*rotation;
+            direction.Normalize();
+            remote += direction*0.05f;
+            trace_t hit;
+            RW_TraceShotSegment(hit, remote, direction, remaining, owner);
+            RW_SetPortalShotVector(spawnArgs, "shot_eye", remote);
+            RW_SetPortalShotVector(spawnArgs, "shot_muzzle", remote);
+            RW_SetPortalShotVector(spawnArgs, "shot_direction", direction);
+            RW_SetPortalShotVector(spawnArgs, "shot_target", hit.endpos);
+            RW_SetPortalShotVector(spawnArgs, "shot_up", spawnArgs.GetVector("shot_up")*rotation);
+            RW_SetPortalShotVector(spawnArgs, "shot_left", spawnArgs.GetVector("shot_left")*rotation);
+            RW_SetPortalShotVector(spawnArgs, "shot_normal", hit.fraction < 1 ? hit.c.normal : -direction);
+            spawnArgs.SetBool("shot_hit", hit.fraction < 1);
+            spawnArgs.SetFloat("shot_remaining", remaining);
+            spawnArgs.SetInt("shot_hops", hops);
+            // Carry unused tick time across the discontinuity rather than
+            // pausing for a whole simulation frame at each opening.
+            start = Min(gameLocal.time, crossingTime);
+            spawnArgs.SetInt("shot_start", start);
+            spawnArgs.SetInt("shot_end", start+Max(16, int((hit.endpos-remote).Length()*1000.0f/4000.0f)));
+            spawnArgs.SetInt("shot_trail_start", start);
+            SetOrigin(remote); SetAxis(direction.ToMat3());
+            gameLocal.Printf("PORTALGUN_SHOT portal=%s hops=%d\n", portal->GetName(), hops);
+            continue;
+        }
+        blocked = obstacle.fraction < 1 && (obstacle.endpos-target).LengthSqr() > Square(2.0f);
+        SetOrigin(blocked ? obstacle.endpos : next);
+        break;
+    }
+    if (blocked) SetOrigin(obstacle.endpos);
     const char *trail = color ? "rw_portal_orange_trail" : "rw_portal_blue_trail";
     const idDeclParticle *particle = static_cast<const idDeclParticle *>(declManager->FindType(DECL_PARTICLE, trail, false));
     const int smokeStart = spawnArgs.GetInt("shot_trail_start", va("%d", start));
@@ -848,7 +921,7 @@ void hhPlayer::FireGunPortal(int color) {
         spawnArgs.SetBool("rw_portal_test_aim", false);
     }
     trace_t hit;
-    gameLocal.clip.TracePoint(hit, eye, eye + direction*8192.0f, MASK_SOLID, this);
+    RW_TraceShotSegment(hit, eye, direction, 8192.0f, this);
     idVec3 muzzle = eye + firstPersonViewAxis[0]*14 - firstPersonViewAxis[1]*6 - firstPersonViewAxis[2]*5;
     if (weapon.IsValid() && PortalGunViewAvailable()) {
         const jointHandle_t joint = weapon->GetAnimator()->GetJointHandle("ValveBiped.Front_Cover");

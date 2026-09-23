@@ -946,6 +946,26 @@ void PortalRotate( idVec3 &vec, const idMat3 &sourceTranspose, const idMat3 &des
 	vec *= dest;
 }
 
+// Use the same linked transform as native projectiles, with an explicit
+// front-facing aperture test for the portal gun's lightweight visual shot.
+bool hhPortal::TracePortalShot(const idVec3 &start, const idVec3 &end, float &fraction,
+    idVec3 &remote, idMat3 &rotation) const {
+    if (portalState != PORTAL_OPENED || bNoTeleport || !cameraTarget) return false;
+    const idVec3 normal = GetAxis()[0];
+    const float a = (start-GetOrigin())*normal, b = (end-GetOrigin())*normal;
+    if (a < 0.001f || b > 0.001f || a-b < 0.001f) return false;
+    fraction = idMath::ClampFloat(0, 1, a/(a-b));
+    const idVec3 point = start+(end-start)*fraction;
+    const idVec3 local = (point-GetOrigin())*GetAxis().Transpose();
+    const idBounds &bounds = GetPhysics()->GetBounds();
+    if (local.y < bounds[0].y || local.y > bounds[1].y || local.z < bounds[0].z || local.z > bounds[1].z) return false;
+    if (spawnArgs.GetBool("rw_portalGun") && (Square(local.y/39.0f)+Square(local.z/49.0f) > 1.0f)) return false;
+    rotation = mat3_identity;
+    for (int i = 0; i < 3; ++i) PortalRotate(rotation[i], GetAxis().Transpose(), cameraTarget->GetAxis(), true);
+    remote = (point-GetOrigin())*rotation+cameraTarget->GetOrigin();
+    return true;
+}
+
 bool hhPortal::GetLighterTransform(const idVec3 &origin, const idVec3 &eye, float range, idVec3 &remote,
     idMat3 &rotation, idPlane planes[5]) const {
     if (portalState != PORTAL_OPENED || bNoTeleport || !cameraTarget) return false;

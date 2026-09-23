@@ -64,6 +64,7 @@ public:
 
 	void			CheckPlayerDistances(void);
     void ResetGunPortalCrossings();
+    bool TracePortalShot(const idVec3 &start, const idVec3 &end, float &fraction, idVec3 &remote, idMat3 &rotation) const;
     bool GetLighterTransform(const idVec3 &origin, const idVec3 &eye, float range, idVec3 &remote, idMat3 &rotation, idPlane planes[5]) const;
     bool GetWeaponLightingTransform(const idVec3 &eye, float range, idVec3 &remoteEye, idVec3 &destination, idMat3 &rotation, float &distance) const;
 	void			Think( void );

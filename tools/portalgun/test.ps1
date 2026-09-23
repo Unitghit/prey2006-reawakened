@@ -2,7 +2,7 @@ param(
     [Parameter(Mandatory=$true)][string]$Engine,
     [Parameter(Mandatory=$true)][string]$RetailBase,
     [Parameter(Mandatory=$true)][string]$Profile,
-    [string[]]$Cases = @('input','regression','floor','ceiling','blocked','replacement','access','floor_edge','guidance','guide_lookaway','guide_steering','guide_fast','floor_exit','placement','objects','replacement_occupants','floor_escape','floor_partial','floor_continuous','floor_approach','floor_edge_slide','floor_corner','floor_clearance','surface_fit','ceiling_entry','floor_slab','wall_step','wall_approach','tapered_shell','sloped_ceiling','clip_column','oblique','terrain_fit','mesh_ground','rough_surfaces','reverse','static_exit')
+    [string[]]$Cases = @('input','regression','floor','ceiling','blocked','replacement','access','floor_edge','guidance','guide_lookaway','guide_steering','guide_fast','floor_exit','placement','objects','replacement_occupants','through_portals','floor_escape','floor_partial','floor_continuous','floor_approach','floor_edge_slide','floor_corner','floor_clearance','surface_fit','ceiling_entry','floor_slab','wall_step','wall_approach','tapered_shell','sloped_ceiling','clip_column','oblique','terrain_fit','mesh_ground','rough_surfaces','reverse','static_exit')
 )
 $ErrorActionPreference='Stop'
 $Engine=(Resolve-Path -LiteralPath $Engine).Path
@@ -32,6 +32,19 @@ foreach($name in $Cases) {
     if($process.ExitCode -ne 0){throw "$name exited with $($process.ExitCode)"}
     $log=Get-Content -LiteralPath "$base/$name.log" -Raw
     if($log -match 'ERROR:|shutting down:'){throw "$name reported an engine error"}
+    if($name -eq 'through_portals') {
+        foreach($phase in @('PLAYER','SCRIPT','RELOAD','CHAIN')) {
+            $part=[regex]::Match($log,"(?s)THROUGH_${phase}_BEGIN(.*?)THROUGH_${phase}_END").Groups[1].Value
+            if($part -notmatch 'impact (blue|orange) success=1' -or $part -match 'rejected:'){throw "Portal shot $phase failed"}
+            if($phase -eq 'PLAYER' -and $part -notmatch 'portal=rw_gun_blue'){throw 'Player portal was not traversed'}
+            if($phase -eq 'SCRIPT' -and $part -notmatch 'portal=script_in'){throw 'Scripted portal was not traversed'}
+            if($phase -eq 'CHAIN' -and $part -notmatch 'portal=chain_in hops=2'){throw 'Portal chain was not traversed'}
+        }
+        $loop=[regex]::Match($log,'(?s)THROUGH_LOOP_BEGIN(.*?)THROUGH_LOOP_END').Groups[1].Value
+        if($loop -notmatch 'hops=8' -or $loop -notmatch 'impact blue success=0 blocked=1' -or $loop -match 'placed blue'){throw 'Portal loop was not bounded'}
+        $outside=[regex]::Match($log,'(?s)THROUGH_OUTSIDE_BEGIN(.*?)THROUGH_OUTSIDE_END').Groups[1].Value
+        if($outside -match 'PORTALGUN_SHOT portal=' -or $outside -notmatch 'impact blue success=1'){throw 'Shot outside oval incorrectly entered portal'}
+    }
     if($name -eq 'rough_surfaces') {
         foreach($surface in @('WALL','CEILING')) {
             $part=[regex]::Match($log,"(?s)ROUGH_${surface}_BEGIN(.*?)ROUGH_${surface}_END").Groups[1].Value
@@ -72,7 +85,7 @@ foreach($name in $Cases) {
         if($flight -notmatch 'PORTALGUN_ENDPOINT rw_gun_blue origin=511 0 71' -or
             $flight -notmatch 'PORTALGUN placed blue at 511 180 71'){throw 'Portal replacement moved before arrival or lost the captured target'}
         $look=[regex]::Match($log,'(?s)SHOT_LOOK_BEGIN(.*?)SHOT_LOOK_END').Groups[1].Value
-        if($look -notmatch 'PORTALGUN placed orange at -?0 511 71'){throw 'Looking away changed a shot already in flight'}
+        if($look -notmatch 'PORTALGUN placed orange at -511 180 71' -or $look -notmatch 'portal=rw_gun_orange'){throw 'Looking away changed a shot already in flight'}
         $supersede=[regex]::Match($log,'(?s)SHOT_SUPERSEDE_BEGIN(.*?)SHOT_SUPERSEDE_END').Groups[1].Value
         if(([regex]::Matches($supersede,'PORTALGUN_SHOT launch blue')).Count -ne 2 -or
             ([regex]::Matches($supersede,'PORTALGUN_SHOT impact blue success=1')).Count -ne 1){throw 'Superseded shot placed an old portal'}
