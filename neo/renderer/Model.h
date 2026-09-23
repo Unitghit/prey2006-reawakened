@@ -88,6 +88,7 @@ typedef struct srfTriangles_s {
 
 	int							ambientViewCount;		// if == tr.viewCount, it is visible this view
 
+	bool                        eyeballDeformed;        // eye UV projection already baked before clipping
 	bool						generateNormals;		// create normals from geometry, instead of using explicit ones
 	bool						tangentsCalculated;		// set when the vertex tangents have been calculated
 	bool						facePlanesCalculated;	// set when the face planes have been calculated

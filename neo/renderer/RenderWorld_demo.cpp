@@ -633,6 +633,8 @@ ReadRenderEntity
 */
 void	idRenderWorldLocal::ReadRenderEntity() {
 	renderEntity_t		ent;
+	ent.portalBodyEyeRadius = 0;
+	ent.portalBodyEye.Zero();
 	int					index, i, tmp, hModel, customShader, referenceShader;
 	int					customSkin, referenceSound, gui[MAX_RENDERENTITY_GUI];
 

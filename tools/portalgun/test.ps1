@@ -32,6 +32,15 @@ foreach($name in $Cases) {
     if($process.ExitCode -ne 0){throw "$name exited with $($process.ExitCode)"}
     $log=Get-Content -LiteralPath "$base/$name.log" -Raw
     if($log -match 'ERROR:|shutting down:'){throw "$name reported an engine error"}
+    if($name -eq 'body_split') {
+        foreach($phase in @('WALL','RELOAD','FLOOR')) {
+            $part=[regex]::Match($log,"(?s)BODY_${phase}_BEGIN(.*?)BODY_${phase}_END").Groups[1].Value
+            if($part -notmatch 'PORTAL_BODY.*?parts [1-9]') { throw "Missing split player body in $phase" }
+        }
+        $clear=[regex]::Match($log,'(?s)BODY_CLEAR_BEGIN(.*?)BODY_CLEAR_END').Groups[1].Value
+        if($clear -match 'PORTAL_BODY.*?parts [1-9]') { throw 'Player pieces survived after leaving the portal' }
+        if($log -match 'R_EyeballDeform:|Presentation modified|Portal presentation modified|GL_INVALID') { throw 'Split body rendering regression' }
+    }
     if($name -eq 'deep_views') {
         if($log -notmatch 'PORTAL_DEEP depth 6' -or $log -notmatch 'PORTAL_REPEAT_FALLBACK depth 7') { throw 'Deep portal views or repeating fallback did not activate' }
         $noRepeat=Get-Content "$base/deep_no_repeat.log" -Raw

@@ -640,6 +640,9 @@ void idRenderWorldLocal::AddAreaEntityRefs( int areaNum, const portalStack_t *ps
 
 		// check for completely suppressing the model
 		if ( !r_skipSuppress.GetBool() ) {
+            if (entity->parms.portalBodyEyeRadius > 0 &&
+                (tr.viewDef->renderView.vieworg - entity->parms.portalBodyEye).LengthSqr() <
+                Square(entity->parms.portalBodyEyeRadius)) continue;
 			if ( entity->parms.suppressSurfaceInViewID
 					&& entity->parms.suppressSurfaceInViewID == tr.viewDef->renderView.viewID ) {
 				continue;

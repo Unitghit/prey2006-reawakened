@@ -652,11 +652,14 @@ void idRenderModelStatic::FinishSurfaces() {
 		}
 	}
 
+	// Rebuilt portal pieces retain the source mesh's non-manifold seams.
+	// Do not repeat their development-only edge warning on every draw.
+	const bool transientPortalBody = idStr::Cmpn(name.c_str(), "_portalBody_", 12) == 0;
 	// clean the surfaces
 	for ( i = 0 ; i < surfaces.Num() ; i++ ) {
 		const modelSurface_t	*surf = &surfaces[i];
 
-		R_CleanupTriangles( surf->geometry, surf->geometry->generateNormals, true, surf->shader->UseUnsmoothedTangents() );
+		R_CleanupTriangles( surf->geometry, surf->geometry->generateNormals, true, surf->shader->UseUnsmoothedTangents(), !transientPortalBody );
 		if ( surf->shader->SurfaceCastsShadow() ) {
 			totalVerts += surf->geometry->numVerts;
 			totalIndexes += surf->geometry->numIndexes;
@@ -664,7 +667,7 @@ void idRenderModelStatic::FinishSurfaces() {
 	}
 
 	// add up the total surface area for development information
-	for ( i = 0 ; i < surfaces.Num() ; i++ ) {
+	for ( i = 0 ; !transientPortalBody && i < surfaces.Num() ; i++ ) {
 		const modelSurface_t	*surf = &surfaces[i];
 		srfTriangles_t	*tri = surf->geometry;
 

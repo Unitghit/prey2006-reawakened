@@ -1301,6 +1301,8 @@ idRestoreGame::ReadRenderEntity
 ================
 */
 void idRestoreGame::ReadRenderEntity( renderEntity_t &renderEntity ) {
+	renderEntity.portalBodyEyeRadius = 0;
+	renderEntity.portalBodyEye.Zero();
 	int i;
 	int index;
 

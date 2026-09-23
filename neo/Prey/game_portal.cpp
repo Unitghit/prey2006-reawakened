@@ -948,6 +948,44 @@ void PortalRotate( idVec3 &vec, const idMat3 &sourceTranspose, const idMat3 &des
 
 // Use the same linked transform as native projectiles, with an explicit
 // front-facing aperture test for the portal gun's lightweight visual shot.
+// Rendering-only volume: the portion behind the entrance plane and inside
+// its aperture belongs at the linked exit. No collision or ownership changes.
+bool hhPortal::GetBodyPortalTransform(const idBounds &worldBounds, const idVec3 &eye,
+    idVec3 &source, idVec3 &destination, idMat3 &rotation, idPlane planes[17], int &count, float &distance) const {
+    if (portalState != PORTAL_OPENED || bNoTeleport || !cameraTarget || IsHidden()) return false;
+    source = GetOrigin(); destination = cameraTarget->GetOrigin();
+    const idMat3 axis = GetAxis(), inverse = axis.Transpose();
+    distance = (eye - source) * axis[0];
+    if (distance < -1.0f) return false;
+    idVec3 points[8]; worldBounds.ToPoints(points);
+    idBounds local; local.Clear();
+    for (int i = 0; i < 8; ++i) local.AddPoint((points[i] - source) * inverse);
+    const idBounds &aperture = GetPhysics()->GetBounds();
+    if (local[0].x >= 0.01f || local[1].x < -2.0f || local[1].y < aperture[0].y ||
+        local[0].y > aperture[1].y || local[1].z < aperture[0].z || local[0].z > aperture[1].z) return false;
+    rotation = mat3_identity;
+    for (int i = 0; i < 3; ++i) PortalRotate(rotation[i], inverse, cameraTarget->GetAxis(), true);
+    count = 1;
+    planes[0].SetNormal(-axis[0]); planes[0].FitThroughPoint(source);
+    if (spawnArgs.GetBool("rw_portalGun")) {
+        // Match the visible oval rather than the deliberately lenient player hull.
+        for (int i = 0; i < 16; ++i) {
+            const float a = idMath::TWO_PI * i / 16.0f, b = idMath::TWO_PI * (i+1) / 16.0f;
+            const idVec3 p = source + axis[1] * (39.0f * idMath::Cos(a)) + axis[2] * (49.0f * idMath::Sin(a));
+            const idVec3 q = source + axis[1] * (39.0f * idMath::Cos(b)) + axis[2] * (49.0f * idMath::Sin(b));
+            planes[count].FromPoints(p, q, p + axis[0]);
+            if (planes[count].Distance(source) < 0) planes[count] = -planes[count];
+            ++count;
+        }
+    } else {
+        for (int d = 1; d <= 2; ++d) for (int side = 0; side < 2; ++side) {
+            planes[count].SetNormal(axis[d] * (side ? -1.0f : 1.0f));
+            planes[count++].FitThroughPoint(source + axis[d] * aperture[side][d]);
+        }
+    }
+    return true;
+}
+
 bool hhPortal::TracePortalShot(const idVec3 &start, const idVec3 &end, float &fraction,
     idVec3 &remote, idMat3 &rotation) const {
     if (portalState != PORTAL_OPENED || bNoTeleport || !cameraTarget) return false;

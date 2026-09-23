@@ -47,6 +47,7 @@ static idCVar g_interpolateView( "g_interpolateView", "1", CVAR_GAME | CVAR_BOOL
 
 #include "game_presentation.h"
 #include "game_portal_lighting.h"
+#include "game_portal_body.h"
 
 static void PresentationEffectsTest_f(const idCmdArgs &args) {
     if (gameLocal.isMultiplayer || !cvarSystem->GetCVarBool("com_fpsTrace")) return;
@@ -122,6 +123,7 @@ static void PresentationViewTest_f(const idCmdArgs &args) {
 }
 
 void hhGameLocal::ResetPresentation() {
+    ClearPortalBodies();
     portalSnapTime = -1;
 	presentationPortalTime = -1;
 	presentationCursorOffset.Zero();
@@ -1276,8 +1278,7 @@ bool hhGameLocal::Draw( int clientNum ) {
 	const int worldModels = interpolate ? ApplyWorldPresentation(presentationFraction, adjustedViewModels) : 0;
     if (interpolate) AttachWorldPresentationBeams(adjustedViewModels);
     const int presentedViewModels = adjustedViewModels.Num() - worldModels;
-    if (presentationPortalTime == time || portalSnapTime == time)
-        SuppressPortalCrossingBody(view->viewID, adjustedViewModels);
+
     const presentationPlatformSample_t platformSample(player, authoritativeView, *view);
 
 	if ( cvarSystem->GetCVarBool( "com_fpsTrace" ) ) {
@@ -1322,6 +1323,10 @@ bool hhGameLocal::Draw( int clientNum ) {
         fileSystem->CloseFile(portalPresentationTrace); portalPresentationTrace = NULL;
     }
 
+    idList<presentationModelRestore_t> bodyRestore;
+    const bool splitBody = ApplyPortalBodies(player, authoritativeView, *view, portalSourceSide, bodyRestore);
+    if (!splitBody && (presentationPortalTime == time || portalSnapTime == time))
+        SuppressPortalCrossingBody(view->viewID, adjustedViewModels);
     ApplyPortalWeaponLighting(player, *view, adjustedLights);
     ApplyPortalLighter(player, stalePortalView ? savedView : authoritativeView, *view, adjustedLights);
 	// render the scene
@@ -1349,6 +1354,7 @@ bool hhGameLocal::Draw( int clientNum ) {
         }
     }
 	*view = savedView;
+    RestorePortalBodies(bodyRestore);
     DisablePortalWeaponLights();
     DisablePortalLighterLights();
 	presentationCursorOffset.Zero();

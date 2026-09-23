@@ -1578,13 +1578,13 @@ int					R_TriSurfMemory( const srfTriangles_t *tri );
 void				R_BoundTriSurf( srfTriangles_t *tri );
 void				R_RemoveDuplicatedTriangles( srfTriangles_t *tri );
 void				R_CreateSilIndexes( srfTriangles_t *tri );
-void				R_IdentifySilEdges( srfTriangles_t *tri, bool omitCoplanarEdges );
+void				R_IdentifySilEdges( srfTriangles_t *tri, bool omitCoplanarEdges, bool reportWarnings = true );
 void				R_RemoveDegenerateTriangles( srfTriangles_t *tri );
 void				R_RemoveUnusedVerts( srfTriangles_t *tri );
 void				R_RangeCheckIndexes( const srfTriangles_t *tri );
 void				R_CreateVertexNormals( srfTriangles_t *tri );	// also called by dmap
 void				R_DeriveFacePlanes( srfTriangles_t *tri );		// also called by renderbump
-void				R_CleanupTriangles( srfTriangles_t *tri, bool createNormals, bool identifySilEdges, bool useUnsmoothedTangents );
+void				R_CleanupTriangles( srfTriangles_t *tri, bool createNormals, bool identifySilEdges, bool useUnsmoothedTangents, bool reportWarnings = true );
 void				R_ReverseTriangles( srfTriangles_t *tri );
 
 // Only deals with vertexes and indexes, not silhouettes, planes, etc.

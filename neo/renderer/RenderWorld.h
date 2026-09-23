@@ -144,6 +144,10 @@ typedef struct renderEntity_s {
 	int						suppressSurfaceInViewID;
 	int						suppressShadowInViewID;
 
+	// Transient split-player pieces must also hide from their transformed eyes.
+	float                   portalBodyEyeRadius;
+	idVec3                  portalBodyEye;
+
 	// world models for the player and weapons will not cast shadows from view weapon
 	// muzzle flashes
 	int						suppressShadowInLightID;

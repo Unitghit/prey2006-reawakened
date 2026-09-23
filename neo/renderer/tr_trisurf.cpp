@@ -539,6 +539,7 @@ srfTriangles_t *R_CopyStaticTriSurf( const srfTriangles_t *tri ) {
 	newTri = R_AllocStaticTriSurf();
 	R_AllocStaticTriSurfVerts( newTri, tri->numVerts );
 	R_AllocStaticTriSurfIndexes( newTri, tri->numIndexes );
+	newTri->eyeballDeformed = tri->eyeballDeformed;
 	newTri->numVerts = tri->numVerts;
 	newTri->numIndexes = tri->numIndexes;
 	memcpy( newTri->verts, tri->verts, tri->numVerts * sizeof( newTri->verts[0] ) );
@@ -1032,7 +1033,7 @@ can never create silhouette plains, and can be omited
 int	c_coplanarSilEdges;
 int	c_totalSilEdges;
 
-void R_IdentifySilEdges( srfTriangles_t *tri, bool omitCoplanarEdges ) {
+void R_IdentifySilEdges( srfTriangles_t *tri, bool omitCoplanarEdges, bool reportWarnings ) {
 	int		i;
 	int		numTris;
 	int		shared, single;
@@ -1061,7 +1062,7 @@ void R_IdentifySilEdges( srfTriangles_t *tri, bool omitCoplanarEdges ) {
 		R_DefineEdge( i3, i1, i );
 	}
 
-	if ( c_duplicatedEdges || c_tripledEdges ) {
+	if ( reportWarnings && (c_duplicatedEdges || c_tripledEdges) ) {
 		common->DWarning( "%i duplicated edge directions, %i tripled edges", c_duplicatedEdges, c_tripledEdges );
 	}
 
@@ -2157,7 +2158,7 @@ R_CleanupTriangles
 FIXME: allow createFlat and createSmooth normals, as well as explicit
 =================
 */
-void R_CleanupTriangles( srfTriangles_t *tri, bool createNormals, bool identifySilEdges, bool useUnsmoothedTangents ) {
+void R_CleanupTriangles( srfTriangles_t *tri, bool createNormals, bool identifySilEdges, bool useUnsmoothedTangents, bool reportWarnings ) {
 	R_RangeCheckIndexes( tri );
 
 	R_CreateSilIndexes( tri );
@@ -2171,7 +2172,7 @@ void R_CleanupTriangles( srfTriangles_t *tri, bool createNormals, bool identifyS
 //	R_RemoveUnusedVerts( tri );
 
 	if ( identifySilEdges ) {
-		R_IdentifySilEdges( tri, true );	// assume it is non-deformable, and omit coplanar edges
+		R_IdentifySilEdges( tri, true, reportWarnings );	// assume it is non-deformable, and omit coplanar edges
 	}
 
 	// bust vertexes that share a mirrored edge into separate vertexes
