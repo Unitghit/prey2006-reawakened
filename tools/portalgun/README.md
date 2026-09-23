@@ -7,7 +7,13 @@ No viewmodel is supplied in this mechanics prototype.
 
 The renderer uses the player's retail Prey oval mesh, original UVs and animated
 orange/blue portal materials. The importer flattens the free-standing funnel
-against the wall and normalizes its opening to 96 by 144 units. It omits the
+against the wall and preserves its original size and proportions: the visible
+opening is approximately 76 by 93 units, matching the orange energy portal used
+as the `portalsize` reference. Both colors retain the larger 96 by 144 traversal
+envelope and existing player corner/foot allowances. Visual sizing does not change
+teleport frames, collision clearance, placement support checks or saved positions.
+Re-run the importer and restart the game to update existing saved portals too.
+The importer omits the
 backside and outer refraction surfaces. Original texture animations remain;
 the retail skeletal opening/closing animation is not part of this prototype.
 
@@ -46,8 +52,8 @@ Not a complete recreation of Valve's portal mechanics.
 Each color reuses its existing endpoint: a valid shot removes the old opening
 and immediately reconnects the opposite color to the new location. Invalid shots
 leave the existing pair intact. Replacement clears crossing history from the old
-coordinate frame and is blocked only while the player's hull straddles an opening,
-not merely because the player is standing nearby.
+coordinate frame and is blocked while an eligible entity's hull straddles an
+opening, not merely because the player is standing nearby.
 
 Floor and ceiling placements orient the oval along the projected aiming direction.
 Straight-down/up shots retain the player's viewing heading. Upright walls continue

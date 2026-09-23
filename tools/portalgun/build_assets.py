@@ -92,7 +92,11 @@ def build(retail, output):
     ymin, ymax = min(p[1] for p in opening), max(p[1] for p in opening)
     zmin, zmax = min(p[2] for p in opening), max(p[2] for p in opening)
     cy, cz = (ymin+ymax)/2, (zmin+zmax)/2
-    sy, sz = 96/(ymax-ymin), 144/(zmax-zmin)
+    # Preserve the original energy portal's visual size/proportions (roughly
+    # 76 x 93 units at the opening), rather than stretching it to the generous
+    # 96 x 144 traversal envelope. Physics clearance is defined independently
+    # in portalgun.inl and intentionally remains unchanged.
+    sy, sz = 1.0, 1.0
     # Keep original UVs and artwork. Flatten the retail funnel against its wall;
     # omit backside and outer refraction, which would sample the supporting wall.
     surfaces = [s for s in surfaces if s[0].endswith(('/portal', '/portal_fx', '/portal_innerwarp'))]
