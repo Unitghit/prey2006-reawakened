@@ -417,8 +417,15 @@ bool RW_PortalCoverPlane(const idPlane &wall, const idVec3 &query, idPlane &cove
     }
     return false;
 }
-// A wall portal close to a floor should be walk-through, not a raised hoop.
-// This adjusts portal placement, never the player's origin or teleport velocity.
+// Check the full aperture volume, including solid obstacles between sample rays.
+static bool RW_PortalWindowClear(const idVec3 &center, const idMat3 &axis, const idEntity *ignore, float skin = 0.25f) {
+    const float rimScale = 1.0f / idMath::Cos(idMath::PI / 8.0f);
+    idTraceModel window;
+    window.SetupCylinder(idBounds(idVec3(-39*rimScale, -49*rimScale, skin),
+        idVec3(39*rimScale, 49*rimScale, 4.0f)), 8);
+    idClipModel clearance(window);
+    return !gameLocal.clip.Contents(center, &clearance, idMat3(axis[1], axis[2], axis[0]), MASK_SOLID, ignore);
+}
 static bool RW_PortalSurfaceSupports(const idVec3 &center, const idMat3 &axis, const idEntity *ignore) {
     // The central ellipse has half the original radii (one quarter the area).
     // It anchors the flat cutout. The full artwork still needs backing, but
@@ -446,14 +453,82 @@ static bool RW_PortalSurfaceSupports(const idVec3 &center, const idMat3 &axis, c
     }
     // A conservative oval prism checks the whole window against protruding
     // corners and solid entities, including objects between the sample rays.
-    const float rimScale = 1.0f / idMath::Cos(idMath::PI / 8.0f);
-    idTraceModel window;
-    window.SetupCylinder(idBounds(idVec3(-39*rimScale, -49*rimScale, 0.25f),
-        idVec3(39*rimScale, 49*rimScale, 4.0f)), 8);
-    idClipModel clearance(window);
-    if (gameLocal.clip.Contents(center, &clearance, idMat3(axis[1], axis[2], axis[0]), MASK_SOLID, ignore)) return false;
-    return true;
+    return RW_PortalWindowClear(center, axis, ignore);
 }
+
+// Keep the aperture rigid, but fit it to gently uneven ground. The final plane
+// lies above every sampled bump, so rendering and the existing collision cutout
+// agree about which side contains the terrain. Never carve a separate deep hole.
+static bool RW_FitPortalGround(idVec3 &center, idMat3 &axis, const hhPlayer *player) {
+    const idVec3 gravityUp = -player->GetPhysics()->GetGravityNormal();
+    if (axis[0]*gravityUp < 0.7f) return false;
+    const idVec3 originalCenter = center;
+    const idMat3 originalAxis = axis;
+    for (int pass = 0; pass < 2; ++pass) {
+        float xx = 0, xy = 0, yy = 0, xh = 0, yh = 0, sumH = 0;
+        float lowest = idMath::INFINITY, highest = -idMath::INFINITY;
+        int count = 0;
+        for (int index = 0; index < 32 + 11*15; ++index) {
+            float x, y;
+            if (index < 32) {
+                const float angle = index*idMath::TWO_PI/32.0f;
+                x = 39.0f*idMath::Cos(angle); y = 49.0f*idMath::Sin(angle);
+            } else {
+                const int grid = index-32;
+                x = (grid%11-5)*8.0f; y = (grid/11-7)*8.0f;
+                if (Square(x/39.0f)+Square(y/49.0f) > 1) continue;
+            }
+            const idVec3 sample = center+axis[1]*x+axis[2]*y;
+            trace_t hit;
+            gameLocal.clip.TracePoint(hit, sample+axis[0]*16, sample-axis[0]*16, MASK_SOLID, player);
+            if (hit.fraction >= 1 || hit.c.entityNum != ENTITYNUM_WORLD ||
+                hit.c.normal*axis[0] < (pass ? 0.94f : 0.7f)) return false;
+            // Remove the collision epsilon before fitting the physical surface.
+            const idVec3 point = hit.endpos-hit.c.normal*(hit.endpos*hit.c.normal-hit.c.dist);
+            const float height = (point-center)*axis[0];
+            xx += x*x; xy += x*y; yy += y*y; xh += x*height; yh += y*height; sumH += height;
+            lowest = Min(lowest, height); highest = Max(highest, height); ++count;
+        }
+        if (!pass) {
+            // Sampling is symmetric about the center, so x/y means are zero.
+            const float determinant = xx*yy-xy*xy;
+            if (determinant <= 0.001f || !count) return false;
+            idVec3 normal = axis[0]-axis[1]*((xh*yy-yh*xy)/determinant)-axis[2]*((yh*xx-xh*xy)/determinant);
+            normal.Normalize();
+            if (normal*gravityUp < 0.7f || normal*originalAxis[0] < 0.9f) return false;
+            const idVec3 mean = center+axis[0]*(sumH/count);
+            center += normal*((mean-center)*normal);
+            idVec3 up = axis[2]-normal*(axis[2]*normal);
+            up.Normalize();
+            axis = idMat3(normal, up.Cross(normal), up);
+        } else {
+            // Four units of relief across the whole opening, including its rim.
+            if (highest-lowest > 4.0f || idMath::Fabs(highest) > 8.0f) return false;
+            // Leave a small numerical margin above the sampled high point.
+            // The volume test below includes the plane itself, so an unsampled
+            // peak cannot remain in front of the collision cutout.
+            center += axis[0]*(highest+0.25f);
+        }
+    }
+    if ((center-originalCenter).LengthSqr() > Square(8.0f) || !RW_PortalWindowClear(center, axis, player, 0.0f)) return false;
+    // The entrance must also accommodate the standing player in front of it.
+    const idPhysics *physics = player->GetPhysics();
+    idBounds bounds = physics->GetBounds();
+    bounds[1].z = Max(bounds[1].z, pm_normalheight.GetFloat());
+    float back = 0;
+    for (int k = 0; k < 8; ++k) {
+        const idVec3 corner(bounds[(k&1)!=0].x, bounds[(k&2)!=0].y, bounds[(k&4)!=0].z);
+        back = Min(back, (corner*physics->GetAxis())*axis[0]);
+    }
+    const idVec3 entry = center+axis[0]*(1.0f-back);
+    idTraceModel standingShape(bounds);
+    idClipModel standingClip(standingShape);
+    trace_t clearance;
+    return !gameLocal.clip.Translation(clearance, entry, entry, &standingClip, physics->GetAxis(),
+        physics->GetClipMask(), player);
+}
+// A wall portal close to a floor should be walk-through, not a raised hoop.
+// This adjusts portal placement, never the player's origin or teleport velocity.
 static bool RW_PortalFloorCenter(idVec3 &center, const idMat3 &axis, const idVec3 &gravityUp, const idEntity *ignore) {
     if (axis[2] * gravityUp < 0.95f) return false;
     trace_t floor;
@@ -552,7 +627,7 @@ bool hhPlayer::PlaceGunPortal(int color, const idDict *shot) {
     }
     up.Normalize();
     idVec3 side = up.Cross(normal); side.Normalize(); up = normal.Cross(side); up.Normalize();
-    const idMat3 axis(normal, side, up);
+    idMat3 axis(normal, side, up);
     idVec3 center = hit.endpos - normal * (hit.endpos * normal - hit.c.dist);
     bool supported = false;
     RW_PortalFloorCenter(center, axis, gravityUp, this);
@@ -567,6 +642,16 @@ bool hhPlayer::PlaceGunPortal(int color, const idDict *shot) {
             const idVec3 candidate = aimedCenter + axis[1]*(y*8.0f) + up*(z*8.0f);
             if (other && (other->GetOrigin()-candidate).LengthSqr() < Square(160.0f)) continue;
             if (RW_PortalSurfaceSupports(candidate, axis, this)) { center = candidate; supported = true; }
+            else {
+                idVec3 fittedCenter = candidate;
+                idMat3 fittedAxis = axis;
+                if (RW_FitPortalGround(fittedCenter, fittedAxis, this) &&
+                    (!other || (other->GetOrigin()-fittedCenter).LengthSqr() >= Square(160.0f))) {
+                    center = fittedCenter; axis = fittedAxis; normal = axis[0]; supported = true;
+                    if (cvarSystem->GetCVarBool("com_fpsTrace"))
+                        gameLocal.Printf("PORTAL_TERRAIN_FIT center=%s normal=%s\n", center.ToString(), normal.ToString());
+                }
+            }
         }
     }
     if (!supported) { gameLocal.Printf("PORTALGUN rejected: no nearby supported opening\n"); return false; }

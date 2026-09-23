@@ -1,0 +1,164 @@
+Version 2
+{
+"classname" "worldspawn"
+{
+brushDef3
+{
+( -1 0 0 -576 ) ( ( 0.015625 0 0 ) ( 0 0.015625 0 ) ) "reawakened/portalgun/testwall" 0 0 0
+( 1 0 0 96 ) ( ( 0.015625 0 0 ) ( 0 0.015625 0 ) ) "reawakened/portalgun/testwall" 0 0 0
+( 0 -1 0 -576 ) ( ( 0.015625 0 0 ) ( 0 0.015625 0 ) ) "reawakened/portalgun/testwall" 0 0 0
+( 0 1 0 -576 ) ( ( 0.015625 0 0 ) ( 0 0.015625 0 ) ) "reawakened/portalgun/testwall" 0 0 0
+( 0 0 -1 -64 ) ( ( 0.015625 0 0 ) ( 0 0.015625 0 ) ) "reawakened/portalgun/testwall" 0 0 0
+( 0 0 1 0 ) ( ( 0.015625 0 0 ) ( 0 0.015625 0 ) ) "reawakened/portalgun/testwall" 0 0 0
+}
+}
+{
+brushDef3
+{
+( -1 0 0 96 ) ( ( 0.015625 0 0 ) ( 0 0.015625 0 ) ) "reawakened/portalgun/testwall" 0 0 0
+( 1 0 0 -576 ) ( ( 0.015625 0 0 ) ( 0 0.015625 0 ) ) "reawakened/portalgun/testwall" 0 0 0
+( 0 -1 0 -576 ) ( ( 0.015625 0 0 ) ( 0 0.015625 0 ) ) "reawakened/portalgun/testwall" 0 0 0
+( 0 1 0 -576 ) ( ( 0.015625 0 0 ) ( 0 0.015625 0 ) ) "reawakened/portalgun/testwall" 0 0 0
+( 0 0 -1 -64 ) ( ( 0.015625 0 0 ) ( 0 0.015625 0 ) ) "reawakened/portalgun/testwall" 0 0 0
+( 0 0 1 0 ) ( ( 0.015625 0 0 ) ( 0 0.015625 0 ) ) "reawakened/portalgun/testwall" 0 0 0
+}
+}
+{
+brushDef3
+{
+( -1 0 0 -96 ) ( ( 0.015625 0 0 ) ( 0 0.015625 0 ) ) "reawakened/portalgun/testwall" 0 0 0
+( 1 0 0 -96 ) ( ( 0.015625 0 0 ) ( 0 0.015625 0 ) ) "reawakened/portalgun/testwall" 0 0 0
+( 0 -1 0 -576 ) ( ( 0.015625 0 0 ) ( 0 0.015625 0 ) ) "reawakened/portalgun/testwall" 0 0 0
+( 0 1 0 -160 ) ( ( 0.015625 0 0 ) ( 0 0.015625 0 ) ) "reawakened/portalgun/testwall" 0 0 0
+( 0 0 -1 -64 ) ( ( 0.015625 0 0 ) ( 0 0.015625 0 ) ) "reawakened/portalgun/testwall" 0 0 0
+( 0 0 1 0 ) ( ( 0.015625 0 0 ) ( 0 0.015625 0 ) ) "reawakened/portalgun/testwall" 0 0 0
+}
+}
+{
+brushDef3
+{
+( -1 0 0 -96 ) ( ( 0.015625 0 0 ) ( 0 0.015625 0 ) ) "reawakened/portalgun/testwall" 0 0 0
+( 1 0 0 -96 ) ( ( 0.015625 0 0 ) ( 0 0.015625 0 ) ) "reawakened/portalgun/testwall" 0 0 0
+( 0 -1 0 352 ) ( ( 0.015625 0 0 ) ( 0 0.015625 0 ) ) "reawakened/portalgun/testwall" 0 0 0
+( 0 1 0 -576 ) ( ( 0.015625 0 0 ) ( 0 0.015625 0 ) ) "reawakened/portalgun/testwall" 0 0 0
+( 0 0 -1 -64 ) ( ( 0.015625 0 0 ) ( 0 0.015625 0 ) ) "reawakened/portalgun/testwall" 0 0 0
+( 0 0 1 0 ) ( ( 0.015625 0 0 ) ( 0 0.015625 0 ) ) "reawakened/portalgun/testwall" 0 0 0
+}
+}
+{
+brushDef3
+{
+( -1 0 0 -576 ) ( ( 0.015625 0 0 ) ( 0 0.015625 0 ) ) "reawakened/portalgun/testwall" 0 0 0
+( 1 0 0 -576 ) ( ( 0.015625 0 0 ) ( 0 0.015625 0 ) ) "reawakened/portalgun/testwall" 0 0 0
+( 0 -1 0 -576 ) ( ( 0.015625 0 0 ) ( 0 0.015625 0 ) ) "reawakened/portalgun/testwall" 0 0 0
+( 0 1 0 -576 ) ( ( 0.015625 0 0 ) ( 0 0.015625 0 ) ) "reawakened/portalgun/testwall" 0 0 0
+( 0 0 -1 256 ) ( ( 0.015625 0 0 ) ( 0 0.015625 0 ) ) "reawakened/portalgun/testwall" 0 0 0
+( 0 0 1 -320 ) ( ( 0.015625 0 0 ) ( 0 0.015625 0 ) ) "reawakened/portalgun/testwall" 0 0 0
+}
+}
+{
+brushDef3
+{
+( -1 0 0 -576 ) ( ( 0.015625 0 0 ) ( 0 0.015625 0 ) ) "reawakened/portalgun/testwall" 0 0 0
+( 1 0 0 512 ) ( ( 0.015625 0 0 ) ( 0 0.015625 0 ) ) "reawakened/portalgun/testwall" 0 0 0
+( 0 -1 0 -576 ) ( ( 0.015625 0 0 ) ( 0 0.015625 0 ) ) "reawakened/portalgun/testwall" 0 0 0
+( 0 1 0 -576 ) ( ( 0.015625 0 0 ) ( 0 0.015625 0 ) ) "reawakened/portalgun/testwall" 0 0 0
+( 0 0 -1 0 ) ( ( 0.015625 0 0 ) ( 0 0.015625 0 ) ) "reawakened/portalgun/testwall" 0 0 0
+( 0 0 1 -256 ) ( ( 0.015625 0 0 ) ( 0 0.015625 0 ) ) "reawakened/portalgun/testwall" 0 0 0
+}
+}
+{
+brushDef3
+{
+( -1 0 0 512 ) ( ( 0.015625 0 0 ) ( 0 0.015625 0 ) ) "reawakened/portalgun/testwall" 0 0 0
+( 1 0 0 -576 ) ( ( 0.015625 0 0 ) ( 0 0.015625 0 ) ) "reawakened/portalgun/testwall" 0 0 0
+( 0 -1 0 -576 ) ( ( 0.015625 0 0 ) ( 0 0.015625 0 ) ) "reawakened/portalgun/testwall" 0 0 0
+( 0 1 0 -576 ) ( ( 0.015625 0 0 ) ( 0 0.015625 0 ) ) "reawakened/portalgun/testwall" 0 0 0
+( 0 0 -1 0 ) ( ( 0.015625 0 0 ) ( 0 0.015625 0 ) ) "reawakened/portalgun/testwall" 0 0 0
+( 0 0 1 -256 ) ( ( 0.015625 0 0 ) ( 0 0.015625 0 ) ) "reawakened/portalgun/testwall" 0 0 0
+}
+}
+{
+brushDef3
+{
+( -1 0 0 -512 ) ( ( 0.015625 0 0 ) ( 0 0.015625 0 ) ) "reawakened/portalgun/testwall" 0 0 0
+( 1 0 0 -512 ) ( ( 0.015625 0 0 ) ( 0 0.015625 0 ) ) "reawakened/portalgun/testwall" 0 0 0
+( 0 -1 0 -576 ) ( ( 0.015625 0 0 ) ( 0 0.015625 0 ) ) "reawakened/portalgun/testwall" 0 0 0
+( 0 1 0 512 ) ( ( 0.015625 0 0 ) ( 0 0.015625 0 ) ) "reawakened/portalgun/testwall" 0 0 0
+( 0 0 -1 0 ) ( ( 0.015625 0 0 ) ( 0 0.015625 0 ) ) "reawakened/portalgun/testwall" 0 0 0
+( 0 0 1 -256 ) ( ( 0.015625 0 0 ) ( 0 0.015625 0 ) ) "reawakened/portalgun/testwall" 0 0 0
+}
+}
+{
+brushDef3
+{
+( -1 0 0 -512 ) ( ( 0.015625 0 0 ) ( 0 0.015625 0 ) ) "reawakened/portalgun/testwall" 0 0 0
+( 1 0 0 -512 ) ( ( 0.015625 0 0 ) ( 0 0.015625 0 ) ) "reawakened/portalgun/testwall" 0 0 0
+( 0 -1 0 512 ) ( ( 0.015625 0 0 ) ( 0 0.015625 0 ) ) "reawakened/portalgun/testwall" 0 0 0
+( 0 1 0 -576 ) ( ( 0.015625 0 0 ) ( 0 0.015625 0 ) ) "reawakened/portalgun/testwall" 0 0 0
+( 0 0 -1 0 ) ( ( 0.015625 0 0 ) ( 0 0.015625 0 ) ) "reawakened/portalgun/testwall" 0 0 0
+( 0 0 1 -256 ) ( ( 0.015625 0 0 ) ( 0 0.015625 0 ) ) "reawakened/portalgun/testwall" 0 0 0
+}
+}
+{
+brushDef3
+{
+( -1 0 0 500 ) ( ( 0.015625 0 0 ) ( 0 0.015625 0 ) ) "textures/common/clip_monplaymov_metal" 0 0 0
+( 1 0 0 -512 ) ( ( 0.015625 0 0 ) ( 0 0.015625 0 ) ) "textures/common/clip_monplaymov_metal" 0 0 0
+( 0 -1 0 -70 ) ( ( 0.015625 0 0 ) ( 0 0.015625 0 ) ) "textures/common/clip_monplaymov_metal" 0 0 0
+( 0 1 0 -70 ) ( ( 0.015625 0 0 ) ( 0 0.015625 0 ) ) "textures/common/clip_monplaymov_metal" 0 0 0
+( 0 0 -1 0 ) ( ( 0.015625 0 0 ) ( 0 0.015625 0 ) ) "textures/common/clip_monplaymov_metal" 0 0 0
+( 0 0 1 -150 ) ( ( 0.015625 0 0 ) ( 0 0.015625 0 ) ) "textures/common/clip_monplaymov_metal" 0 0 0
+}
+}
+{
+brushDef3
+{
+( 0.0623783 0 0.998053 12.9747 ) ( ( 0.015625 0 0 ) ( 0 0.015625 0 ) ) "reawakened/portalgun/testwall" 0 0 0
+( -0.0623783 0 0.998053 -18.963 ) ( ( 0.015625 0 0 ) ( 0 0.015625 0 ) ) "reawakened/portalgun/testwall" 0 0 0
+( 0 0.0623783 0.998053 -2.99416 ) ( ( 0.015625 0 0 ) ( 0 0.015625 0 ) ) "reawakened/portalgun/testwall" 0 0 0
+( 0 -0.0623783 0.998053 -2.99416 ) ( ( 0.015625 0 0 ) ( 0 0.015625 0 ) ) "reawakened/portalgun/testwall" 0 0 0
+( 0 0 -1 0 ) ( ( 0.015625 0 0 ) ( 0 0.015625 0 ) ) "reawakened/portalgun/testwall" 0 0 0
+}
+}
+{
+brushDef3
+{
+( 0.384615 0 0.923077 -18.4615 ) ( ( 0.015625 0 0 ) ( 0 0.015625 0 ) ) "reawakened/portalgun/testwall" 0 0 0
+( -0.384615 0 0.923077 -18.4615 ) ( ( 0.015625 0 0 ) ( 0 0.015625 0 ) ) "reawakened/portalgun/testwall" 0 0 0
+( 0 0.384615 0.923077 80 ) ( ( 0.015625 0 0 ) ( 0 0.015625 0 ) ) "reawakened/portalgun/testwall" 0 0 0
+( 0 -0.384615 0.923077 -116.923 ) ( ( 0.015625 0 0 ) ( 0 0.015625 0 ) ) "reawakened/portalgun/testwall" 0 0 0
+( 0 0 -1 0 ) ( ( 0.015625 0 0 ) ( 0 0.015625 0 ) ) "reawakened/portalgun/testwall" 0 0 0
+}
+}
+{
+brushDef3
+{
+( -1 0 0 224 ) ( ( 0.015625 0 0 ) ( 0 0.015625 0 ) ) "reawakened/portalgun/testwall" 0 0 0
+( 1 0 0 -288 ) ( ( 0.015625 0 0 ) ( 0 0.015625 0 ) ) "reawakened/portalgun/testwall" 0 0 0
+( 0 -1 0 -32 ) ( ( 0.015625 0 0 ) ( 0 0.015625 0 ) ) "reawakened/portalgun/testwall" 0 0 0
+( 0 1 0 -32 ) ( ( 0.015625 0 0 ) ( 0 0.015625 0 ) ) "reawakened/portalgun/testwall" 0 0 0
+( 0 0 -1 0 ) ( ( 0.015625 0 0 ) ( 0 0.015625 0 ) ) "reawakened/portalgun/testwall" 0 0 0
+( 0 0 1 -64 ) ( ( 0.015625 0 0 ) ( 0 0.015625 0 ) ) "reawakened/portalgun/testwall" 0 0 0
+}
+}
+{
+brushDef3
+{
+( -0.113097 0 0.993584 -29.8075 ) ( ( 0.015625 0 0 ) ( 0 0.015625 0 ) ) "reawakened/portalgun/testwall" 0 0 0
+( -0.232294 0 0.972646 -29.1794 ) ( ( 0.015625 0 0 ) ( 0 0.015625 0 ) ) "reawakened/portalgun/testwall" 0 0 0
+( -0.17332 0.0614342 0.982948 -45.2156 ) ( ( 0.015625 0 0 ) ( 0 0.015625 0 ) ) "reawakened/portalgun/testwall" 0 0 0
+( -0.17332 -0.0614342 0.982948 -13.7613 ) ( ( 0.015625 0 0 ) ( 0 0.015625 0 ) ) "reawakened/portalgun/testwall" 0 0 0
+( -1 0 0 -96 ) ( ( 0.015625 0 0 ) ( 0 0.015625 0 ) ) "reawakened/portalgun/testwall" 0 0 0
+( 1 0 0 -96 ) ( ( 0.015625 0 0 ) ( 0 0.015625 0 ) ) "reawakened/portalgun/testwall" 0 0 0
+( 0 -1 0 160 ) ( ( 0.015625 0 0 ) ( 0 0.015625 0 ) ) "reawakened/portalgun/testwall" 0 0 0
+( 0 1 0 -352 ) ( ( 0.015625 0 0 ) ( 0 0.015625 0 ) ) "reawakened/portalgun/testwall" 0 0 0
+( 0 0 -1 0 ) ( ( 0.015625 0 0 ) ( 0 0.015625 0 ) ) "reawakened/portalgun/testwall" 0 0 0
+}
+}
+}
+{
+"classname" "info_player_start"
+"origin" "0 0 4"
+"angle" "0"
+}

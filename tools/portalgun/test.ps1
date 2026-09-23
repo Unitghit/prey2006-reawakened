@@ -2,7 +2,7 @@ param(
     [Parameter(Mandatory=$true)][string]$Engine,
     [Parameter(Mandatory=$true)][string]$RetailBase,
     [Parameter(Mandatory=$true)][string]$Profile,
-    [string[]]$Cases = @('input','regression','floor','ceiling','blocked','replacement','access','floor_edge','guidance','guide_lookaway','guide_steering','guide_fast','floor_exit','placement','objects','floor_escape','floor_partial','floor_continuous','floor_approach','floor_edge_slide','floor_corner','floor_clearance','surface_fit','ceiling_entry','floor_slab','wall_step','wall_approach','tapered_shell','sloped_ceiling','clip_column','oblique','reverse','static_exit')
+    [string[]]$Cases = @('input','regression','floor','ceiling','blocked','replacement','access','floor_edge','guidance','guide_lookaway','guide_steering','guide_fast','floor_exit','placement','objects','floor_escape','floor_partial','floor_continuous','floor_approach','floor_edge_slide','floor_corner','floor_clearance','surface_fit','ceiling_entry','floor_slab','wall_step','wall_approach','tapered_shell','sloped_ceiling','clip_column','oblique','terrain_fit','reverse','static_exit')
 )
 $ErrorActionPreference='Stop'
 $Engine=(Resolve-Path -LiteralPath $Engine).Path
@@ -17,8 +17,10 @@ Copy-Item "$PSScriptRoot/tests/rw_portal_slab.map" "$base/maps/"
 Copy-Item "$PSScriptRoot/tests/rw_portal_taper.map" "$base/maps/"
 Copy-Item "$PSScriptRoot/tests/rw_portal_slope.map" "$base/maps/"
 Copy-Item "$PSScriptRoot/tests/rw_portal_column.map" "$base/maps/"
+Copy-Item "$PSScriptRoot/tests/rw_portal_terrain.map" "$base/maps/"
 Copy-Item "$PSScriptRoot/tests/portal_lab.mtr" "$base/materials/"
 Copy-Item "$PSScriptRoot/tests/portal_obstacle.ase" "$base/models/"
+Copy-Item "$PSScriptRoot/tests/portal_terrain_cap.ase" "$base/models/"
 foreach($name in $Cases) {
     Copy-Item "$PSScriptRoot/tests/$name.cfg" "$base/test.cfg" -Force
     $arguments='+set fs_basepath "'+$Engine+'" +set fs_cdpath "'+(Split-Path $RetailBase -Parent)+'" +set fs_devpath "'+$Profile+'" +set fs_savepath "'+$Profile+'" +set fs_configpath "'+$Profile+'" +set fs_game "" +set r_fullscreen 0 +set r_fullscreenDesktop 0 +set r_mode -1 +set r_customWidth 960 +set r_customHeight 540 +set r_multiSamples 0 +set s_volume_dB -60 +set com_unlockedFPS 0 +set com_fixedTic 1 +set r_gammaInShader 1 +set developer 1 +set ai_disable 1 +set logfile 2 +exec test.cfg'
@@ -117,6 +119,21 @@ foreach($name in $Cases) {
         $positions=[regex]::Matches($part,'selected=\d+ current=\d+ origin=(-?[0-9.]+)\s+(-?[0-9.]+)\s+(-?[0-9.]+)')
         if(([regex]::Matches($part,'PORTAL_EXIT ')).Count -ne 1 -or !$positions.Count -or
             [double]$positions[$positions.Count-1].Groups[3].Value -ge 80){throw 'Player failed to fully emerge from sloped ceiling'}
+    }
+    if($name -eq 'terrain_fit') {
+        $gentle=[regex]::Match($log,'(?s)TERRAIN_GENTLE_BEGIN(.*?)TERRAIN_GENTLE_END').Groups[1].Value
+        if($gentle -notmatch 'PORTAL_TERRAIN_FIT' -or $gentle -notmatch 'PORTALGUN placed blue'){throw 'Gentle convex ground failed fitting'}
+        foreach($phase in @('CROSS','RELOAD','SLOPE')) {
+            $part=[regex]::Match($log,"(?s)TERRAIN_${phase}_BEGIN(.*?)TERRAIN_${phase}_END").Groups[1].Value
+            $positions=[regex]::Matches($part,'selected=\d+ current=\d+ origin=(-?[0-9.]+)\s+(-?[0-9.]+)\s+(-?[0-9.]+)')
+            if(([regex]::Matches($part,'PORTAL_EXIT ')).Count -ne 1 -or !$positions.Count -or
+                [double]$positions[$positions.Count-1].Groups[2].Value -ge 450){throw "$phase fitted ground traversal failed"}
+            if($phase -eq 'SLOPE' -and $part -notmatch 'PORTAL_TERRAIN_FIT'){throw 'Sloped terrain did not exercise plane fitting'}
+        }
+        foreach($phase in @('RIDGE','LEDGE','HEADROOM')) {
+            $part=[regex]::Match($log,"(?s)TERRAIN_${phase}_BEGIN(.*?)TERRAIN_${phase}_END").Groups[1].Value
+            if($part -notmatch 'PORTALGUN rejected: no nearby supported opening' -or $part -match 'PORTALGUN placed'){throw "$phase incorrectly accepted terrain portal"}
+        }
     }
     if($name -eq 'oblique') {
         foreach($marker in @('ANGLE_0','ANGLE_60','ANGLE_80','ANGLE_85','ANGLE_88','FLOOR_85')) {

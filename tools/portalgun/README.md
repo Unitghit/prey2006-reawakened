@@ -407,3 +407,22 @@ fractional digits, which changed shallow-angle aim enough to falsely reject the
 original surface as newly obstructed. Obstruction and surface-fit tolerances are
 unchanged. `oblique` fires using actual camera aim (not the rounded developer
 `aim` override), covering wall angles through 88 degrees and a grazing floor shot.
+
+Ground placement also tries a fitted rigid plane when the original flat-surface
+check fails. A symmetric grid and rim samples estimate the terrain slope, then
+resample the resulting plane. Relief must stay within four units across the
+whole aperture; the plane can move at most eight units from its candidate.
+The final plane sits 0.25 units above the highest sampled point. A solid-volume
+check includes that plane, so an unsampled protrusion cannot remain in front of
+the collision opening. Standing-player clearance is required on the entry side.
+Missing backing, abrupt normals, deep gaps, and obstructed rims still reject.
+This fallback is ground-only (normal/gravity-up dot at least 0.7); ordinary flat
+placements, wall/ceiling rules, traversal dimensions, and momentum are unchanged.
+Rendering and collision both use the fitted transform; no new save fields or
+collision exemptions are added. Existing unrelated obstacles still block travel.
+
+`terrain_fit` uses independently authored convex and tilted-convex ground,
+checks physical emergence and save/reload traversal, and rejects a tall ridge,
+unsupported narrow platform, and insufficient standing headroom. The tilted
+brush is the floor in that portion of the fixture, without a second unrelated
+floor intersecting the player's partial passage underneath it.
