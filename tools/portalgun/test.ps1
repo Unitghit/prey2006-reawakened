@@ -37,6 +37,8 @@ foreach($name in $Cases) {
             $part=[regex]::Match($log,"(?s)BODY_${phase}_BEGIN(.*?)BODY_${phase}_END").Groups[1].Value
             if($part -notmatch 'PORTAL_BODY.*?parts [1-9]') { throw "Missing split player body in $phase" }
         }
+        $remote=[regex]::Match($log,'(?s)BODY_REMOTE_MAIN_BEGIN(.*?)BODY_REMOTE_MAIN_END').Groups[1].Value
+        if($remote -notmatch 'PORTAL_BODY_DRAW remote view_id 1 triangles [1-9]') { throw 'Remote body exists but is not submitted in the main view' }
         $clear=[regex]::Match($log,'(?s)BODY_CLEAR_BEGIN(.*?)BODY_CLEAR_END').Groups[1].Value
         if($clear -match 'PORTAL_BODY.*?parts [1-9]') { throw 'Player pieces survived after leaving the portal' }
         if($log -match 'R_EyeballDeform:|Presentation modified|Portal presentation modified|GL_INVALID') { throw 'Split body rendering regression' }

@@ -21,3 +21,9 @@ Eye materials require their original three triangle islands to compute UV projec
 - Development and private engine/game builds and private launcher verification.
 
 The renderer-only `benchmark view` command bypasses game-side presentation setup, so its timings must not be used to claim the cost of this feature. The diagnostic build time is millisecond resolution, not a precise GPU or complete frame benchmark.
+
+## Remote-half visibility correction
+
+The remote piece must clear `suppressSurfaceInViewID` and `suppressShadowInViewID`: those flags refer to the player's main camera globally, not to a location. Inheriting them hid the emerging half even when it was directly visible in front of the exit. Its transformed-eye proximity exclusion remains active to avoid first-person head geometry during crossing.
+
+The `body_split` regression now points from the entrance toward the exit and requires an actual remote mesh submission in view ID 1. Merely allocating a remote mesh is not evidence of visibility. `multiportal3` comparison captures and unlocked forward/reverse crossing captures verify the corrected silhouette.

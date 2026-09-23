@@ -192,6 +192,12 @@ static bool ApplyPortalBodies(hhPlayer *player, const renderView_t &authoritativ
         sourcePiece.callback = NULL; sourcePiece.callbackData = NULL; sourcePiece.joints = NULL; sourcePiece.numJoints = 0; sourcePiece.forceUpdate = true;
         gameRenderWorld->UpdateEntityDef(saved.handle, &sourcePiece);
         renderEntity_t remotePiece = sourcePiece; remotePiece.hModel = part.farModel; remotePiece.bounds = part.farModel->Bounds();
+        // This is the body in the other room, not the first-person body.
+        // The view ID is shared across the entire main view: inheriting it hides
+        // the remote half even when it is directly visible in front of the exit.
+        // The transformed-eye test still hides it from its own virtual camera.
+        remotePiece.suppressSurfaceInViewID = 0;
+        remotePiece.suppressShadowInViewID = 0;
         remotePiece.portalBodyEye = (view.vieworg-source)*rotation+destination;
         remotePiece.origin = (sourcePiece.origin-source)*rotation+destination; remotePiece.axis = sourcePiece.axis*rotation;
         if (part.ghostHandle < 0) part.ghostHandle = gameRenderWorld->AddEntityDef(&remotePiece);

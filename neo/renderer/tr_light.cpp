@@ -1349,6 +1349,8 @@ static void R_AddAmbientDrawsurfs( viewEntity_t *vEntity ) {
 			// add the surface for drawing
 			R_TracePresentationSurface("ambient", def, tri);
 			R_AddDrawSurf( tri, vEntity, &vEntity->entityDef->parms, shader, vEntity->scissorRect );
+            if (!idStr::Cmp(model->Name(), "_portalBody_far") && cvarSystem->GetCVarBool("g_portalBodyTrace"))
+                common->Printf("PORTAL_BODY_DRAW remote view_id %d triangles %d\n", tr.viewDef->renderView.viewID, tri->numIndexes / 3);
 
 			// ambientViewCount is used to allow light interactions to be rejected
 			// if the ambient surface isn't visible at all
