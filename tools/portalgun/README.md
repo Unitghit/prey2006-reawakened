@@ -229,3 +229,15 @@ entities and joint-connected groups are not newly supported.
 The added fixtures cover guidance and its steering/look/speed controls, low-speed
 floor exits, horizontal and downward placement fitting, rejected out-of-range
 placement, touching/stacked props, and replacement with an occupied opening.
+
+## Portal edge clearance and placement fitting
+
+Floor-edge collision uses the supporting surface plane, including the one-unit
+artwork offset. A hull already clear of the floor can walk away; an embedded hull
+still collides with the aperture boundary. `floor_escape` probes both cases,
+and `reverse` checks four consecutive crossings with immediate direction changes.
+Placement checks the visible oval plus a small margin (39 by 49 unit radii),
+including perimeter samples, rather than requiring backing for the larger
+traversal envelope. The nearest-position search is bounded to 64 units. Low wall
+shots can align upward to a walk-through height when that surface supports it.
+Real exit obstructions retain the existing full-hull rejection checks.

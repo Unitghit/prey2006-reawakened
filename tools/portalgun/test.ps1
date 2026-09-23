@@ -78,7 +78,12 @@ foreach($name in $Cases) {
     if($name -in @('guide_lookaway','guide_steering','guide_fast') -and $log -match 'PORTAL_GUIDANCE'){throw "$name incorrectly applied guidance"}
     if($name -eq 'floor_exit' -and ($log -notmatch 'PORTAL_FLOOR_EXIT' -or $log -notmatch 'PORTAL_EXIT')){throw 'Low-speed floor exit failed'}
     if($name -eq 'placement') {
-        if(([regex]::Matches($log,'PORTALGUN placed blue')).Count -ne 2 -or $log -notmatch 'PORTALGUN rejected: no nearby supported opening'){throw 'Bounded placement fitting failed'}
+        if(([regex]::Matches($log,'PORTALGUN placed blue')).Count -ne 3 -or $log -match 'PORTALGUN rejected:'){throw 'Bounded placement fitting failed'}
+    }
+    if($name -eq 'reverse' -and ([regex]::Matches($log,'PORTAL_EXIT ')).Count -lt 4){throw 'Repeated immediate reversal failed'}
+    if($name -eq 'floor_escape') {
+        $probes=[regex]::Matches($log,'PORTAL_PROBE fraction=([0-9.]+)')
+        if($probes.Count -ne 2 -or [double]$probes[0].Groups[1].Value -ne 1 -or [double]$probes[1].Groups[1].Value -ge 1){throw 'Floor edge clearance or embedded-hull boundary failed'}
     }
     if($name -eq 'objects') {
         foreach($prop in @('polish_a','polish_b','polish_c')) {

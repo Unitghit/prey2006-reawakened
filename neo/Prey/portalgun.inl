@@ -154,10 +154,13 @@ bool RW_PortalClipPlane(const idEntity *entity, const idTraceModel *trm, const i
             float minDepth = 1e9f, maxDepth = -1e9f;
             for (int k = 0; k < 8; ++k) {
                 const idVec3 corner(trm->bounds[(k&1)!=0].x, trm->bounds[(k&2)!=0].y, trm->bounds[(k&4)!=0].z);
-                const float depth = d0 + (corner * axis) * normal;
+                // Test against the supporting wall, not the offset visual plane.
+                // Otherwise feet already above a floor are treated as embedded
+                // and the synthetic oval edge becomes an invisible fence.
+                const float depth = d0 + portal->spawnArgs.GetFloat("rw_portal_surface_offset") + (corner * axis) * normal;
                 minDepth = Min(minDepth, depth); maxDepth = Max(maxDepth, depth);
             }
-            if (minDepth > 0.5f || maxDepth < -0.5f) continue;
+            if (minDepth >= 0.25f || maxDepth < -0.25f) continue;
             float low = 0, high = 1;
             for (int k = 0; k < 20; ++k) {
                 const float mid = (low + high) * 0.5f;
@@ -209,14 +212,24 @@ bool RW_PortalCoverPlane(const idPlane &wall, const idVec3 &query, idPlane &cove
 // A wall portal close to a floor should be walk-through, not a raised hoop.
 // This adjusts portal placement, never the player's origin or teleport velocity.
 static bool RW_PortalSurfaceSupports(const idVec3 &center, const idMat3 &axis, const idEntity *ignore) {
-    for (int y = -6; y <= 6; ++y) for (int z = -9; z <= 9; ++z) {
-        const float py = y * 8.0f, pz = z * 8.0f;
-        if (Square(py / 49.0f) + Square(pz / 73.0f) > 1.05f) continue;
+    // Validate the artwork's footprint, not the larger traversal envelope.
+    // Include perimeter samples so thin unsupported edges cannot slip between
+    // the interior grid probes. Keep tolerances within the collision cutout.
+    for (int sampleIndex = 0; sampleIndex < 16 + 11*15; ++sampleIndex) {
+        float py, pz;
+        if (sampleIndex < 16) {
+            const float angle = sampleIndex * idMath::TWO_PI / 16.0f;
+            py = 39.0f * idMath::Cos(angle); pz = 49.0f * idMath::Sin(angle);
+        } else {
+            const int grid = sampleIndex - 16;
+            py = (grid % 11 - 5) * 8.0f; pz = (grid / 11 - 7) * 8.0f;
+            if (Square(py / 39.0f) + Square(pz / 49.0f) > 1.0f) continue;
+        }
         const idVec3 sample = center + axis[1] * py + axis[2] * pz;
         trace_t support;
         gameLocal.clip.TracePoint(support, sample + axis[0]*2, sample - axis[0]*2, MASK_SOLID, ignore);
         if (support.fraction >= 1 || support.c.entityNum != ENTITYNUM_WORLD ||
-            support.c.normal * axis[0] < 0.999f || idMath::Fabs(center * support.c.normal - support.c.dist) > 0.1f) return false;
+            support.c.normal * axis[0] < 0.9999f || idMath::Fabs(center * support.c.normal - support.c.dist) > 0.14f) return false;
     }
     return true;
 }
@@ -227,7 +240,7 @@ static bool RW_PortalFloorCenter(idVec3 &center, const idMat3 &axis, const idVec
     gameLocal.clip.TracePoint(floor, probe, probe - axis[2]*128, MASK_SOLID, ignore);
     if (floor.fraction >= 1 || floor.c.entityNum != ENTITYNUM_WORLD || floor.c.normal * axis[2] < 0.99f) return false;
     const float height = (center - floor.endpos) * axis[2];
-    if (height < 56 || height > 120) return false;
+    if (height < 8 || height > 120) return false;
     // The floor trace stops a clip epsilon above the actual plane. Use the
     // plane itself so two endpoints over the same floor align exactly.
     const float planeHeight = (center * floor.c.normal - floor.c.dist) / (axis[2] * floor.c.normal);
@@ -327,8 +340,8 @@ bool hhPlayer::PlaceGunPortal(int color, const idDict *shot) {
     hhPortal *other = RW_GunPortal(1-color), *portal = RW_GunPortal(color);
     // Search nearest first on a bounded surface-plane grid. A failed shot
     // leaves the existing endpoints and their link untouched.
-    for (int radiusSquared = 0; radiusSquared <= 36 && !supported; ++radiusSquared) {
-        for (int z = -6; z <= 6 && !supported; ++z) for (int y = -6; y <= 6 && !supported; ++y) {
+    for (int radiusSquared = 0; radiusSquared <= 64 && !supported; ++radiusSquared) {
+        for (int z = -8; z <= 8 && !supported; ++z) for (int y = -8; y <= 8 && !supported; ++y) {
             if (y*y + z*z != radiusSquared) continue;
             const idVec3 candidate = aimedCenter + axis[1]*(y*8.0f) + up*(z*8.0f);
             if (other && (other->GetOrigin()-candidate).LengthSqr() < Square(160.0f)) continue;
