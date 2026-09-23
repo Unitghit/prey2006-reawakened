@@ -2,7 +2,7 @@ param(
     [Parameter(Mandatory=$true)][string]$Engine,
     [Parameter(Mandatory=$true)][string]$RetailBase,
     [Parameter(Mandatory=$true)][string]$Profile,
-    [string[]]$Cases = @('input','regression','floor','ceiling','blocked','replacement','access','floor_edge','guidance','guide_lookaway','guide_steering','guide_fast','floor_exit','placement','objects','floor_escape','floor_partial','floor_continuous','floor_approach','reverse','static_exit')
+    [string[]]$Cases = @('input','regression','floor','ceiling','blocked','replacement','access','floor_edge','guidance','guide_lookaway','guide_steering','guide_fast','floor_exit','placement','objects','floor_escape','floor_partial','floor_continuous','floor_approach','floor_edge_slide','reverse','static_exit')
 )
 $ErrorActionPreference='Stop'
 $Engine=(Resolve-Path -LiteralPath $Engine).Path
@@ -112,6 +112,12 @@ foreach($name in $Cases) {
         $front=[regex]::Match($log,'(?s)STATIC_FRONT_BEGIN(.*?)STATIC_FRONT_END').Groups[1].Value
         if($behind -notmatch 'PORTAL_EXIT ' -or $behind -match 'PORTALGUN blocked exit'){throw 'Static geometry behind exit blocked crossing'}
         if($front -notmatch 'PORTALGUN blocked exit|PORTAL_PARTIAL_BLOCK' -or $front -match 'PORTAL_EXIT '){throw 'Static geometry in front of exit failed to block crossing'}
+    }
+    if($name -eq 'floor_edge_slide') {
+        $blocked=[regex]::Match($log,'(?s)EDGE_BLOCK_BEGIN(.*?)EDGE_BLOCK_END').Groups[1].Value
+        $slide=[regex]::Match($log,'(?s)EDGE_SLIDE_BEGIN(.*?)EDGE_SLIDE_END').Groups[1].Value
+        if($blocked -notmatch 'PORTAL_PARTIAL_BLOCK' -or $blocked -match 'PORTAL_EXIT '){throw 'Edge obstacle did not stop inward motion'}
+        if(([regex]::Matches($slide,'PORTAL_EXIT ')).Count -ne 1){throw 'Blocked ground entry prevented sliding to a clear exit'}
     }
     if($name -eq 'floor_approach') {
         foreach($side in @('FIRST','SECOND')) {

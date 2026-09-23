@@ -280,3 +280,11 @@ and below the actual supporting surface. The raised visual plane alone does not
 mean a grounded player has entered. This prevents remote geometry from blocking
 approach beside a floor portal. `floor_approach` checks walking in from both ends.
 
+
+Blocked ground entry preserves collision-checked movement along the portal plane,
+both during partial entry and at final camera crossing. This lets the player move
+away from an obstructed edge instead of gravity repeatedly undoing that movement.
+Destination checks use the transformed physics hull, independent of view yaw.
+`floor_edge_slide` verifies an obstacle stops entry but allows movement toward
+a clear part of the opening, followed by a successful crossing.
+

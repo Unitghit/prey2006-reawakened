@@ -537,15 +537,22 @@ void hhPortal::Think( void ) {
             RW_GroundPortalPartialBlocked(this, hit, nextLocation)) {
             hhPlayer *blockedPlayer = static_cast<hhPlayer *>(hit);
             const renderView_t oldView = *blockedPlayer->GetRenderView();
-            hit->SetOrigin(location);
+            const idVec3 tangentEnd = nextLocation + GetAxis()[0] * ((location-nextLocation)*GetAxis()[0]);
+            trace_t slide;
+            gameLocal.clip.Translation(slide, location, tangentEnd, hit->GetPhysics()->GetClipModel(),
+                hit->GetPhysics()->GetAxis(), hit->GetPhysics()->GetClipMask(), hit);
+            // Preserve movement along a blocked entrance when both the source
+            // hull and the already-emerged destination slice have clearance.
+            const idVec3 stopped = RW_GroundPortalPartialBlocked(this, hit, slide.endpos) ? location : slide.endpos;
+            hit->SetOrigin(stopped);
             idVec3 velocity = hit->GetPhysics()->GetLinearVelocity();
             velocity -= GetAxis()[0] * Min(0.0f, velocity*GetAxis()[0]);
             hit->GetPhysics()->SetLinearVelocity(velocity);
-            blockedPlayer->cameraInterpolator.SetTargetPosition(location, INTERPOLATE_NONE);
+            blockedPlayer->cameraInterpolator.SetTargetPosition(stopped, INTERPOLATE_NONE);
             blockedPlayer->CalculateFirstPersonView();
             blockedPlayer->CalculateRenderView();
             gameLocal.SnapPortalViewModels(oldView);
-            proximityEntities[i].lastPortalPoint = location;
+            proximityEntities[i].lastPortalPoint = stopped;
             continue;
         }
 		proximityEntities[i].lastPortalPoint = nextLocation;
@@ -642,10 +649,30 @@ bool hhPortal::AttemptPortal( idPlane &plane, idEntity *hit, idVec3 location, id
         PortalEntity(hit, location + dir * scale * 1.01f);
     if (!portalled) {
         if (spawnArgs.GetBool("rw_portalGun")) {
-            hit->SetOrigin(location);
+            // A blocked exit stops inward movement, not movement along the
+            // opening. Rewinding the entire step traps an edge entrant because
+            // gravity retries the rejected crossing every tick, also undoing
+            // the player's attempt to move toward the clear center.
+            idVec3 stopped = location;
+            if (eyeOffset > 0) {
+                const idVec3 tangentEnd = nextLocation + plane.Normal() * ((location-nextLocation)*plane.Normal());
+                trace_t slide;
+                gameLocal.clip.Translation(slide, location, tangentEnd, hit->GetPhysics()->GetClipModel(),
+                    hit->GetPhysics()->GetAxis(), hit->GetPhysics()->GetClipMask(), hit);
+                if (!RW_GroundPortalPartialBlocked(this, hit, slide.endpos)) stopped = slide.endpos;
+            }
+            hit->SetOrigin(stopped);
             idVec3 velocity = hit->GetPhysics()->GetLinearVelocity();
             velocity -= plane.Normal() * Min(0.0f, velocity * plane.Normal());
             hit->GetPhysics()->SetLinearVelocity(velocity);
+            if (eyeOffset > 0) {
+                hhPlayer *player = static_cast<hhPlayer *>(hit);
+                const renderView_t oldView = *player->GetRenderView();
+                player->cameraInterpolator.SetTargetPosition(stopped, INTERPOLATE_NONE);
+                player->CalculateFirstPersonView();
+                player->CalculateRenderView();
+                gameLocal.SnapPortalViewModels(oldView);
+            }
         }
         return false;
     }
@@ -965,7 +992,10 @@ bool hhPortal::PortalEntity( idEntity *ent, const idVec3 &point, const idVec3 *c
         const idVec3 visibleLocation = newLocation + renderBias;
 
 		// Compute new axis
-		newEntAxis = ent->GetAxis();
+        // Match the hull used by source cutouts and partial destination checks.
+        // Looking around must not change whether that hull fits at the exit.
+		newEntAxis = spawnArgs.GetBool("rw_portalGun") && ent->IsType(hhPlayer::Type) ?
+            ent->GetPhysics()->GetAxis() : ent->GetAxis();
 
 		// Rotate the vector into new portal space
 		PortalRotate( newEntAxis[0], sourceAxis, destAxis, true );
