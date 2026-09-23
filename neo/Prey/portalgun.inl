@@ -98,7 +98,7 @@ static void RW_AssistFloorExit(idEntity *entity, idEntity *destination, const id
 // During camera-delayed ground entry, only the emerged slice belongs in the
 // destination world. Clip the query hull at the source plane before transforming
 // it; testing the full body would collide with objects still behind the exit.
-static bool RW_GroundPortalPartialBlocked(hhPortal *portal, idEntity *entity, const idVec3 &origin) {
+static bool RW_GroundPortalPartialBlocked(hhPortal *portal, idEntity *entity, const idVec3 &origin, idVec3 *clearOrigin) {
     if (!portal->cameraTarget) return false;
     const float eyeOffset = RW_GroundPortalEyeOffset(portal, entity);
     const idVec3 normal = portal->GetAxis()[0];
@@ -133,6 +133,33 @@ static bool RW_GroundPortalPartialBlocked(hhPortal *portal, idEntity *entity, co
     idClipModel clip(shape);
     trace_t trace;
     const bool blocked = gameLocal.clip.Translation(trace, remote, remote, &clip, remoteAxis, entity->GetPhysics()->GetClipMask(), entity);
+    // A rotated square hull can graze the exit floor by a sub-unit amount at
+    // the oval's edge. Resolve only shallow world overlaps toward the opening
+    // center, with a swept source check and a fresh destination occupancy test.
+    // Larger obstructions and movable objects remain blocking.
+    if (blocked && clearOrigin && trace.c.entityNum == ENTITYNUM_WORLD) {
+        float minimum = idMath::INFINITY;
+        for (int k = 0; k < 8; ++k) {
+            const idVec3 corner(emerged[(k&1)!=0].x, emerged[(k&2)!=0].y, emerged[(k&4)!=0].z);
+            minimum = Min(minimum, (remote + corner*remoteAxis)*trace.c.normal);
+        }
+        const float penetration = trace.c.dist - minimum;
+        idVec3 direction = trace.c.normal;
+        PortalRotate(direction, destination.Transpose(), portal->GetAxis(), true);
+        if (penetration >= 0 && penetration <= 2.0f &&
+            idMath::Fabs(direction*normal) < 0.01f && direction*(origin-portal->GetOrigin()) < 0) {
+            const idVec3 candidate = origin + direction*(penetration+0.25f);
+            trace_t source;
+            if (!gameLocal.clip.Translation(source, origin, candidate, sourceClip, sourceHullAxis,
+                    entity->GetPhysics()->GetClipMask(), entity) &&
+                !RW_GroundPortalPartialBlocked(portal, entity, candidate)) {
+                *clearOrigin = candidate;
+                if (cvarSystem->GetCVarBool("com_fpsTrace"))
+                    gameLocal.Printf("PORTAL_ENTRY_CLEARANCE distance=%.3f\n", penetration+0.25f);
+                return false;
+            }
+        }
+    }
     if (blocked && cvarSystem->GetCVarBool("com_fpsTrace"))
         gameLocal.Printf("PORTAL_PARTIAL_BLOCK depth=%.3f entity=%d\n", depth, trace.c.entityNum);
     return blocked;

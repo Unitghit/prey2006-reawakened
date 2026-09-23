@@ -2,7 +2,7 @@ param(
     [Parameter(Mandatory=$true)][string]$Engine,
     [Parameter(Mandatory=$true)][string]$RetailBase,
     [Parameter(Mandatory=$true)][string]$Profile,
-    [string[]]$Cases = @('input','regression','floor','ceiling','blocked','replacement','access','floor_edge','guidance','guide_lookaway','guide_steering','guide_fast','floor_exit','placement','objects','floor_escape','floor_partial','floor_continuous','floor_approach','floor_edge_slide','floor_corner','reverse','static_exit')
+    [string[]]$Cases = @('input','regression','floor','ceiling','blocked','replacement','access','floor_edge','guidance','guide_lookaway','guide_steering','guide_fast','floor_exit','placement','objects','floor_escape','floor_partial','floor_continuous','floor_approach','floor_edge_slide','floor_corner','floor_clearance','reverse','static_exit')
 )
 $ErrorActionPreference='Stop'
 $Engine=(Resolve-Path -LiteralPath $Engine).Path
@@ -112,6 +112,12 @@ foreach($name in $Cases) {
         $front=[regex]::Match($log,'(?s)STATIC_FRONT_BEGIN(.*?)STATIC_FRONT_END').Groups[1].Value
         if($behind -notmatch 'PORTAL_EXIT ' -or $behind -match 'PORTALGUN blocked exit'){throw 'Static geometry behind exit blocked crossing'}
         if($front -notmatch 'PORTALGUN blocked exit|PORTAL_PARTIAL_BLOCK' -or $front -match 'PORTAL_EXIT '){throw 'Static geometry in front of exit failed to block crossing'}
+    }
+    if($name -eq 'floor_clearance') {
+        $shallow=[regex]::Match($log,'(?s)CLEARANCE_SHALLOW_BEGIN(.*?)CLEARANCE_SHALLOW_END').Groups[1].Value
+        $deep=[regex]::Match($log,'(?s)CLEARANCE_DEEP_BEGIN(.*?)CLEARANCE_DEEP_END').Groups[1].Value
+        if($shallow -notmatch 'PORTAL_ENTRY_CLEARANCE' -or ([regex]::Matches($shallow,'PORTAL_EXIT ')).Count -ne 1){throw 'Shallow exit-floor overlap trapped the player'}
+        if($deep -notmatch 'PORTAL_PARTIAL_BLOCK' -or $deep -match 'PORTAL_EXIT |PORTAL_ENTRY_CLEARANCE'){throw 'Deep obstruction incorrectly received clearance assistance'}
     }
     if($name -eq 'floor_corner') {
         $behind=[regex]::Match($log,'(?s)CORNER_BEHIND_BEGIN(.*?)CORNER_BEHIND_END').Groups[1].Value

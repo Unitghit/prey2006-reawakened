@@ -409,7 +409,7 @@ static float RW_GroundPortalEyeOffset(const hhPortal *portal, const idEntity *en
     return Max(0.0f, (player->GetEyePosition() - player->GetOrigin()) * portal->GetAxis()[0]);
 }
 
-static bool RW_GroundPortalPartialBlocked(hhPortal *, idEntity *, const idVec3 &);
+static bool RW_GroundPortalPartialBlocked(hhPortal *, idEntity *, const idVec3 &, idVec3 * = NULL);
 static void RW_GunPortalVisual(hhPortal *portal, bool restart);
 
 void hhPortal::Think( void ) {
@@ -530,11 +530,28 @@ void hhPortal::Think( void ) {
 		hit = proximityEntities[i].entity.GetEntity();
 		idVec3 location = proximityEntities[i].lastPortalPoint;
 		idVec3 nextLocation = hit->GetPortalPoint();
+        idVec3 clearLocation = nextLocation;
+        const bool partialBlocked = RW_GroundPortalEyeOffset(this, hit) > 0 &&
+            (nextLocation-location)*GetAxis()[0] <= 0 &&
+            RW_GroundPortalPartialBlocked(this, hit, nextLocation, &clearLocation);
+        if (clearLocation != nextLocation) {
+            hhPlayer *clearedPlayer = static_cast<hhPlayer *>(hit);
+            const renderView_t oldView = *clearedPlayer->GetRenderView();
+            hit->SetOrigin(clearLocation);
+            idVec3 clearanceNormal = clearLocation-nextLocation;
+            clearanceNormal.Normalize();
+            idVec3 velocity = hit->GetPhysics()->GetLinearVelocity();
+            velocity -= clearanceNormal * Min(0.0f, velocity*clearanceNormal);
+            hit->GetPhysics()->SetLinearVelocity(velocity);
+            clearedPlayer->cameraInterpolator.SetTargetPosition(clearLocation, INTERPOLATE_NONE);
+            clearedPlayer->CalculateFirstPersonView();
+            clearedPlayer->CalculateRenderView();
+            gameLocal.SnapPortalViewModels(oldView);
+            nextLocation = clearLocation;
+        }
         // Test the portion already through the exit before committing another
         // inward step. Moving back out remains possible without a teleport.
-        if (RW_GroundPortalEyeOffset(this, hit) > 0 &&
-            (nextLocation-location)*GetAxis()[0] <= 0 &&
-            RW_GroundPortalPartialBlocked(this, hit, nextLocation)) {
+        if (partialBlocked) {
             hhPlayer *blockedPlayer = static_cast<hhPlayer *>(hit);
             const renderView_t oldView = *blockedPlayer->GetRenderView();
             const idVec3 tangentEnd = nextLocation + GetAxis()[0] * ((location-nextLocation)*GetAxis()[0]);

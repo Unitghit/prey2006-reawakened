@@ -295,3 +295,12 @@ This prevents hidden wall-trim corners from catching the un-emerged portion of
 the player. Geometry in front remains solid. `floor_corner` checks rotated
 static trim spanning the portal plane and a corresponding foreground obstacle.
 
+
+Partial ground entry can resolve a shallow world overlap of at most two units
+plus a quarter-unit clearance margin. The correction must point toward the
+opening center and lie along its plane. Both the swept source hull and the
+emerged destination hull must be clear. Only velocity pushing into the contact
+is removed; falling and other tangential motion are preserved. Larger overlaps
+and movable obstacles retain ordinary blocking behavior. `floor_clearance` tests
+a shallow exit-floor contact and a deeper obstruction.
+
