@@ -264,6 +264,10 @@ bool hhInventory::SplitAcidAmmo(const idPlayer *owner) const {
 	const idDict *addon = gameLocal.FindEntityDefDict("weaponobj_d3plasmagun", false);
 	return addon && addon->GetBool("rw_saveCompatible");
 }
+int hhInventory::AcidGroupAmmoCount(const idPlayer *owner) const {
+    const idDict *addon = gameLocal.FindEntityDefDict("weaponobj_d3supershotgun", false);
+    return addon && addon->GetBool("rw_saveCompatible") && owner->spawnArgs.GetBool("rw_weapon_d3supershotgun_owned") ? 3 : 2;
+}
 bool hhInventory::SplitRocketAmmo(const idPlayer *owner) const {
 	if (!UsesIndependentWeaponAmmo(owner) || !cvarSystem->GetCVarBool("g_doom3Shotgun") ||
 		!owner->spawnArgs.GetBool("rw_weapon_d3rocketlauncher_owned")) { return false; }
@@ -347,6 +351,10 @@ bool hhInventory::SynchronizeWeaponAmmo(hhPlayer *owner) {
 		StoreWeaponAmmo(owner, 13, 150);
 		changed = true;
 	}
+    if (acidActive && ammo[15] >= 0 && ammo[15] + WeaponAmmoFraction(owner, 15) > 16) {
+        StoreWeaponAmmo(owner, 15, 16);
+        changed = true;
+    }
 	const bool rocketActive = SplitRocketAmmo(owner);
 	if (owner->spawnArgs.GetInt("rw_weapon_rocket_split_active", "-1") != int(rocketActive)) {
 		owner->spawnArgs.SetBool("rw_weapon_rocket_split_active", rocketActive);
@@ -403,18 +411,18 @@ bool hhInventory::GiveAutocannonGroupAmmo(hhPlayer *owner, int amount) {
 
 bool hhInventory::GiveAcidGroupAmmo(hhPlayer *owner, int amount) {
 	if (amount <= 0) { return false; }
-	const int count = 2;
-	const int indices[] = { AmmoIndexForAmmoClass("ammo_acid"), 13 };
-	const double full[] = { double(idInventory::MaxAmmoForAmmoClass(owner, "ammo_acid")), 500.0 };
+	const int count = AcidGroupAmmoCount(owner);
+	const int indices[] = { AmmoIndexForAmmoClass("ammo_acid"), 13, 15 };
+	const double full[] = { double(idInventory::MaxAmmoForAmmoClass(owner, "ammo_acid")), 500.0, 37.5 };
 	if (full[0] <= 0) { return false; }
 	bool accepted = false;
-	// A full partner never donates its share: all slot-6 pickups give half
-	// the original supply to each independent reserve that has room.
+	// Fixed normalized shares, independently capped. Expansion shells receive
+	// two per four-unit acid box when all three slot-6 weapons are installed.
 	for (int i = 0; i < count; ++i) {
 		if (ammo[indices[i]] < 0) { continue; }
 		const double total = ammo[indices[i]] + WeaponAmmoFraction(owner, indices[i]);
 		const double room = Max(0.0, double(MaxAmmoForAmmoClass(owner, idWeapon::GetAmmoNameForNum((ammo_t)indices[i]))) - total);
-		const double grant = Min(room, amount / full[0] * full[i] / 2.0);
+		const double grant = Min(room, amount / full[0] * full[i] / double(count));
 		if (grant > 1e-12) { StoreWeaponAmmo(owner, indices[i], total + grant); accepted = true; }
 	}
 	if (!accepted) { return false; }
@@ -452,9 +460,10 @@ int hhInventory::MaxAmmoForAmmoClass( idPlayer *owner, const char *ammo_classnam
 		if (!idStr::Icmp(ammo_classname, "ammo_d3bullets")) { return 180; }
 		if (!idStr::Icmp(ammo_classname, "ammo_d3belt")) { return 180; }
 		if (!idStr::Icmp(ammo_classname, "ammo_d3cells")) { return 150; }
+		if (!idStr::Icmp(ammo_classname, "ammo_d3supershells")) { return 16; }
 		if (!idStr::Icmp(ammo_classname, "ammo_d3rockets")) { return 12; }
 		if (!idStr::Icmp(ammo_classname, "ammo_acid") && SplitAcidAmmo(owner)) {
-			return idInventory::MaxAmmoForAmmoClass(owner, ammo_classname) / 2;
+			return idInventory::MaxAmmoForAmmoClass(owner, ammo_classname) / AcidGroupAmmoCount(owner);
 		}
 		if (!idStr::Icmp(ammo_classname, "ammo_crawler_red") && SplitRocketAmmo(owner)) {
 			return idInventory::MaxAmmoForAmmoClass(owner, ammo_classname) / 2;
@@ -778,7 +787,11 @@ float hhInventory::AmmoPercentage(idPlayer *player, ammo_t type) {
 		const float autoMax = Max(1, MaxAmmoForAmmoClass(player, "ammo_acid"));
 		const float autoPct = ammo[type] < 0 ? 1.0f : idMath::ClampFloat(0, 1, ammo[type] / autoMax);
 		const float beltPct = ammo[13] < 0 ? 1.0f : idMath::ClampFloat(0, 1, ammo[13] / 150.0f);
-		return 0.5f * (autoPct + beltPct);
+		if (AcidGroupAmmoCount(player) == 3) {
+            const float shellPct = ammo[15] < 0 ? 1.0f : idMath::ClampFloat(0, 1, ammo[15] / 16.0f);
+            return (autoPct + beltPct + shellPct) / 3.0f;
+        }
+        return 0.5f * (autoPct + beltPct);
 	}
 	if (SplitRocketAmmo(player) && type == AmmoIndexForAmmoClass("ammo_crawler_red")) {
 		const float autoMax = Max(1, MaxAmmoForAmmoClass(player, "ammo_crawler_red"));

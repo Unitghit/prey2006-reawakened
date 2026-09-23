@@ -2660,6 +2660,32 @@ static void Cmd_PlasmaInfo_f(const idCmdArgs &args) {
 	}
 }
 
+static void Cmd_SuperShotgunInfo_f(const idCmdArgs &args) {
+	hhPlayer *player = static_cast<hhPlayer *>(gameLocal.GetLocalPlayer());
+	if (!player || !player->inventory.UsesIndependentWeaponAmmo(player)) { return; }
+	player->SynchronizeDoom3Shotgun();
+	if (cvarSystem->GetCVarBool("developer")) {
+		if (args.Argc() == 4 && !idStr::Icmp(args.Argv(1), "seed")) {
+			player->inventory.ammo[2] = Max(0, atoi(args.Argv(2)));
+			player->inventory.ammo[15] = Max(0, atoi(args.Argv(3)));
+			player->spawnArgs.Set("rw_weapon_ammo_fraction_2", "0");
+			player->spawnArgs.Set("rw_weapon_ammo_fraction_15", "0");
+		} else if (args.Argc() == 3 && !idStr::Icmp(args.Argv(1), "pickup")) {
+			gameLocal.Printf("SSGPICKUP accepted=%d\n", player->Give("ammo_acid", args.Argv(2)));
+		}
+	}
+	gameLocal.Printf("SSGAMMO acid=%d shells=%d acidMax=%d shellMax=%d acidFraction=%s shellFraction=%s clip=%d held=%d alt=%d\n",
+		player->inventory.ammo[2], player->inventory.ammo[15],
+		player->inventory.MaxAmmoForAmmoClass(player, "ammo_acid"), player->inventory.MaxAmmoForAmmoClass(player, "ammo_d3supershells"),
+		player->spawnArgs.GetString("rw_weapon_ammo_fraction_2", "0"), player->spawnArgs.GetString("rw_weapon_ammo_fraction_15", "0"),
+		player->inventory.clip[15], (player->inventory.weapons & (1 << 15)) != 0, player->inventory.ammo[4]);
+    gameLocal.Printf("SSGPLASMA cells=%d fraction=%s\n", player->inventory.ammo[13], player->spawnArgs.GetString("rw_weapon_ammo_fraction_13", "0"));
+	if (player->hud) {
+		gameLocal.Printf("AMMOHUD count=%s percent=%s\n", player->hud->State().GetString("player_ammoamounttext"),
+			player->hud->State().GetString("player_ammopercent"));
+	}
+}
+
 static void Cmd_RocketInfo_f(const idCmdArgs &args) {
 	hhPlayer *player = static_cast<hhPlayer *>(gameLocal.GetLocalPlayer());
 	if (!player || !player->inventory.UsesIndependentWeaponAmmo(player)) { return; }
@@ -2691,6 +2717,7 @@ static void Cmd_RocketInfo_f(const idCmdArgs &args) {
 
 void idGameLocal::InitConsoleCommands( void ) {
 	cmdSystem->AddCommand("plasmaInfo", Cmd_PlasmaInfo_f, CMD_FL_GAME, "show independent slot-6 ammo; developer: seed, pickup");
+	cmdSystem->AddCommand("superShotgunInfo", Cmd_SuperShotgunInfo_f, CMD_FL_GAME, "show independent Super Shotgun ammo; developer: seed, pickup");
 	cmdSystem->AddCommand("rocketInfo", Cmd_RocketInfo_f, CMD_FL_GAME, "show independent slot-7 ammo; developer: seed, pickup");
 	cmdSystem->AddCommand("chaingunInfo", Cmd_ChaingunInfo_f, CMD_FL_GAME, "show independent slot-5 ammo; developer: seed, pickup, altpickup");
 	cmdSystem->AddCommand("weaponAmmoInfo", Cmd_WeaponAmmoInfo_f, CMD_FL_GAME, "show independent ammo pools; developer: seed, pickup, useRifle, useShells, reload");

@@ -2146,6 +2146,8 @@ ammo_t idWeapon::GetAmmoNumForName( const char *ammoname ) {
 		!idStr::Icmp(ammoname, "ammo_d3cells")) { return (ammo_t)13; }
 	if (!gameLocal.isMultiplayer && !*cvarSystem->GetCVarString("fs_game") &&
 		!idStr::Icmp(ammoname, "ammo_d3rockets")) { return (ammo_t)14; }
+	if (!gameLocal.isMultiplayer && !*cvarSystem->GetCVarString("fs_game") &&
+		!idStr::Icmp(ammoname, "ammo_d3supershells")) { return (ammo_t)15; }
 
 	int num;
 	const idDict *ammoDict;
@@ -2180,6 +2182,7 @@ idWeapon::GetAmmoNameForNum
 const char *idWeapon::GetAmmoNameForNum( ammo_t ammonum ) {
 	if (!gameLocal.isMultiplayer && !*cvarSystem->GetCVarString("fs_game") && ammonum == 13) { return "ammo_d3cells"; }
 	if (!gameLocal.isMultiplayer && !*cvarSystem->GetCVarString("fs_game") && ammonum == 14) { return "ammo_d3rockets"; }
+	if (!gameLocal.isMultiplayer && !*cvarSystem->GetCVarString("fs_game") && ammonum == 15) { return "ammo_d3supershells"; }
 	if (!gameLocal.isMultiplayer && !*cvarSystem->GetCVarString("fs_game") && ammonum == 12) { return "ammo_d3belt"; }
 	if (!gameLocal.isMultiplayer && !*cvarSystem->GetCVarString("fs_game") && ammonum == 11) { return "ammo_d3bullets"; }
 	if (!gameLocal.isMultiplayer && !*cvarSystem->GetCVarString("fs_game") && ammonum == 10) {

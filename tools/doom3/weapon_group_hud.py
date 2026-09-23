@@ -17,8 +17,13 @@ def recolor_tga(data, variant):
         blue, green, red = out[pos:pos+3]
         # Shift the baked blue fill, retaining pale outlines and alpha.
         if blue > red:
-            out[pos:pos+3] = bytes((red, green if variant == 1 else
-                                   min(green, red + max(0, green-red)//5), blue))
+            if variant == 1:
+                out[pos:pos+3] = bytes((red, green, blue))
+            else:
+                # Purple third variant: retain blue, lift red, suppress green.
+                out[pos:pos+3] = bytes((blue, min(green, red + max(0, green-red)//4),
+                                       red + (blue-red)*3//4))
+
 
     while remaining:
         if out[2] == 10:

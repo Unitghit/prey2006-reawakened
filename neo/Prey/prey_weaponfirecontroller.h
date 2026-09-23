@@ -101,7 +101,11 @@ hhWeaponFireController::HasAmmo
 ================
 */
 ID_INLINE bool hhWeaponFireController::HasAmmo() const {
-	return hhFireController::HasAmmo() && ( (ClipSize() == 0) || (AmmoInClip() > 0) );
+	if (dict && dict->GetBool("rw_clipInAmmoUnits")) {
+        return (AmmoAvailable() < 0 || AmmoAvailable() >= AmmoRequired()) &&
+            (ClipSize() == 0 || AmmoInClip() >= AmmoRequired());
+    }
+    return hhFireController::HasAmmo() && ( (ClipSize() == 0) || (AmmoInClip() > 0) );
 }
 
 /*

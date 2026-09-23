@@ -17,18 +17,18 @@ unchanged. Import retail assets locally, never into the source repository.
 
 ## Groups and presentation
 
-| Key | Original weapon (blue) | First Doom weapon (orange) | Second Doom weapon (red) |
+| Key | Original weapon (blue) | First Doom weapon (orange) | Second Doom weapon (purple) |
 | --- | --- | --- | --- |
 | 1 | Wrench | Chainsaw | |
 | 2 | Hunter Rifle | Shotgun | |
 | 3 | Crawler Grenades | Grenades | |
 | 4 | Leech Gun | Machine Gun | |
 | 5 | Autocannon | Chaingun | |
-| 6 | Acid Sprayer | Plasma Gun | Super Shotgun, Doom-only mode (planned) |
+| 6 | Acid Sprayer | Plasma Gun | Super Shotgun |
 | 7 | Rocket Launcher | Rocket Launcher | |
 
-The Super Shotgun uses Resurrection of Evil assets. Its inclusion in the
-mixed mode has not been requested. Colors identify variants consistently;
+The Super Shotgun uses Resurrection of Evil assets and unlocks with the Acid
+Sprayer in the mixed mode. Third variants use purple instead of red. Colors identify variants consistently;
 do not renumber colors when hiding Prey weapons in Doom-only mode.
 
 Repeated presses of a number key cycle the unlocked weapons in that group.
@@ -54,8 +54,10 @@ The Chaingun unlocks with the Autocannon and uses slot 5's primary supply only.
 Its independent reserve is capped at 180 including 60 loaded rounds; Autocannon
 primary capacity is 200 while paired. Secondary grenades remain unchanged.
 The Plasma Gun unlocks with the Acid Sprayer in slot 6 and receives only acid
-pickup supply. Fixed halves supply separate reserves capped at 12 acid units
-and 150 cells (including a 50-cell magazine). Existing acquired acid is preserved.
+pickup supply. With the Super Shotgun installed, fixed thirds supply separate
+reserves capped at 8 acid units, 150 cells (50 loaded), and 16 Super Shotgun
+shells (two loaded). Without the expansion, the original acid/Plasma halves
+remain. Existing acquired acid is preserved.
 The Doom Rocket Launcher unlocks with the original launcher in slot 7. Fixed
 halves of rocket pickup supply fill independent 12-rocket reserves; the Doom
 launcher holds five loaded rockets. Existing acquired Prey rockets are preserved.

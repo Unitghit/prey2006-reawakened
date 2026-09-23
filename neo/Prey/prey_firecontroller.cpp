@@ -302,7 +302,7 @@ void hhFireController::LaunchProjectiles( const idVec3& launchOrigin, const idMa
 		}
 
         idEntityPtr<hhShotgunBlast> shotgunBlast;
-        if ( !gameLocal.isMultiplayer && numProjectiles > 0 && numProjectiles <= 13 && GetProjectileDict()->GetBool("concentratedShotgunGibs") ) {
+        if ( !gameLocal.isMultiplayer && numProjectiles > 0 && numProjectiles <= 20 && GetProjectileDict()->GetBool("concentratedShotgunGibs") ) {
             shotgunBlast = static_cast<hhShotgunBlast *>(gameLocal.SpawnEntityType(hhShotgunBlast::Type));
         }
         hhProjectile* projectile = NULL;
@@ -322,7 +322,19 @@ void hhFireController::LaunchProjectiles( const idVec3& launchOrigin, const idMa
             if ( shotgunBlast.IsValid() ) {
                 projectile->spawnArgs.SetInt("shotgunBlast", shotgunBlast.GetSpawnId());
             }
-			projectile->Launch( launchOrigin, DetermineProjectileAxis(aimAxis), pushVelocity, 0.0f, 1.0f );
+            idMat3 pelletAxis = DetermineProjectileAxis(aimAxis);
+            if (dict->GetBool("rw_doubleShotgunSpread")) {
+                // Resurrection of Evil: eight narrow pellets plus twelve wide.
+                const float width = ix < 8 ? 5.0f : 22.0f;
+                const float height = ix < 8 ? 10.0f : 15.0f;
+                const float spin = idMath::TWO_PI * gameLocal.random.RandomFloat();
+                const float x = idMath::Sin(DEG2RAD(width) * gameLocal.random.RandomFloat());
+                const float y = idMath::Sin(DEG2RAD(height) * gameLocal.random.RandomFloat());
+                idVec3 dir = aimAxis[0] + aimAxis[2] * (y * idMath::Sin(spin)) - aimAxis[1] * (x * idMath::Cos(spin));
+                dir.Normalize();
+                pelletAxis = dir.ToMat3();
+            }
+            projectile->Launch( launchOrigin, pelletAxis, pushVelocity, 0.0f, 1.0f );
 		}
 	}
 }

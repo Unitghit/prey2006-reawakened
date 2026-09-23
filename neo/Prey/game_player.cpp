@@ -276,16 +276,16 @@ void hhPlayer::SynchronizeDoom3Shotgun() {
 		return; // Do not alter unrelated mods or the old standalone prototype.
 	}
 	bool anyChanged = false;
-	for (int variant = 0; variant < 5; ++variant) {
-		const int slots[] = {8, 10, 11, 13, 14};
+	for (int variant = 0; variant < 6; ++variant) {
+		const int slots[] = {8, 10, 11, 13, 14, 15};
 		const int slot = slots[variant], bit = 1 << slot, flag = 1 << (slot - 1);
-		const char *name = variant == 0 ? "d3shotgun" : (variant == 1 ? "d3machinegun" : (variant == 2 ? "d3chaingun" : (variant == 3 ? "d3plasmagun" : "d3rocketlauncher")));
-		const char *defName = variant == 0 ? "weaponobj_d3shotgun" : (variant == 1 ? "weaponobj_d3machinegun" : (variant == 2 ? "weaponobj_d3chaingun" : (variant == 3 ? "weaponobj_d3plasmagun" : "weaponobj_d3rocketlauncher")));
+		const char *name = variant == 0 ? "d3shotgun" : (variant == 1 ? "d3machinegun" : (variant == 2 ? "d3chaingun" : (variant == 3 ? "d3plasmagun" : (variant == 4 ? "d3rocketlauncher" : "d3supershotgun"))));
+		const char *defName = variant == 0 ? "weaponobj_d3shotgun" : (variant == 1 ? "weaponobj_d3machinegun" : (variant == 2 ? "weaponobj_d3chaingun" : (variant == 3 ? "weaponobj_d3plasmagun" : (variant == 4 ? "weaponobj_d3rocketlauncher" : "weaponobj_d3supershotgun"))));
 		const idDict *definition = gameLocal.FindEntityDefDict(defName, false);
 		if (!definition || !definition->GetBool("rw_saveCompatible")) { continue; }
 		const bool enabled = g_doom3Shotgun.GetBool();
 		const bool held = (inventory.weapons & bit) != 0;
-		const int parentSlot = variant == 0 ? 2 : (variant == 1 ? 4 : (variant == 2 ? 5 : (variant == 3 ? 6 : 7)));
+		const int parentSlot = variant == 0 ? 2 : (variant == 1 ? 4 : (variant == 2 ? 5 : (variant == 3 ? 6 : (variant == 4 ? 7 : 6))));
 		const bool parentOwned = (inventory.weapons & (1 << parentSlot)) != 0;
 		// Old prototypes granted the Machine Gun with the rifle. Its new unlock
 		// must depend on the Leech Gun, even when that old grant was saved.
@@ -435,6 +435,9 @@ void hhPlayer::RestorePersistantInfo( void ) {
 	}
 	if (spawnArgs.FindKey("rw_weapon_d3rocketlauncher_clip")) {
 		inventory.clip[14] = spawnArgs.GetInt("rw_weapon_d3rocketlauncher_clip", "-1");
+	}
+	if (spawnArgs.FindKey("rw_weapon_d3supershotgun_clip")) {
+		inventory.clip[15] = spawnArgs.GetInt("rw_weapon_d3supershotgun_clip", "-1");
 	}
 	SynchronizeDoom3Shotgun();
 
@@ -1092,7 +1095,7 @@ void hhPlayer::UpdateHudAmmo(idUserInterface *_hud) {
 		bDisallowAmmoBars = true;
 	}
 	else {
-		if (currentWeapon >= 0 && currentWeapon < 15) {
+		if (currentWeapon >= 0 && currentWeapon < MAX_WEAPONS) {
 			ammoType = weaponInfo[currentWeapon].ammoType;
 			altAmmoType = altWeaponInfo[currentWeapon].ammoType;
 			ammo = inventory.ammo[ammoType];
@@ -1579,8 +1582,8 @@ hhPlayer::SkipWeapon
 ===============
 */
 bool hhPlayer::SkipWeapon( int weaponNum ) const {
-	if ( (weaponNum == 8 || weaponNum == 10 || weaponNum == 11 || weaponNum == 13 || weaponNum == 14) && spawnArgs.FindKey("rw_weapon_d3shotgun_enabled") &&
-		(!g_doom3Shotgun.GetBool() || (weaponNum == 10 && !(inventory.weapons & (1 << 4))) || (weaponNum == 11 && !(inventory.weapons & (1 << 5))) || (weaponNum == 13 && !(inventory.weapons & (1 << 6))) || (weaponNum == 14 && !(inventory.weapons & (1 << 7)))) ) {
+	if ( (weaponNum == 8 || weaponNum == 10 || weaponNum == 11 || weaponNum == 13 || weaponNum == 14 || weaponNum == 15) && spawnArgs.FindKey("rw_weapon_d3shotgun_enabled") &&
+		(!g_doom3Shotgun.GetBool() || (weaponNum == 10 && !(inventory.weapons & (1 << 4))) || (weaponNum == 11 && !(inventory.weapons & (1 << 5))) || (weaponNum == 13 && !(inventory.weapons & (1 << 6))) || (weaponNum == 14 && !(inventory.weapons & (1 << 7))) || (weaponNum == 15 && !(inventory.weapons & (1 << 6)))) ) {
 		return true;
 	}
 	//No bow if not in spirit mode
@@ -5620,8 +5623,8 @@ nla: used to instantly force the spirit weapon, without lowering and raising
 void hhPlayer::ForceWeapon( int weaponNum ) {
 	// A saved spirit/vehicle hand archive may still reference the addon slot.
 	// Resolve it to an owned physical weapon before constructing the view model.
-	if ( (weaponNum == 8 || weaponNum == 10 || weaponNum == 11 || weaponNum == 13 || weaponNum == 14) && spawnArgs.FindKey("rw_weapon_d3shotgun_enabled") &&
-		(!g_doom3Shotgun.GetBool() || (weaponNum == 10 && !(inventory.weapons & (1 << 4))) || (weaponNum == 11 && !(inventory.weapons & (1 << 5))) || (weaponNum == 13 && !(inventory.weapons & (1 << 6))) || (weaponNum == 14 && !(inventory.weapons & (1 << 7)))) ) {
+	if ( (weaponNum == 8 || weaponNum == 10 || weaponNum == 11 || weaponNum == 13 || weaponNum == 14 || weaponNum == 15) && spawnArgs.FindKey("rw_weapon_d3shotgun_enabled") &&
+		(!g_doom3Shotgun.GetBool() || (weaponNum == 10 && !(inventory.weapons & (1 << 4))) || (weaponNum == 11 && !(inventory.weapons & (1 << 5))) || (weaponNum == 13 && !(inventory.weapons & (1 << 6))) || (weaponNum == 14 && !(inventory.weapons & (1 << 7))) || (weaponNum == 15 && !(inventory.weapons & (1 << 6)))) ) {
 		if ( inventory.weapons & (1 << 2) ) { weaponNum = 2; }
 		else if ( inventory.weapons & (1 << 1) ) { weaponNum = 1; }
 	}
@@ -7441,6 +7444,9 @@ void hhPlayer::Restore( idRestoreGame *savefile ) {
 	savefile->ReadAngles( deathwalkLastViewAngles );
 	savefile->ReadMat3( deathwalkLastEyeAxis );
 	savefile->ReadBool( deathwalkLastCrouching );
+    // Keep the historical 15 serialized HUD records; rebuild the full runtime
+    // cache from definitions so the final inventory slot is safe after load.
+    SetupWeaponInfo();
 }
 
 int hhPlayer::GetSpiritPower() {
@@ -7952,10 +7958,10 @@ void hhPlayer::SetupWeaponInfo() {
 	const char *ammoName = NULL;
 	float maxAmmo;
 
-	memset(weaponInfo, 0, sizeof(weaponInfo_t)*15);
-	memset(altWeaponInfo, 0, sizeof(weaponInfo_t)*15);
+	memset(weaponInfo, 0, sizeof(weaponInfo));
+	memset(altWeaponInfo, 0, sizeof(altWeaponInfo));
 
-	for (int ix=0; ix<15; ix++) {
+	for (int ix=0; ix<MAX_WEAPONS; ix++) {
 		const char *weaponClassName = spawnArgs.GetString( va( "def_weapon%d", ix ), NULL );
 		if ( weaponClassName && *weaponClassName ) {
 

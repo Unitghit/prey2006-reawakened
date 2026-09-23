@@ -1,13 +1,14 @@
 # Doom 3 weapon prototype
 
-Optional Shotgun, Machine Gun, Chaingun and Plasma Gun for Prey2006 Reawakened.
+Optional Doom 3 arsenal for Prey2006 Reawakened, including the expansion Super Shotgun.
 Press 2 to cycle Hunter Rifle / Shotgun, 4 for Leech Gun / Machine Gun,
-5 for Autocannon / Chaingun, or 6 for Acid Sprayer / Plasma Gun.
-Original weapons are blue and the first addition in each slot is orange.
+5 for Autocannon / Chaingun, 6 for Acid Sprayer / Plasma Gun / Super Shotgun,
+or 7 for the two Rocket Launchers.
+Original weapons are blue, second weapons orange, and third weapons purple.
 Both silhouette and surrounding highlight change color. Wheel/controller
 cycling visits all available guns.
 This is single-player experimental work, not the completed arsenal conversion.
-The expansion's Super Shotgun and Doom-only mode are not implemented yet.
+Doom-only mode is not implemented yet.
 
 The local importer reads an original Doom 3 installation; BFG assets are not
 supported. It imports namespaced models, animations, materials, normal/specular
@@ -20,8 +21,8 @@ From a packaged Reawakened installation:
 python tools/doom3/import_shotgun.py "D:/Games/Doom 3" engine/base --prey-base engine/base --save-compatible
 ```
 
-The historical command name is retained. Compatible imports now install all four
-weapons. For development, pass the retail Prey base directory followed by the
+The historical command name is retained. Compatible imports install five base-game weapons, plus the
+Super Shotgun when Resurrection of Evil is installed. For development, pass the retail Prey base directory followed by the
 active engine's base directory using repeated `--prey-base` arguments. The
 importer validates dependencies before writing and records hashes in
 `base/doom3-import-manifest.json`. Default non-compatible mode still imports
@@ -32,7 +33,8 @@ Owning the Hunter Rifle unlocks the Shotgun. Owning the Leech Gun unlocks the
 Machine Gun, including in existing saves. Old rifle-only Machine Gun grants
 are hidden until the Leech Gun is acquired; their ammo remains stored.
 Owning the Autocannon unlocks the Chaingun, also on existing saves.
-Owning the Acid Sprayer unlocks the Plasma Gun, including in existing saves.
+Owning the Acid Sprayer unlocks the Plasma Gun and Super Shotgun, including in
+existing saves. The Super Shotgun requires expansion assets.
 Normal campaign saves use the same folder with the option enabled or disabled.
 Keep imported assets installed when disabling the option.
 
@@ -46,8 +48,10 @@ energy absorption is unchanged and never supplies Machine Gun bullets:
 | Machine Gun | **180 rounds** | 60 |
 | Autocannon (when Chaingun unlocked) | 200 primary rounds | Original behavior |
 | Chaingun | **180 rounds** | 60 |
-| Acid Sprayer (when Plasma Gun unlocked) | 12 acid units | Original behavior |
+| Acid Sprayer (paired / with Super Shotgun) | 12 / 8 acid units | Original behavior |
 | Plasma Gun | **150 cells** | 50 |
+| Super Shotgun | **16 shells** | 2 |
+| Doom Rocket Launcher | **12 rockets** | 5 |
 
 Primary Autocannon pickups supply only the slot-5 pair. For example, a 40-round
 pickup gives 20 Autocannon rounds and 30 Chaingun bullets when both reserves
@@ -57,7 +61,7 @@ its new reserve receives subsequent pickups, without a free refill.
 
 The shotgun remains capped at 16 shells with either two or three weapons
 unlocked; the Machine Gun is capped at 180 total rounds, including its loaded
-60. A 30-round rifle pickup gives 10 rifle rounds and 3.2 shells before the
+60. A 30-round rifle pickup gives 10 rifle rounds and 2 shells before the
 Leech Gun unlock. Afterwards it also gives 24 Machine Gun rounds. Each receives
 a fixed third of its original normalized pickup supply; slot 5 receives fixed
 halves. Full or locked partners never donate their unused share. Fractional
@@ -268,7 +272,7 @@ Historical validation figures above describe earlier revisions.
 
 The Plasma Gun is the orange second weapon in slot 6. It uses independent cells
 supplied only by Acid Sprayer ammo boxes and weapon pickups, including dropped
-weapons. Fixed half shares apply: the regular four-unit acid pickup supplies
+weapons. Without the Super Shotgun, fixed half shares apply: the regular four-unit acid pickup supplies
 two acid units and 40 cells; the weapon pickup supplies eight acid units and
 160 cells before the 150-cell total capacity limit (50 loaded plus 100 reserve).
 Pickup rates are unchanged; excess cells in older saves clamp to 150 when enabled.
@@ -279,7 +283,7 @@ Slot 5 retains its existing Autocannon/Chaingun pair and ammo rules.
 
 The local adapter imports the retail models, animations, Bank GUI font, sounds,
 bolt mesh and trail/impact particles. It retains a 50-cell magazine, 0.125-second
-fire interval, zero spread, 700-unit/second bolt speed and 16 direct damage.
+fire interval, zero spread, 700-unit/second bolt speed and 25 direct damage.
 Prey's projectile class supplies portal traversal and collision behavior; the
 retail particles run through Prey's FX system. It has no invented alternate fire.
 
@@ -326,3 +330,50 @@ fell to 9,864 from splash. Two test rockets crossed the portal and impacted on
 its far side. `test_rocket_ammo.ps1` provides the isolated ammunition regression;
 `rocketInfo` displays state (developer mode allows `seed` and `pickup`), and
 `d3_rocketTrace 1` logs direct damage, portal traversal, impacts, and expiry.
+
+## Super Shotgun and purple third variants
+
+The optional Resurrection of Evil importer adds the Super Shotgun as the purple
+third weapon in slot 6. It unlocks when the Acid Sprayer is acquired, including
+on existing saves. Repeated presses of 6 select Acid Sprayer, Plasma Gun, then
+Super Shotgun; wheel/controller traversal uses the same order. Both the selected
+silhouette and its surrounding highlight use purple. The saved HUD window tree
+is unchanged.
+
+Run the normal `import_shotgun.py --save-compatible` command with the original
+Doom 3 installation root. If `d3xp/pak*.pk4` contains the expansion weapon, its
+assets are imported locally. Base Doom 3 owners retain the existing weapon pack
+without the Super Shotgun. Keep imported assets installed for saves using them.
+
+The Super Shotgun holds 16 shells total, including two loaded, and consumes two
+per blast. It automatically reloads after firing when sufficient shells remain;
+R also reloads. One remaining shell cannot fire. Its 20 pellets deal 16 base
+damage each, with the expansion's eight-pellet narrow and twelve-pellet wide
+elliptical spread. The ellipse sampling follows id Software's released
+[Weapon.cpp](https://github.com/id-Software/DOOM-3-BFG/blob/master/neo/d3xp/Weapon.cpp).
+Concentrated lethal hits use the existing protected close-range gib behavior.
+There is no invented alternate attack.
+
+With all three slot-6 weapons installed, acid supply uses fixed thirds. A normal
+four-unit acid box supplies 1 1/3 acid units, 26 2/3 Plasma cells, and two Super
+Shotgun shells. A sixteen-unit Acid Sprayer weapon/drop supplies 5 1/3 acid units,
+106 2/3 cells, and eight shells, limited by available room. Fractions persist.
+The acid pickup cap becomes eight; existing excess acid remains until spent.
+Plasma retains its 150-cell cap. Acquired pools are independent, and full pools
+never donate unused supply to another weapon. Without expansion assets, the
+existing two-weapon half shares remain.
+
+Inventory/ammo index 15 uses the existing 16-entry serialized arrays. The HUD
+cache now covers all 16 slots, but its historical 15 saved records are retained;
+the complete cache is reconstructed after loading. No inventory or script save
+layout is expanded. The versioned Super Shotgun script is now a save ABI.
+
+Hidden/muted tests cover two-shell consumption, reloading, fractional pickup
+allocation, full pools, equipped/disabled saves, a save during reload, refusal to
+fire with one shell, real ammo/weapon pickups, slot-key and wheel cycling, purple
+HUD rendering, and concentrated Hunter gibs. `test_supershotgun_ammo.ps1` tests
+independent reserves; `test_plasma_ammo.ps1` supports both expansion and base-only
+installations. Developer diagnostics: `superShotgunInfo` and
+`d3_supershotgunTrace 1`.
+
+The Super Shotgun also passed Spirit Walk and real level-transition/save tests.

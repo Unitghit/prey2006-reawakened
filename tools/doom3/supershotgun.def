@@ -1,0 +1,84 @@
+// Slot-6 third weapon. Stable inventory/ammo index 15; two shells per shot.
+entityDef weaponobj_d3supershotgun {
+    "rw_saveCompatible" "1"
+    "rw_weaponGroup" "6"
+    "rw_weaponVariant" "2"
+    "rw_ammoCapacity" "16"
+    "rw_addonScript" "script/reawakened/weapon_d3supershotgun_v1.script"
+    "snd_fire" "d3_ssg_fire"
+    "snd_click" "d3_ssg_click"
+    "snd_clack" "d3_ssg_clack"
+    "snd_insert" "d3_ssg_shell_insert"
+    "inherit" "weaponobj_default"
+    "weaponname" "Doom 3 Super Shotgun"
+    "ddaname" "rifle"
+    "spawnclass" "hhWeapon"
+    "scriptobject" "weapon_d3supershotgun"
+    "model" "d3_viewmodel_shotgun_double"
+    "model_world" "d3_worldmodel_shotgun_double"
+    "joint_attach" "Rattach_gun"
+    "def_fireInfo" "fireinfo_d3supershotgun"
+    "def_altFireInfo" "fireinfo_d3supershotgun"
+    "def_dropItem" "weapon_d3supershotgun"
+    "nozzleFx" "0"
+    "snd_empty" "d3_player_shotgun_empty"
+    "inv_icon" "textures/interface/icons/rifle"
+}
+
+entityDef fireinfo_d3supershotgun {
+    "inherit" "fireinfo_rifle"
+    "def_projectile" "projectile_d3supershotgun"
+    "numProjectiles" "20"
+    "rw_doubleShotgunSpread" "1"
+    "spread" "22"
+    "ammoType" "ammo_d3supershells"
+    "ammoRequired" "2"
+    "rw_clipInAmmoUnits" "1"
+    "clipSize" "2"
+    "lowAmmo" "2"
+    "fireRate" "2.2"
+    "joint_barrel" "barrel"
+    "muzzlelocation" "32 0 0"
+    "fx_muzzleFlash" ""
+    "flashColor" "1 0.8 0.4"
+    "flashSize" "120 120 120"
+    "flashTime" "0.1"
+    "muzzle_kick_time" "0.1"
+    "muzzle_kick_maxtime" "0.1"
+    "muzzle_kick_offset" "0 0 0"
+    "recoilangles" "-1 0 0"
+}
+
+entityDef projectile_d3supershotgun {
+    "concentratedShotgunGibs" "1"
+    "inherit" "projectile_rifle"
+    "def_damage" "damage_d3supershotgun"
+    "velocity" "7200 0 0"
+    "model" ""
+    "fx_fly" ""
+    "snd_fly" ""
+    "mtr_explode_light_shader" ""
+    "explode_light_size" "0 0 0"
+}
+
+entityDef damage_d3supershotgun {
+    "inherit" "missile_rifle"
+    "damage" "16"
+    "gib" "0"
+    "knockback" "10"
+}
+
+entityDef weapon_d3supershotgun {
+    "inherit" "weapon_hiderweapon"
+    "model" "d3_worldmodel_shotgun_double"
+    "inv_name" "Doom 3 Super Shotgun"
+    "inv_weapon" "weaponobj_d3supershotgun"
+    "inv_ammo_acid" "4"
+    "def_precache1" "weaponobj_d3supershotgun"
+}
+
+entityDef damage_d3supershotgun_gib {
+    "inherit" "damage_d3supershotgun"
+    "gib" "1"
+    "gib_ignoreDelay" "1"
+}

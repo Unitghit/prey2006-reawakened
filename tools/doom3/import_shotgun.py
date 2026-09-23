@@ -184,6 +184,23 @@ def main():
         import_plasmagun(index, read, text, block, files)
         from import_rocketlauncher import import_rocketlauncher
         import_rocketlauncher(index, read, text, block, files)
+        # Expansion assets are optional; base Doom owners retain the other guns.
+        expansion = dict(index)
+        for archive in sorted((args.install / 'd3xp').glob('pak*.pk4')):
+            z = zipfile.ZipFile(archive)
+            archives.append(z)
+            for name in z.namelist():
+                if not name.endswith('/'):
+                    expansion[name.lower()] = (z, name)
+        if 'def/weapon_shotgun_double.def' in expansion:
+            def xp_read(name):
+                z, original = expansion[name.lower()]
+                return z.read(original)
+            def xp_text(name):
+                return re.sub(r'/\*.*?\*/|//[^\n]*', '', xp_read(name).decode('latin1').replace('\r', ''), flags=re.S)
+            from import_supershotgun import import_supershotgun
+            import_supershotgun(expansion, xp_read, xp_text, block, files)
+
 
     # Validate everything before writing; no path may escape the output folder.
     for name in files:

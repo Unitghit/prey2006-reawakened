@@ -127,7 +127,7 @@ void hhShotgunBlast::Save( idSaveGame *file ) const {
 void hhShotgunBlast::Restore( idRestoreGame *file ) {
     int count;
     file->ReadInt(count);
-    if ( count < 0 || count > 13 ) file->Error("Invalid shotgun blast target count");
+    if ( count < 0 || count > 20 ) file->Error("Invalid shotgun blast target count");
     targets.SetNum(count);
     for ( int i = 0; i < count; ++i ) {
         target_t &t = targets[i];
@@ -135,7 +135,7 @@ void hhShotgunBlast::Restore( idRestoreGame *file ) {
         file->ReadBool(t.killed); file->ReadBool(t.gibbed); file->ReadVec3(t.direction);
     }
     file->ReadInt(count);
-    if ( count < 0 || count > 13 ) file->Error("Invalid shotgun blast hit count");
+    if ( count < 0 || count > 20 ) file->Error("Invalid shotgun blast hit count");
     pending.SetNum(count);
     for ( int i = 0; i < count; ++i ) {
         hit_t &h = pending[i];

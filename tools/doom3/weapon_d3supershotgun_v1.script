@@ -1,0 +1,65 @@
+// Prey firing-controller adapter for locally imported Doom 3 supershotgun assets.
+object weapon_d3supershotgun : weapon_base {
+    void init();
+    void Idle();
+    void Fire();
+    void Reload();
+};
+
+void weapon_d3supershotgun::init() {
+    nextAttack = 0;
+    WEAPON_ALTMODE = false;
+}
+
+void weapon_d3supershotgun::Idle() {
+    weaponReady();
+    PlayCycle("idle");
+    while (1) {
+        CheckLower(2);
+        CheckAside(2);
+        if (WEAPON_ATTACK && sys.getTime() >= nextAttack) {
+            if (ammoInClip() >= 2) {
+                PerformAction("Fire", 0);
+            } else if (ammoAvailable() >= 2) {
+                PerformAction("Reload", 2);
+            } else {
+                StartSound("snd_empty", SND_CHANNEL_WEAPON, false);
+                nextAttack = sys.getTime() + 0.4;
+            }
+        }
+        if (WEAPON_RELOAD && ammoAvailable() >= 2 && ammoInClip() < clipSize() && ammoAvailable() > ammoInClip()) {
+            PerformAction("Reload", 2);
+        }
+        waitFrame();
+    }
+}
+
+void weapon_d3supershotgun::Fire() {
+    nextAttack = sys.getTime() + 2.2;
+    PlayAnim("fire");
+    setShaderParm(SHADERPARM_TIMEOFFSET, -sys.getTime());
+    setShaderParm(SHADERPARM_DIVERSITY, sys.random(1));
+    fireProjectiles();
+    if (sys.getcvarFloat("d3_supershotgunTrace") == 1) {
+        sys.println("D3SHOT fired clip=" + ammoInClip());
+    }
+    while (!animDone(ANIMCHANNEL_ALL, 0)) {
+        CheckLower(2);
+        CheckAside(2);
+        waitFrame();
+    }
+    if (ammoAvailable() >= 2) { PerformAction("Reload", 2); }
+    PerformAction("Idle", 0);
+}
+
+void weapon_d3supershotgun::Reload() {
+    weaponReloading();
+    PlayAnim("reload");
+    while (!animDone(ANIMCHANNEL_ALL, 0)) {
+        CheckLower(2);
+        CheckAside(2);
+        waitFrame();
+    }
+    addToClip(clipSize());
+    PerformAction("Idle", 0);
+}

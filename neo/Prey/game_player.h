@@ -66,8 +66,8 @@ class hhPlayer : public idPlayer {
 	CLASS_PROTOTYPE(hhPlayer);
 
 public:
-	weaponInfo_t				weaponInfo[15];
-	weaponInfo_t				altWeaponInfo[15];
+	weaponInfo_t				weaponInfo[MAX_WEAPONS];
+	weaponInfo_t				altWeaponInfo[MAX_WEAPONS];
 	float						lighterTemperature;			// Temp of the lighter.  0 = cold, 1 = too hot to use
 	renderLight_t				lighter;					// lighter
 	int							lighterHandle;

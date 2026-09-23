@@ -357,7 +357,7 @@ void hhWeaponFireController::UseAmmo() {
 	if( owner.IsValid() ) {
 		owner->UseAmmo( GetAmmoType(), AmmoRequired() );
 		if ( ClipSize() && AmmoRequired() ) {
-			ammoClip--;
+			ammoClip -= dict->GetBool("rw_clipInAmmoUnits") ? AmmoRequired() : 1;
 		}
 	}
 }
@@ -384,7 +384,7 @@ hhWeaponFireController::GetAmmoType
 ================
 */
 ammo_t hhWeaponFireController::GetAmmoType( const char *ammoname ) {
-	if (!idStr::Icmp(ammoname, "ammo_d3shells") || !idStr::Icmp(ammoname, "ammo_d3bullets") || !idStr::Icmp(ammoname, "ammo_d3belt") || !idStr::Icmp(ammoname, "ammo_d3cells") || !idStr::Icmp(ammoname, "ammo_d3rockets")) { return idWeapon::GetAmmoNumForName(ammoname); }
+	if (!idStr::Icmp(ammoname, "ammo_d3shells") || !idStr::Icmp(ammoname, "ammo_d3bullets") || !idStr::Icmp(ammoname, "ammo_d3belt") || !idStr::Icmp(ammoname, "ammo_d3cells") || !idStr::Icmp(ammoname, "ammo_d3rockets") || !idStr::Icmp(ammoname, "ammo_d3supershells")) { return idWeapon::GetAmmoNumForName(ammoname); }
 
 	int num;
 	const idDict *ammoDict;
@@ -486,7 +486,7 @@ hhWeaponFireController::AmmoAvailable
 */
 int hhWeaponFireController::AmmoAvailable() const {
 	if ( owner.IsValid() ) {
-		return owner->HasAmmo( GetAmmoType(), AmmoRequired() );
+		return owner->HasAmmo( GetAmmoType(), dict->GetBool("rw_clipInAmmoUnits") ? 1 : AmmoRequired() );
 	} else {
 		return 0;
 	}
