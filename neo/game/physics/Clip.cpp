@@ -31,6 +31,8 @@ If you have questions concerning this license or the applicable additional terms
 
 #include "../Game_local.h"
 
+// The game validates the entire swept hull before allowing a wall-face exclusion.
+extern bool RW_PortalClipPlane(const idEntity *, const idTraceModel *, const idMat3 &, const idVec3 &, const idVec3 &, idPlane &, float &);
 #define	MAX_SECTOR_DEPTH				12
 #define MAX_SECTORS						((1<<(MAX_SECTOR_DEPTH+1))-1)
 
@@ -1328,7 +1330,23 @@ bool idClip::Translation( trace_t &results, const idVec3 &start, const idVec3 &e
 	if ( !passEntity || passEntity->entityNumber != ENTITYNUM_WORLD ) {
 		// test world
 		idClip::numTranslations++;
+        { idPlane openingPlane; float openingLimit;
+        const bool opening = RW_PortalClipPlane(passEntity, trm, trmAxis, start, end, openingPlane, openingLimit);
+        collisionModelManager->SetPortalClipPlane(opening ? &openingPlane : NULL);
 		collisionModelManager->Translation( &results, start, end, trm, trmAxis, contentMask, 0, vec3_origin, mat3_default );
+        if (opening && openingLimit < results.fraction) {
+            results.fraction = openingLimit;
+            results.endpos = start + (end-start)*openingLimit;
+            memset(&results.c, 0, sizeof(results.c));
+            results.c.normal = start-end;
+            results.c.normal -= openingPlane.Normal()*(results.c.normal*openingPlane.Normal());
+            results.c.normal.Normalize();
+            results.c.point = results.endpos;
+            results.c.dist = results.endpos*results.c.normal;
+            results.c.type = CONTACT_TRMVERTEX;
+            results.c.contents = CONTENTS_SOLID;
+        }
+        collisionModelManager->SetPortalClipPlane(NULL); }
 		results.c.entityNum = results.fraction != 1.0f ? ENTITYNUM_WORLD : ENTITYNUM_NONE;
 		if ( results.fraction == 0.0f ) {
 			return true;		// blocked immediately by the world
@@ -1419,7 +1437,23 @@ bool idClip::TranslationWithExceptions( trace_t &results, const idVec3 &start, c
 	if ( !passEntity || passEntity->entityNumber != ENTITYNUM_WORLD ) {
 		// test world
 		idClip::numTranslations++;
+        { idPlane openingPlane; float openingLimit;
+        const bool opening = RW_PortalClipPlane(passEntity, trm, trmAxis, start, end, openingPlane, openingLimit);
+        collisionModelManager->SetPortalClipPlane(opening ? &openingPlane : NULL);
 		collisionModelManager->Translation( &results, start, end, trm, trmAxis, contentMask, 0, vec3_origin, mat3_default );
+        if (opening && openingLimit < results.fraction) {
+            results.fraction = openingLimit;
+            results.endpos = start + (end-start)*openingLimit;
+            memset(&results.c, 0, sizeof(results.c));
+            results.c.normal = start-end;
+            results.c.normal -= openingPlane.Normal()*(results.c.normal*openingPlane.Normal());
+            results.c.normal.Normalize();
+            results.c.point = results.endpos;
+            results.c.dist = results.endpos*results.c.normal;
+            results.c.type = CONTACT_TRMVERTEX;
+            results.c.contents = CONTENTS_SOLID;
+        }
+        collisionModelManager->SetPortalClipPlane(NULL); }
 		results.c.entityNum = results.fraction != 1.0f ? ENTITYNUM_WORLD : ENTITYNUM_NONE;
 		if ( results.fraction == 0.0f ) {
 			return true;		// blocked immediately by the world
@@ -1625,7 +1659,23 @@ bool idClip::Motion( trace_t &results, const idVec3 &start, const idVec3 &end, c
 	if ( !passEntity || passEntity->entityNumber != ENTITYNUM_WORLD ) {
 		// translational collision with world
 		idClip::numTranslations++;
+        { idPlane openingPlane; float openingLimit;
+        const bool opening = RW_PortalClipPlane(passEntity, trm, trmAxis, start, end, openingPlane, openingLimit);
+        collisionModelManager->SetPortalClipPlane(opening ? &openingPlane : NULL);
 		collisionModelManager->Translation( &translationalTrace, start, end, trm, trmAxis, contentMask, 0, vec3_origin, mat3_default );
+        if (opening && openingLimit < translationalTrace.fraction) {
+            translationalTrace.fraction = openingLimit;
+            translationalTrace.endpos = start + (end-start)*openingLimit;
+            memset(&translationalTrace.c, 0, sizeof(translationalTrace.c));
+            translationalTrace.c.normal = start-end;
+            translationalTrace.c.normal -= openingPlane.Normal()*(translationalTrace.c.normal*openingPlane.Normal());
+            translationalTrace.c.normal.Normalize();
+            translationalTrace.c.point = translationalTrace.endpos;
+            translationalTrace.c.dist = translationalTrace.endpos*translationalTrace.c.normal;
+            translationalTrace.c.type = CONTACT_TRMVERTEX;
+            translationalTrace.c.contents = CONTENTS_SOLID;
+        }
+        collisionModelManager->SetPortalClipPlane(NULL); }
 		translationalTrace.c.entityNum = translationalTrace.fraction != 1.0f ? ENTITYNUM_WORLD : ENTITYNUM_NONE;
 	} else {
 		memset( &translationalTrace, 0, sizeof( translationalTrace ) );
@@ -1788,7 +1838,11 @@ int idClip::Contacts( contactInfo_t *contacts, const int maxContacts, const idVe
 	if ( !passEntity || passEntity->entityNumber != ENTITYNUM_WORLD ) {
 		// test world
 		idClip::numContacts++;
+        { idPlane openingPlane; float openingLimit;
+        const bool opening = RW_PortalClipPlane(passEntity, trm, trmAxis, start, start, openingPlane, openingLimit);
+        collisionModelManager->SetPortalClipPlane(opening ? &openingPlane : NULL);
 		numContacts = collisionModelManager->Contacts( contacts, maxContacts, start, dir, depth, trm, trmAxis, contentMask, 0, vec3_origin, mat3_default );
+        collisionModelManager->SetPortalClipPlane(NULL); }
 	} else {
 		numContacts = 0;
 	}
@@ -1864,7 +1918,11 @@ int idClip::Contents( const idVec3 &start, const idClipModel *mdl, const idMat3 
 	if ( !passEntity || passEntity->entityNumber != ENTITYNUM_WORLD ) {
 		// test world
 		idClip::numContents++;
+        { idPlane openingPlane; float openingLimit;
+        const bool opening = RW_PortalClipPlane(passEntity, trm, trmAxis, start, start, openingPlane, openingLimit);
+        collisionModelManager->SetPortalClipPlane(opening ? &openingPlane : NULL);
 		contents = collisionModelManager->Contents( start, trm, trmAxis, contentMask, 0, vec3_origin, mat3_default );
+        collisionModelManager->SetPortalClipPlane(NULL); }
 	} else {
 		contents = 0;
 	}

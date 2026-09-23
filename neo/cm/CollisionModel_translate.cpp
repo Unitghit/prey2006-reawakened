@@ -539,6 +539,7 @@ idCollisionModelManagerLocal::TranslateTrmThroughPolygon
 ================
 */
 bool idCollisionModelManagerLocal::TranslateTrmThroughPolygon( cm_traceWork_t *tw, cm_polygon_t *p ) {
+    if (PortalClipSurface(p->plane) || (portalClipActive && p->bounds.PlaneDistance(portalClipPlane) < -0.01f)) { return false; }
 	int i, j, k, edgeNum;
 	float fraction, d;
 	idVec3 endp;

@@ -2660,6 +2660,23 @@ static void Cmd_PlasmaInfo_f(const idCmdArgs &args) {
 	}
 }
 
+static void Cmd_PortalGun_f(const idCmdArgs &args) {
+    hhPlayer *player = static_cast<hhPlayer *>(gameLocal.GetLocalPlayer());
+    if (!player) return;
+    if (cvarSystem->GetCVarBool("developer") && args.Argc() == 4 && !idStr::Icmp(args.Argv(1), "aim")) {
+        player->spawnArgs.SetVector("rw_portal_test_direction", idAngles(atof(args.Argv(2)), atof(args.Argv(3)), 0).ToForward());
+        player->spawnArgs.SetBool("rw_portal_test_aim", true);
+    }
+    if (cvarSystem->GetCVarBool("developer") && args.Argc() == 2 && !idStr::Icmp(args.Argv(1), "lab")) {
+        player->Give("weapon", "weaponobj_wrench");
+        player->playerView.Fade(vec4_origin, 0);
+    }
+    if (args.Argc() > 1 && !idStr::Icmp(args.Argv(1), "blue")) player->PlaceGunPortal(0);
+    else if (args.Argc() > 1 && !idStr::Icmp(args.Argv(1), "orange")) player->PlaceGunPortal(1);
+    else if (args.Argc() > 1 && !idStr::Icmp(args.Argv(1), "select")) player->SelectPortalGun(true);
+    gameLocal.Printf("PORTALGUN selected=%d current=%d origin=%s velocity=%s\n", player->PortalGunSelected(), player->GetCurrentWeapon(), player->GetOrigin().ToString(), player->GetPhysics()->GetLinearVelocity().ToString());
+}
+
 static void Cmd_SuperShotgunInfo_f(const idCmdArgs &args) {
 	hhPlayer *player = static_cast<hhPlayer *>(gameLocal.GetLocalPlayer());
 	if (!player || !player->inventory.UsesIndependentWeaponAmmo(player)) { return; }
@@ -2721,6 +2738,7 @@ static void Cmd_RocketInfo_f(const idCmdArgs &args) {
 
 void idGameLocal::InitConsoleCommands( void ) {
 	cmdSystem->AddCommand("plasmaInfo", Cmd_PlasmaInfo_f, CMD_FL_GAME, "show independent slot-6 ammo; developer: seed, pickup");
+	cmdSystem->AddCommand("portalGun", Cmd_PortalGun_f, CMD_FL_GAME, "portal tool: select, blue, orange, or status");
 	cmdSystem->AddCommand("superShotgunInfo", Cmd_SuperShotgunInfo_f, CMD_FL_GAME, "show independent Super Shotgun ammo; developer: seed, pickup");
 	cmdSystem->AddCommand("rocketInfo", Cmd_RocketInfo_f, CMD_FL_GAME, "show independent slot-7 ammo; developer: seed, pickup");
 	cmdSystem->AddCommand("chaingunInfo", Cmd_ChaingunInfo_f, CMD_FL_GAME, "show independent slot-5 ammo; developer: seed, pickup, altpickup");

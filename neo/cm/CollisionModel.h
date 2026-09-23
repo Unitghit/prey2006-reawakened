@@ -164,6 +164,10 @@ public:
 	virtual int				GetNumInlinedProcClipModels(void) = 0;
 #endif
 	//HUMANHEAD END
+	// Scoped world exclusion for a validated player portal aperture.
+	// Appended to preserve the order of existing collision-manager virtuals.
+	virtual void SetPortalClipPlane(const idPlane *plane) = 0;
+
 };
 
 extern idCollisionModelManager *		collisionModelManager;

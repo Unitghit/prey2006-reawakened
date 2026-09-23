@@ -353,7 +353,7 @@ void hhPlayer::SynchronizeDoom3Shotgun() {
 // HUD groups are independent of saved inventory indices.
 bool hhPlayer::WeaponGroupsEnabled() const {
 	return !gameLocal.isMultiplayer && !*cvarSystem->GetCVarString("fs_game") &&
-		g_doom3Shotgun.GetBool() && spawnArgs.GetBool("rw_weapon_d3shotgun_enabled");
+		((g_doom3Shotgun.GetBool() && spawnArgs.GetBool("rw_weapon_d3shotgun_enabled")) || cvarSystem->GetCVarBool("g_portalGun"));
 }
 int hhPlayer::WeaponGroup(int num) const {
 	if (!WeaponGroupsEnabled() || num < 1 || num >= MAX_WEAPONS) { return num; }
@@ -364,6 +364,7 @@ int hhPlayer::WeaponGroup(int num) const {
 	return group >= 1 && group <= 7 ? group : num;
 }
 int hhPlayer::WeaponVariant(int num) const {
+    if (num == 1 && PortalGunSelected()) return 1;
 	if (!WeaponGroupsEnabled() || num < 1 || num >= MAX_WEAPONS) { return 0; }
 	if (num == 8 && !idStr::Icmp(GetWeaponName(num), "weaponobj_d3shotgun")) { return 1; }
 	const idDeclEntityDef *def = (*GetWeaponName(num) ? gameLocal.FindEntityDef(GetWeaponName(num), false) : NULL);
@@ -391,29 +392,31 @@ void hhPlayer::SelectWeaponGroup(int group) {
 	if (choice != -1) { SelectWeapon(choice, false); }
 }
 void hhPlayer::CycleWeaponGroup(int direction) {
-	int order[MAX_WEAPONS], count = 0;
-	for (int num = 1; num < MAX_WEAPONS; ++num) {
-		if (!spawnArgs.GetBool(va("weapon%d_cycle", num)) || !GroupWeaponSelectable(num)) { continue; }
-		int index = count++;
-		const int rank = WeaponGroup(num) * 64 + WeaponVariant(num) * MAX_WEAPONS + num;
-		while (index > 0) {
-			const int prev = order[index - 1];
-			const int prevRank = WeaponGroup(prev) * 64 + WeaponVariant(prev) * MAX_WEAPONS + prev;
-			if (prevRank <= rank) { break; }
-			order[index] = prev;
-			--index;
-		}
-		order[index] = num;
-	}
-	if (!count) { return; }
-	int index = direction > 0 ? count - 1 : 0;
-	for (int i = 0; i < count; ++i) { if (order[i] == idealWeapon) { index = i; break; } }
-	const int choice = order[(index + direction + count) % count];
-	if (choice != idealWeapon) {
-		idealWeapon = choice;
-		weaponSwitchTime = gameLocal.time + WEAPON_SWITCH_DELAY;
-		UpdateHudWeapon();
-	}
+    // Virtual selection MAX_WEAPONS uses the wrench inventory entry, never an
+    // out-of-range saved weapon index. Its mode is stored in spawnArgs.
+    int order[MAX_WEAPONS + 1], count = 0;
+    const bool portalTool = cvarSystem->GetCVarBool("g_portalGun") && GroupWeaponSelectable(1);
+    auto rankOf = [this](int num) {
+        if (num == MAX_WEAPONS) return 64 + MAX_WEAPONS + 1;
+        return WeaponGroup(num)*64 + (num == 1 ? 0 : WeaponVariant(num))*MAX_WEAPONS + num;
+    };
+    for (int num = 1; num <= MAX_WEAPONS; ++num) {
+        if (num == MAX_WEAPONS) { if (!portalTool) continue; }
+        else if (!spawnArgs.GetBool(va("weapon%d_cycle", num)) || !GroupWeaponSelectable(num)) continue;
+        int index = count++;
+        while (index > 0 && rankOf(order[index-1]) > rankOf(num)) { order[index] = order[index-1]; --index; }
+        order[index] = num;
+    }
+    if (!count) return;
+    const int selected = PortalGunSelected() ? MAX_WEAPONS : idealWeapon;
+    int index = direction > 0 ? count-1 : 0;
+    for (int i = 0; i < count; ++i) if (order[i] == selected) { index = i; break; }
+    const int choice = order[(index+direction+count)%count];
+    if (choice == MAX_WEAPONS) SelectPortalGun(true);
+    else {
+        if (PortalGunSelected()) SelectPortalGun(false);
+        SelectWeapon(choice, false);
+    }
 }
 
 void hhPlayer::RestorePersistantInfo( void ) {
@@ -1421,6 +1424,10 @@ hhPlayer::SelectWeapon
 ===============
 */
 void hhPlayer::SelectWeapon( int num, bool force ) {
+    if (num != 1 && spawnArgs.GetBool("rw_weapon_portal_selected")) {
+        spawnArgs.SetBool("rw_weapon_portal_selected", false);
+        if (weapon.IsValid()) { weapon->Show(); weapon->ShowWeapon(); }
+    }
 	if (num < 1 || num >= MAX_WEAPONS) { return; }
 	if ( ! ( weaponFlags & ( 1 << ( num - 1 ) ) ) ) {
 		return;
@@ -3091,6 +3098,11 @@ void hhPlayer::PerformImpulse( int impulse ) {
 		return;
 	}
 
+    if (impulse == IMPULSE_1 && cvarSystem->GetCVarBool("g_portalGun") && !gameLocal.isMultiplayer &&
+        !ActiveGui() && !bFrozen && !IsSpiritOrDeathwalking() && !*cvarSystem->GetCVarString("fs_game") && GroupWeaponSelectable(1)) {
+        SelectPortalGun(idealWeapon == 1 && !PortalGunSelected());
+        return;
+    }
 	if (WeaponGroupsEnabled() && impulse >= IMPULSE_1 && impulse <= IMPULSE_7) {
 		SelectWeaponGroup(impulse);
 		return;
@@ -5207,6 +5219,7 @@ void hhPlayer::Think( void ) {
 
 	// this may use firstPersonView, or a thirdPeroson / camera view
 	CalculateRenderView();
+    UpdatePortalGun();
 
 	if ( spectating ) {
 		if (!gameLocal.isClient) {
@@ -5219,6 +5232,7 @@ void hhPlayer::Think( void ) {
 		}
 	}
 
+    if (weapon.IsValid() && PortalGunSelected() && currentWeapon == 1) weapon->Hide();
 	if (InVehicle()) {
 		UpdateHud( GetVehicleInterfaceLocal()->GetHUD() );
 	}

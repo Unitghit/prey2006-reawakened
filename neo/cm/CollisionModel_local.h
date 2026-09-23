@@ -292,6 +292,13 @@ typedef struct cm_procNode_s {
 
 class idCollisionModelManagerLocal : public idCollisionModelManager {
 public:
+    bool portalClipActive = false;
+    idPlane portalClipPlane;
+    void SetPortalClipPlane(const idPlane *plane) { portalClipActive = plane != NULL; if (plane) portalClipPlane = *plane; }
+    bool PortalClipSurface(const idPlane &plane) const {
+        return portalClipActive && plane.Normal() * portalClipPlane.Normal() > 0.9999f &&
+            idMath::Fabs(plane.Dist() - portalClipPlane.Dist()) < 0.15f;
+    }
 	// load collision models from a map file
 	void			LoadMap( const idMapFile *mapFile );
 

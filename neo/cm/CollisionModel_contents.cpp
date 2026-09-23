@@ -55,6 +55,8 @@ idCollisionModelManagerLocal::TestTrmVertsInBrush
 ================
 */
 bool idCollisionModelManagerLocal::TestTrmVertsInBrush( cm_traceWork_t *tw, cm_brush_t *b ) {
+    if (portalClipActive && b->bounds.PlaneDistance(portalClipPlane) < -0.01f) return false;
+    if (portalClipActive) { for (int k = 0; k < b->numPlanes; ++k) { if (PortalClipSurface(b->planes[k])) return false; } }
 	int i, j, numVerts, bestPlane;
 	float d, bestd;
 	idVec3 *p;
@@ -154,6 +156,7 @@ idCollisionModelManagerLocal::TestTrmInPolygon
 ================
 */
 bool idCollisionModelManagerLocal::TestTrmInPolygon( cm_traceWork_t *tw, cm_polygon_t *p ) {
+    if (PortalClipSurface(p->plane) || (portalClipActive && p->bounds.PlaneDistance(portalClipPlane) < -0.01f)) { return false; }
 	int i, j, k, edgeNum, flip, trmEdgeNum, bitNum, bestPlane;
 	int sides[MAX_TRACEMODEL_VERTS];
 	float d, bestd;
