@@ -25,3 +25,23 @@ Additional regression cases: tapered actor-clip shells, clip columns, sloped
 ceilings, uneven static ground, blocked exits, floor corners/edges, floor
 approach, and reversal. Automated tests use hidden, muted isolated profiles.
 No map-specific coordinates or material-name exceptions are used in the fix.
+
+## Partial-entry edge contacts
+
+The subsequent `portalstuck2` save exposed another case: the hull was already
+partway into the orange floor opening, with no velocity, but an invisible shell
+edge still stopped further descent. Recognizing the shell's top face did not
+remove its side/edge contacts.
+
+A shared collision-contact predicate now clips pure player-clip contacts below
+the locally sampled cover plane as well as contacts behind the actual portal
+support. It is used consistently for swept vertex/edge contacts, resting
+contacts, and occupancy tests. Visible solid geometry keeps the original
+support-plane rule. The cover only exists during an aperture-validated query;
+contacts in front of it still collide normally.
+
+The exact saved overlap now falls through with zero teleport correction.
+Regression coverage again includes real blocked exits, nearby clip columns,
+tapered shells, sloped ceilings, floor edges/corners, static uneven ground,
+floor approach, and reverse travel. No portal repositioning or save migration
+is needed.

@@ -84,7 +84,7 @@ bool idCollisionModelManagerLocal::TestTrmVertsInBrush( cm_traceWork_t *tw, cm_b
 
 	for ( j = 0; j < numVerts; j++ ) {
 		p = &tw->vertices[j].p;
-        if (portalClipActive && portalClipPlane.Distance(*p) <= 0.01f) continue;
+        if (PortalClipContact(*p, b->contents)) continue;
 
 		// see if the point is inside the brush
 		bestPlane = 0;
@@ -207,7 +207,7 @@ bool idCollisionModelManagerLocal::TestTrmInPolygon( cm_traceWork_t *tw, cm_poly
 
 			for ( j = 0; j < 2; j++ ) {
 				v = &tw->model->vertices[edge->vertexNum[j]];
-                if (portalClipActive && portalClipPlane.Distance(v->p) <= 0.01f) continue;
+                if (PortalClipContact(v->p, p->contents)) continue;
 				// if this vertex is already tested
 				if ( v->checkcount == idCollisionModelManagerLocal::checkCount ) {
 					continue;
@@ -309,7 +309,7 @@ bool idCollisionModelManagerLocal::TestTrmInPolygon( cm_traceWork_t *tw, cm_poly
                 const idVec3 &b = tw->vertices[tw->edges[i].vertexNum[1]].p;
                 const float da = p->plane.Distance(a), db = p->plane.Distance(b);
                 const idVec3 contact = a + (b-a) * (da / (da-db));
-                if (portalClipPlane.Distance(contact) <= 0.01f) continue;
+                if (PortalClipContact(contact, p->contents)) continue;
             }
 			tw->trace.fraction = 0.0f;
 			tw->trace.c.type = CONTACT_EDGE;
@@ -392,7 +392,7 @@ bool idCollisionModelManagerLocal::TestTrmInPolygon( cm_traceWork_t *tw, cm_poly
                     const float da = tw->polys[j].plane.Distance(v1->p);
                     const float db = tw->polys[j].plane.Distance(v2->p);
                     const idVec3 contact = v1->p + (v2->p-v1->p) * (da / (da-db));
-                    if (portalClipPlane.Distance(contact) <= 0.01f) continue;
+                    if (PortalClipContact(contact, p->contents)) continue;
                 }
 				tw->trace.fraction = 0.0f;
 				tw->trace.c.type = CONTACT_EDGE;

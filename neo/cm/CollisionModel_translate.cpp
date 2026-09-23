@@ -310,7 +310,7 @@ void idCollisionModelManagerLocal::TranslateTrmEdgeThroughPolygon( cm_traceWork_
 			}
 			//assert( f1 >= 0.0f && f1 <= 1.0f );
 			const idVec3 contact = start + f1 * ( end - start );
-            if (portalClipActive && portalClipPlane.Distance(contact) <= 0.01f) continue;
+            if (PortalClipContact(contact, poly->contents)) continue;
 			tw->trace.fraction = f2;
 			// create plane with normal vector orthogonal to both the polygon edge and the trm edge
 			tw->trace.c.normal = ( end - start ).Cross( trmEdge->end - trmEdge->start );
@@ -423,7 +423,7 @@ void idCollisionModelManagerLocal::TranslateTrmVertexThroughPolygon( cm_traceWor
         if (portalClipActive) {
             idVec3 contact = v->p + f * (v->endp - v->p);
             contact -= poly->plane.Normal() * poly->plane.Distance(contact);
-            if (portalClipPlane.Distance(contact) <= 0.01f) return;
+            if (PortalClipContact(contact, poly->contents)) return;
         }
 		tw->trace.fraction = f;
 		// collision plane is the polygon plane
@@ -482,7 +482,7 @@ void idCollisionModelManagerLocal::TranslatePointThroughPolygon( cm_traceWork_t 
         if (portalClipActive) {
             idVec3 contact = v->p + f * (v->endp - v->p);
             contact -= poly->plane.Normal() * poly->plane.Distance(contact);
-            if (portalClipPlane.Distance(contact) <= 0.01f) return;
+            if (PortalClipContact(contact, poly->contents)) return;
         }
 		tw->trace.fraction = f;
 		// collision plane is the polygon plane
@@ -528,7 +528,7 @@ void idCollisionModelManagerLocal::TranslateVertexThroughTrmPolygon( cm_traceWor
 		if ( f < 0.0f ) {
 			f = 0.0f;
 		}
-        if (portalClipActive && portalClipPlane.Distance(v->p) <= 0.01f) return;
+        if (PortalClipContact(v->p, poly->contents)) return;
 		tw->trace.fraction = f;
 		// collision plane is the inverse trm polygon plane
 		tw->trace.c.normal = -trmpoly->plane.Normal();

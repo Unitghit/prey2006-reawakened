@@ -316,6 +316,15 @@ public:
         const float thickness = plane.Dist() + portalCoverPlane.Dist();
         return facing < -0.9999f && thickness >= -0.15f && thickness <= 32.0f;
     }
+    bool PortalClipContact(const idVec3 &point, int contents) const {
+        if (!portalClipActive) return false;
+        if (portalClipPlane.Distance(point) <= 0.01f) return true;
+        // Invisible terrain shells have side faces and internal facet edges.
+        // Clip their contacts below the locally sampled cover as well, instead
+        // of removing only its top face and leaving an invisible lip behind.
+        return portalCoverActive && (contents & CONTENTS_PLAYERCLIP) &&
+            !(contents & CONTENTS_SOLID) && portalCoverPlane.Distance(point) <= 0.01f;
+    }
     bool PortalClipSurface(const idPlane &plane) const {
         return portalClipActive && plane.Normal() * portalClipPlane.Normal() > 0.9999f &&
             idMath::Fabs(plane.Dist() - portalClipPlane.Dist()) < 0.15f;
