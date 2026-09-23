@@ -2,7 +2,7 @@ param(
     [Parameter(Mandatory=$true)][string]$Engine,
     [Parameter(Mandatory=$true)][string]$RetailBase,
     [Parameter(Mandatory=$true)][string]$Profile,
-    [string[]]$Cases = @('input','regression','floor','ceiling','blocked','replacement','access','floor_edge','guidance','guide_lookaway','guide_steering','guide_fast','floor_exit','placement','objects','floor_escape','floor_partial','floor_continuous','floor_approach','floor_edge_slide','floor_corner','floor_clearance','surface_fit','ceiling_entry','floor_slab','wall_step','wall_approach','tapered_shell','sloped_ceiling','clip_column','oblique','terrain_fit','mesh_ground','reverse','static_exit')
+    [string[]]$Cases = @('input','regression','floor','ceiling','blocked','replacement','access','floor_edge','guidance','guide_lookaway','guide_steering','guide_fast','floor_exit','placement','objects','floor_escape','floor_partial','floor_continuous','floor_approach','floor_edge_slide','floor_corner','floor_clearance','surface_fit','ceiling_entry','floor_slab','wall_step','wall_approach','tapered_shell','sloped_ceiling','clip_column','oblique','terrain_fit','mesh_ground','rough_surfaces','reverse','static_exit')
 )
 $ErrorActionPreference='Stop'
 $Engine=(Resolve-Path -LiteralPath $Engine).Path
@@ -32,6 +32,15 @@ foreach($name in $Cases) {
     if($process.ExitCode -ne 0){throw "$name exited with $($process.ExitCode)"}
     $log=Get-Content -LiteralPath "$base/$name.log" -Raw
     if($log -match 'ERROR:|shutting down:'){throw "$name reported an engine error"}
+    if($name -eq 'rough_surfaces') {
+        foreach($surface in @('WALL','CEILING')) {
+            $part=[regex]::Match($log,"(?s)ROUGH_${surface}_BEGIN(.*?)ROUGH_${surface}_END").Groups[1].Value
+            if($part -notmatch 'PORTAL_TERRAIN_FIT' -or $part -notmatch 'PORTALGUN placed blue' -or
+                ([regex]::Matches($part,'PORTAL_EXIT ')).Count -ne 1 -or $part -match 'PORTALGUN rejected|blocked exit') {
+                throw "Uneven $surface placement or traversal failed"
+            }
+        }
+    }
     if($name -eq 'decal_mask') {
         if($log -match 'GL_INVALID|program error|Couldn.t load.*test_decal'){throw 'Decal fixture rendering failed'}
         foreach($capture in @('decal_clean.tga','decal_mask.tga')) {
@@ -202,7 +211,15 @@ foreach($name in $Cases) {
         $obstacle=[regex]::Match($log,'(?s)SURFACE_OBSTACLE_BEGIN(.*?)SURFACE_OBSTACLE_END').Groups[1].Value
         $low=[regex]::Match($log,'(?s)SURFACE_LOW_BEGIN(.*?)SURFACE_LOW_END').Groups[1].Value
         if($recess -notmatch 'placed blue at 507 0 160'){throw 'Quarter-area flat patch with recessed surround was rejected'}
-        if($obstacle -notmatch 'rejected: no nearby supported opening' -or $obstacle -match 'placed blue'){throw 'Portal window intersected solid geometry'}
+        # The surface fitter can now move above this small obstacle. Check
+        # its nearest corner stays outside the oval, not an obsolete rejection.
+        $placed=[regex]::Match(($obstacle -replace '\r?\n',''),'placed blue at (-?[0-9.]+) (-?[0-9.]+) (-?[0-9.]+)')
+        if(!$placed.Success){throw 'Nearby clear wall placement failed'}
+        $dy=[math]::Max(0,27-[double]$placed.Groups[2].Value)
+        $dz=[math]::Max(0,[double]$placed.Groups[3].Value-176)
+        if(($dy*$dy/(39*39)+$dz*$dz/(49*49)) -le 1){throw 'Shifted portal overlaps obstacle'}
+        $blocked=[regex]::Match($log,'(?s)SURFACE_BLOCKED_BEGIN(.*?)SURFACE_BLOCKED_END').Groups[1].Value
+        if($blocked -notmatch 'rejected: no nearby supported opening' -or $blocked -match 'placed blue'){throw 'Portal fit through blocked opening'}
         if($low -notmatch 'placed orange at 511 -200 71'){throw 'Lower wall placement failed'}
     }
     if($name -eq 'floor_slab') {

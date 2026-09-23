@@ -465,12 +465,10 @@ static bool RW_PortalSurfaceSupports(const idVec3 &center, const idMat3 &axis, c
     return RW_PortalWindowClear(center, axis, ignore);
 }
 
-// Keep the aperture rigid, but fit it to gently uneven ground. The final plane
+// Keep the aperture rigid, but fit it to gently uneven surfaces. The final plane
 // lies above every sampled bump, so rendering and the existing collision cutout
 // agree about which side contains the terrain. Never carve a separate deep hole.
-static bool RW_FitPortalGround(idVec3 &center, idMat3 &axis, const hhPlayer *player) {
-    const idVec3 gravityUp = -player->GetPhysics()->GetGravityNormal();
-    if (axis[0]*gravityUp < 0.7f) return false;
+static bool RW_FitPortalSurface(idVec3 &center, idMat3 &axis, const hhPlayer *player) {
     const idVec3 originalCenter = center;
     const idMat3 originalAxis = axis;
     for (int pass = 0; pass < 2; ++pass) {
@@ -504,7 +502,7 @@ static bool RW_FitPortalGround(idVec3 &center, idMat3 &axis, const hhPlayer *pla
             if (determinant <= 0.001f || !count) return false;
             idVec3 normal = axis[0]-axis[1]*((xh*yy-yh*xy)/determinant)-axis[2]*((yh*xx-xh*xy)/determinant);
             normal.Normalize();
-            if (normal*gravityUp < 0.7f || normal*originalAxis[0] < 0.9f) return false;
+            if (normal*originalAxis[0] < 0.9f) return false;
             const idVec3 mean = center+axis[0]*(sumH/count);
             center += normal*((mean-center)*normal);
             idVec3 up = axis[2]-normal*(axis[2]*normal);
@@ -529,7 +527,11 @@ static bool RW_FitPortalGround(idVec3 &center, idMat3 &axis, const hhPlayer *pla
         const idVec3 corner(bounds[(k&1)!=0].x, bounds[(k&2)!=0].y, bounds[(k&4)!=0].z);
         back = Min(back, (corner*physics->GetAxis())*axis[0]);
     }
-    const idVec3 entry = center+axis[0]*(1.0f-back);
+    // Center the standing hull across the opening on walls as well as floors.
+    // Keep its rear extent just outside the fitted surface in every orientation.
+    const idVec3 hullCenter = bounds.GetCenter()*physics->GetAxis();
+    const idVec3 tangentCenter = hullCenter-axis[0]*(hullCenter*axis[0]);
+    const idVec3 entry = center-tangentCenter+axis[0]*(1.0f-back);
     idTraceModel standingShape(bounds);
     idClipModel standingClip(standingShape);
     trace_t clearance;
@@ -654,7 +656,7 @@ bool hhPlayer::PlaceGunPortal(int color, const idDict *shot) {
             else {
                 idVec3 fittedCenter = candidate;
                 idMat3 fittedAxis = axis;
-                if (RW_FitPortalGround(fittedCenter, fittedAxis, this) &&
+                if (RW_FitPortalSurface(fittedCenter, fittedAxis, this) &&
                     (!other || (other->GetOrigin()-fittedCenter).LengthSqr() >= Square(160.0f))) {
                     center = fittedCenter; axis = fittedAxis; normal = axis[0]; supported = true;
                     if (cvarSystem->GetCVarBool("com_fpsTrace"))
