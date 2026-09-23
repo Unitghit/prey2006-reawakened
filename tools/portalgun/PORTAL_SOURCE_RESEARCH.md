@@ -125,3 +125,98 @@ step; test translation, rotation, reversal and save/reload while moving.
 
 Keep all automated playtests hidden, muted and isolated. Any new optional controls
 belong in the current settings launcher, not the older preset BATs.
+
+## Additional audit: momentum, camera, groups and rendering
+
+These findings extend the research scope; they do not change gameplay or claim
+that all listed edge cases are already solved.
+
+| Area | Current Prey implementation | Next verification or implementation |
+| --- | --- | --- |
+| Linear momentum | Rotated velocity and movement remainder for players/props | Moving-frame velocity, round-trip speed, blocked remainder |
+| Angular motion | Prop angular velocity rotated through the pair | Spinning asymmetric props, rotated gravity, frame conventions |
+| Camera continuity | Presentation-history transform and portal clipping fixes | Eye crosses before body, crouch/uncrouch, floor/ceiling, interpolation |
+| Surface validation | Static world support, full oval checks, limited upward adjustment | Bounded 2D fitting, material policy, slope/size limits |
+| Stacks/chains | Individual supported props traverse | Contacts across openings; constrained groups remain unverified |
+| Collision continuity | Aperture clearance and destination collision checks | Partial-body collision on both sides and explicit ownership |
+| Recursive views | Existing bounded recursive renderer | Sibling portals, cycles, visibility and render-state restoration |
+
+### Momentum and angular motion
+
+The reference rotates linear velocity, sometimes recovers implicit velocity when
+reported velocity is zero, and deliberately applies minimum/maximum exit speeds.
+Therefore its behavior is not unconditional physical conservation. Its shadow-copy
+code explicitly rotates angular velocity as well as linear velocity and synchronizes
+both to the physics representation. This confirms that orientation alone is not
+sufficient for spinning objects.
+
+Sources: [teleport velocity](https://github.com/SonicEraZoR/Portal-Base/blob/c4584551916acfb1e9583d54587ac84be48c9768/sp/src/game/server/portal/prop_portal.cpp#L965),
+[physics-copy synchronization](https://github.com/SonicEraZoR/Portal-Base/blob/c4584551916acfb1e9583d54587ac84be48c9768/sp/src/game/server/portal/physicsshadowclone.cpp#L470).
+
+Our additional moving-frame proposal, not a claim about Valve's implementation:
+subtract the source frame's velocity at the crossing point, rotate that relative
+velocity, then add the destination frame's point velocity. Point velocity includes
+translation plus angular velocity crossed with displacement from the frame origin.
+Verify physics API coordinate conventions first. Rotating portal frames can exchange
+energy with bodies; unchanged world speed is only the appropriate invariant for
+stationary frames. Do not inject this rule into authored moving Prey portals until
+comparison tests establish the intended behavior.
+
+### Camera and crossing timing
+
+`CalcPortalView` can transform the eye before the player's physical teleport, with
+special handling for unducking beneath ceiling portals. Viewmodel code separately
+addresses floor-to-floor popping and weapon lag. This supports keeping eye crossing,
+body crossing, presentation history and weapon placement coordinated but distinct.
+
+Source: [camera/viewmodel handling](https://github.com/SonicEraZoR/Portal-Base/blob/c4584551916acfb1e9583d54587ac84be48c9768/sp/src/game/client/portal/c_portal_player.cpp#L585).
+
+Test slow and fast crossings, looking sideways, shaking the view, crouching,
+reversing mid-crossing, and changing gravity. Compare low/high render rates at the
+same simulation rate. Measure camera transform continuity instead of hiding errors
+with a fade or position easing.
+
+### Surface rules
+
+The reference has material restrictions, corner checks and moving-surface rejection.
+These are gameplay policy as well as geometric requirements. Prey's alien surfaces
+must not inherit Portal's material whitelist without an explicit design decision.
+Retain the subtle attachment offset, and validate approach space, invisible clip
+layers and destination clearance independently of whether the oval fits the wall.
+
+Source: [placement validation](https://github.com/SonicEraZoR/Portal-Base/blob/c4584551916acfb1e9583d54587ac84be48c9768/sp/src/game/server/portal/portal_placement.cpp#L1158).
+
+### Stacks and constrained groups
+
+The reference assigns simulation ownership and uses transformed physics copies.
+Its teleport code even separates relocation from applying velocity to avoid a bug
+with objects resting on another object afterward. This is evidence of contact-state
+care, not proof of complete stack or joint-chain support. No complete arbitrary
+constraint-transfer mechanism was established in this audit.
+
+Source: [object relocation](https://github.com/SonicEraZoR/Portal-Base/blob/c4584551916acfb1e9583d54587ac84be48c9768/sp/src/game/server/portal/prop_portal.cpp#L1210).
+
+Add tests in stages: one spinning box; two touching boxes; a resting stack; pushing
+one box through with another; simultaneous opposite-direction entries; replacement
+while a prop straddles; then joint-connected bodies. Copies must never duplicate
+health, triggers, damage or impulses. Keep unsupported bound entities excluded until
+a group ownership/constraint design is validated. Independent teleports alone are
+not enough to promise chain continuity.
+
+### Recursive rendering
+
+The reference renderer has stencil and texture paths, per-view recursion state,
+portal-view nodes, visibility tracking and a bounded recursion depth. Those are
+useful design references, not a reason to replace Prey's working renderer.
+
+Source: [portal rendering](https://github.com/SonicEraZoR/Portal-Base/blob/c4584551916acfb1e9583d54587ac84be48c9768/sp/src/game/client/portal/PortalRender.cpp#L34).
+
+Our renderer already supports multiple nested/sibling portals and a configurable
+depth bound. Add image regressions for two child portals, mutually facing portals,
+near-plane crossings, narrow side angles, moving portals, skyboxes and bloom. Check
+that clipping, depth/stencil state and visibility from one child do not leak into
+its siblings. Treat rendering depth and physics traversal limits separately.
+
+Implementation remains staged: floor guidance and exit clearance first, then
+placement and ownership. The cross-cutting tests above should accompany each step;
+partial-body physics and constrained groups require their own larger changes.
