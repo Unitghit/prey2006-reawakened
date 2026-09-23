@@ -1,38 +1,36 @@
-# Unlinked portal energy
+# Unlinked portal center
 
-Portal-gun endpoints with no partner now use an opaque, colored interior with
-slowly moving retail noise and energy artwork. The blue/orange rim and existing
-opening timing remain unchanged. Pairing swaps to the live aperture and fades
-the matching energy overlay out over 250 ms using shader time, not simulation
-steps. Replacing a linked endpoint also uses this short reveal.
+An unpaired portal gun endpoint replaces only its interior window with an
+opaque blue/orange material containing subtle moving retail noise and energy.
+The rim artwork, rim geometry, opening skeleton and opening animation are the
+original portal-gun versions. Connecting a pair uses the original linked models
+and model-switching behavior, without an energy overlay or extra fade.
 
-The imported aperture was a recessed funnel with strip UVs. Flattening it does
-not produce a usable filled disk. The importer creates a convex perimeter fan
-for the energy layer, with planar UVs and the same weighted opening pose.
-Its winding matches the retail surfaces in both ASE and MD5 formats. The live
-portal aperture is retained independently. The filled material uses an explicit
-GL_ONE/GL_ZERO base stage (Prey's blend-none syntax means no color draw).
+The first energy implementation added bright backside ring layers, a linked
+transition mesh and early model presentation. Those additions were removed
+after playtesting showed a thick rim and broken-looking opening transitions.
+The original linked ASE/MD5 meshes and shared animation now regenerate byte
+for byte against the pre-energy assets. Both unlinked animated models retain
+the original skeleton and first two rim meshes exactly; only the interior mesh
+and material differ.
+
+The interior uses a convex perimeter fan with planar UVs and the existing
+opening joints. Its winding matches the original surfaces in both ASE and MD5
+formats. The filled material uses GL_ONE/GL_ZERO for its base stage; Prey's
+blend-none syntax means no color draw. There are no added luminous ring stages.
 
 No renderer-wide exceptions, collision changes or new launcher option are
-needed. This is part of the existing optional portal gun. Material definitions
-and generated geometry are rebuilt by tools/portalgun/build_assets.py from the
-user's retail installation; generated retail-derived files are not distributed
-in the source repository.
+needed. This is part of the existing optional portal gun. The importer rebuilds
+the derived models from the user's retail installation. No generated retail
+assets are included in the source repository.
 
-Link state and fade timing use existing spawnArgs and shader parameters, so the
-save format does not change. Removing an endpoint clears the surviving gun
-portal's raw camera target and renderer view pointer before they can dangle.
-The survivor switches back to its filled model. Pair changes present the new
-model immediately to avoid a missing render definition for one simulation tick.
+Link state uses an existing spawnArg without changing the save format.
+Removing an endpoint clears the surviving gun portal's raw camera target and
+renderer view pointer before they can dangle; the survivor resumes its filled
+model. Shader fade parameters are no longer needed.
 
-Reference investigation: Portal-Base's portalrenderable_flatbasic.cpp uses
-portalstaticoverlay_1/2 when no linked portal exists, skips the remote render in
-that state, and layers its static overlay over the linked view. This implementation
-uses the same general layering approach with Prey materials; no Valve renderer
-code or art was copied for this effect.
-
-Validation uses hidden, muted isolated profiles. The energy fixture exercises
-both colors, single-endpoint save/reload, staged link-fade captures, replacement
-and partner removal. Retail multiportal4 comparison captures check wall masking.
-The body split, deep views, decal mask, replacement and through-portal shot
-fixtures also passed, as did development/private builds and launcher verification.
+Validation: exact-file comparisons against the pre-energy linked assets and
+animation; unchanged unlinked rim/skeleton comparisons; hidden, muted captures
+of opening, both colors, pairing, single-endpoint save/reload and replacement;
+existing replacement and split-player regression fixtures. Development/private
+builds and native launcher verification also pass.

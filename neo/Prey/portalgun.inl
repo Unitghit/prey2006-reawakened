@@ -660,12 +660,6 @@ static void RW_GunPortalVisual(hhPortal *portal, bool restart) {
     const bool orange = !idStr::Icmp(portal->GetName(), "rw_gun_orange");
     const char *color = orange ? "orange" : "blue";
     const bool linked = portal->cameraTarget != NULL;
-    const bool wasLinked = portal->spawnArgs.GetBool("rw_energy_linked");
-    // Use shader time for a smooth fade at render FPS, including the opening
-    // animation. Updating the model at animation end must not restart the fade.
-    if (linked && (!wasLinked || restart))
-        portal->SetShaderParm(8, MS2SEC(gameLocal.time));
-    if (!linked) portal->SetShaderParm(8, -1000.0f);
     portal->spawnArgs.SetBool("rw_energy_linked", linked);
     const char *closed = linked ? "" : "_closed";
     const idStr model = va("rw_portal_%s%s_opening", color, closed);
@@ -685,10 +679,7 @@ static void RW_GunPortalVisual(hhPortal *portal, bool restart) {
         gameLocal.Printf("PORTAL_ENERGY %s linked=%d model=%s\n", portal->GetName(), linked,
             portal->GetRenderEntity()->hModel ? portal->GetRenderEntity()->hModel->Name() : "none");
     portal->UpdateVisuals();
-    // Pairing may be triggered after the other endpoint has already thought.
-    // Submit its changed model now instead of leaving a missing render def
-    // until the next simulation tick.
-    portal->Present();
+
 }
 
 bool hhPlayer::PlaceGunPortal(int color, const idDict *shot) {

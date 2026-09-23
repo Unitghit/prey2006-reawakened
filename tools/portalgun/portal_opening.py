@@ -74,7 +74,7 @@ def build_opening(mesh, animation, output, cy, cz):
     for color in ('blue','orange'):
         for closed in (False,True):
             name=color+('_closed' if closed else '')+'_opening'
-            lines=['MD5Version 10','commandline "local flattened retail portal animation"',f'numJoints {len(joints)}',f'numMeshes {len(converted)+(0 if closed else 1)}','joints {']
+            lines=['MD5Version 10','commandline "local flattened retail portal animation"',f'numJoints {len(joints)}',f'numMeshes {len(converted)}','joints {']
             lines += [f' "{n}" {(-1 if i==0 else 0)} ( {fmt(p)} ) ( 0 0 0 )' for i,(n,p,r) in enumerate(joints)]+['}']
             for block in converted:
                 material=re.search(r'shader "([^"]+)"',block)[1].rsplit('/',1)[1]
@@ -83,7 +83,7 @@ def build_opening(mesh, animation, output, cy, cz):
                 if color=='blue' and not(inner and not closed):material=material.replace('portal','superportal',1)
                 depth=.06 if inner else (.25 if material.endswith('_fx') else .125)
                 block=re.sub(r'shader "[^"]+"',f'shader "reawakened/portalgun/retail_{material}"',block)
-                if inner:
+                if inner and closed:
                     # The retail aperture UVs are a strip, not a planar disk.
                     # Give only our energy layer planar UVs; preserve the live view.
                     weights = {int(m[1]): (int(m[2]), float(m[3])) for m in re.finditer(r'weight\s+(\d+)\s+(\d+)\s+([\d.]+)', block)}
@@ -101,9 +101,7 @@ def build_opening(mesh, animation, output, cy, cz):
                     for i in range(1,len(hull)-1): energy += f' tri {i-1} 0 {i+1} {i}\n'
                     energy += f' numweights {len(weights)}\n'
                     energy += '\n'.join(re.findall(r'weight\s+\d+\s+\d+\s+[\d.]+\s+\( [^)]* \)',block))+'\n}\n'
-                    if not closed:
-                        lines.append('mesh {'+block.replace('DEPTH',str(depth)))
-                    lines.append('mesh {'+energy.replace('DEPTH','.08'))
+                    lines.append('mesh {'+energy.replace('DEPTH',str(depth)))
                 else:
                     lines.append('mesh {'+block.replace('DEPTH',str(depth)))
             (models/(name+'.md5mesh')).write_text('\n'.join(lines)+'\n')

@@ -95,15 +95,11 @@ def ase_surface(index, vertices, uv, faces):
 
 
 
-def energy_material(color, closed):
+def energy_material(color):
     """Original stage setup; art is resolved only from the user's retail data."""
     rgb = "0.012, 0.04, 0.13" if color == "blue" else "0.13, 0.027, 0.004"
     mist = "0.025, 0.10, 0.32" if color == "blue" else "0.32, 0.085, 0.012"
-    art = "superportal/superportal" if color == "blue" else "portal/portal"
-    alpha = "1" if closed else "rw_portal_energy_fade[(time - parm8) * 4]"
-    condition = "" if closed else "if (time < parm8 + 0.25)"
-    baseblend = "gl_one, gl_zero" if closed else "blend"
-    name = f"reawakened/portalgun/energy_{color}" + ("_closed" if closed else "")
+    name = f"reawakened/portalgun/energy_{color}_closed"
     return f"""{name} {{
  polygonOffset 1
  noshadows
@@ -111,44 +107,24 @@ def energy_material(color, closed):
  nooverlays
  twoSided
  {{
-  {condition}
-  blend {baseblend}
+  blend gl_one, gl_zero
   map _white
-  color {rgb}, {alpha}
+  color {rgb}, 1
  }}
  {{
-  {condition}
   blend gl_src_alpha, gl_one
   map textures/liquid/noise.tga
   scale 1.5, 1.5
   scroll time * 0.035, time * -0.021
-  color {mist}, {alpha}
+  color {mist}, 1
  }}
  {{
-  {condition}
   blend gl_src_alpha, gl_one
   map textures/particles/energy_cloud.tga
   rotate time * -0.04
-  color {mist}, {alpha}
+  color {mist}, 1
  }}
- {{
-  {condition}
-  blend gl_src_alpha, gl_one
-  map models/mapobjects/{art}_back_add.tga
-  rotate time * 0.025
-  rgb 0.65
-  alpha {alpha}
- }}
- {{
-  {condition}
-  blend gl_src_alpha, gl_one
-  map models/mapobjects/{art}_back_add.tga
-  rotate time * -0.017
-  scale 1.18, 1.18
-  translate -0.09, -0.09
-  rgb 0.4
-  alpha {alpha}
- }}
+
 }}
 """
 
@@ -198,13 +174,6 @@ def build(retail, output):
                 depth = 0.06 if inner else (0.25 if source_material.endswith('_fx') else 0.125)
                 transformed = [(depth, (p[1]-cy)*sy, (p[2]-cz)*sz) for p in vertices]
                 geometry.append(ase_surface(index, transformed, uv, faces))
-            if not closed:
-                _, vertices, _, faces = next(s for s in surfaces if s[0].endswith('/portal_innerwarp'))
-                materials.append(f"reawakened/portalgun/energy_{color}")
-                vertices = [vertices[k] for k in energy_polygon(vertices)]
-                faces = [(0,i+1,i) for i in range(1,len(vertices)-1)]
-                uv = [((p[1]-ymin)/(ymax-ymin), (p[2]-zmin)/(zmax-zmin)) for p in vertices]
-                geometry.append(ase_surface(len(materials)-1, [(0.08,p[1]-cy,p[2]-cz) for p in vertices], uv, faces))
             lines = ['*3DSMAX_ASCIIEXPORT 200', '*MATERIAL_LIST {', f'*MATERIAL_COUNT {len(materials)}']
             lines += [f'*MATERIAL {i} {{ *MATERIAL_NAME "{m}" *MAP_DIFFUSE {{ *BITMAP "C:/base/{m}.tga" }} }}' for i,m in enumerate(materials)]
             lines += ['}'] + geometry
@@ -212,8 +181,7 @@ def build(retail, output):
     (models/'closed.ase').write_bytes((models/'blue_closed.ase').read_bytes())
     (output/'materials').mkdir(parents=True, exist_ok=True)
     (output/'materials/reawakened_portalgun_retail.mtr').write_text('\n'.join(adapted_materials.values()))
-    energy = "table rw_portal_energy_fade { clamp { 1, 0 } }\n"
-    energy += '\n'.join(energy_material(c, closed) for c in ('blue','orange') for closed in (False,True))
+    energy = '\n'.join(energy_material(c) for c in ('blue','orange'))
     (output/'materials/reawakened_portalgun_energy.mtr').write_text(energy)
 
     from portal_opening import build_opening
