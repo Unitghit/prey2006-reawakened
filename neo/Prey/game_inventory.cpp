@@ -337,8 +337,8 @@ bool hhInventory::SynchronizeWeaponAmmo(hhPlayer *owner) {
 		owner->spawnArgs.SetBool("rw_weapon_acid_split_active", acidActive);
 		changed = true;
 	}
-	if (acidActive && ammo[13] >= 0 && ammo[13] + WeaponAmmoFraction(owner, 13) > 250) {
-		StoreWeaponAmmo(owner, 13, 250);
+	if (acidActive && ammo[13] >= 0 && ammo[13] + WeaponAmmoFraction(owner, 13) > 150) {
+		StoreWeaponAmmo(owner, 13, 150);
 		changed = true;
 	}
 	return changed;
@@ -415,7 +415,7 @@ int hhInventory::MaxAmmoForAmmoClass( idPlayer *owner, const char *ammo_classnam
 		}
 		if (!idStr::Icmp(ammo_classname, "ammo_d3bullets")) { return 180; }
 		if (!idStr::Icmp(ammo_classname, "ammo_d3belt")) { return 300; }
-		if (!idStr::Icmp(ammo_classname, "ammo_d3cells")) { return 250; }
+		if (!idStr::Icmp(ammo_classname, "ammo_d3cells")) { return 150; }
 		if (!idStr::Icmp(ammo_classname, "ammo_acid") && SplitAcidAmmo(owner)) {
 			return idInventory::MaxAmmoForAmmoClass(owner, ammo_classname) / 2;
 		}
@@ -733,7 +733,7 @@ float hhInventory::AmmoPercentage(idPlayer *player, ammo_t type) {
 	if (SplitAcidAmmo(player) && type == AmmoIndexForAmmoClass("ammo_acid")) {
 		const float autoMax = Max(1, MaxAmmoForAmmoClass(player, "ammo_acid"));
 		const float autoPct = ammo[type] < 0 ? 1.0f : idMath::ClampFloat(0, 1, ammo[type] / autoMax);
-		const float beltPct = ammo[13] < 0 ? 1.0f : idMath::ClampFloat(0, 1, ammo[13] / 250.0f);
+		const float beltPct = ammo[13] < 0 ? 1.0f : idMath::ClampFloat(0, 1, ammo[13] / 150.0f);
 		return 0.5f * (autoPct + beltPct);
 	}
 	if (SplitRifleAmmo(player) && type == AmmoIndexForAmmoClass("ammo_rifle")) {

@@ -3,7 +3,7 @@ entityDef weaponobj_d3plasmagun {
     "rw_saveCompatible" "1"
     "rw_weaponGroup" "6"
     "rw_weaponVariant" "1"
-    "rw_ammoCapacity" "250"
+    "rw_ammoCapacity" "150"
     "rw_addonScript" "script/reawakened/weapon_d3plasmagun_v1.script"
     "gui" "guis/reawakened/plasmagun_v1.gui"
     "inherit" "weaponobj_default"

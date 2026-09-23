@@ -55,7 +55,7 @@ Its independent reserve is capped at 300 including 60 loaded rounds; Autocannon
 primary capacity is 200 while paired. Secondary grenades remain unchanged.
 The Plasma Gun unlocks with the Acid Sprayer in slot 6 and receives only acid
 pickup supply. Fixed halves supply separate reserves capped at 12 acid units
-and 250 cells (including a 50-cell magazine). Existing acquired acid is preserved.
+and 150 cells (including a 50-cell magazine). Existing acquired acid is preserved.
 Preserve fractional pickup credit. Full or locked reserves do not donate their
 unused pickup share to another gun. Once acquired,
 ammunition belongs exclusively to its gun: firing/reloading must never consume

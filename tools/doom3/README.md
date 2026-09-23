@@ -47,7 +47,7 @@ energy absorption is unchanged and never supplies Machine Gun bullets:
 | Autocannon (when Chaingun unlocked) | 200 primary rounds | Original behavior |
 | Chaingun | **300 rounds** | 60 |
 | Acid Sprayer (when Plasma Gun unlocked) | 12 acid units | Original behavior |
-| Plasma Gun | **250 cells** | 50 |
+| Plasma Gun | **150 cells** | 50 |
 
 Primary Autocannon pickups supply only the slot-5 pair. For example, a 40-round
 pickup gives 20 Autocannon rounds and 30 Chaingun bullets when both reserves
@@ -270,7 +270,9 @@ The Plasma Gun is the orange second weapon in slot 6. It uses independent cells
 supplied only by Acid Sprayer ammo boxes and weapon pickups, including dropped
 weapons. Fixed half shares apply: the regular four-unit acid pickup supplies
 two acid units and 40 cells; the weapon pickup supplies eight acid units and
-160 cells. Full reserves never transfer their unused pickup share. Existing acid
+160 cells before the 150-cell total capacity limit (50 loaded plus 100 reserve).
+Pickup rates are unchanged; excess cells in older saves clamp to 150 when enabled.
+Full reserves never transfer their unused pickup share. Existing acid
 ammo is preserved, including amounts above the paired 12-unit cap; a newly
 unlocked cell reserve receives subsequent pickups without a free refill.
 Slot 5 retains its existing Autocannon/Chaingun pair and ammo rules.

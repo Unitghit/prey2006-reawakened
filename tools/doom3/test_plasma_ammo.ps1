@@ -31,9 +31,9 @@ plasmaInfo pickup 1
 plasmaInfo pickup 2
 plasmaInfo seed 12 0
 plasmaInfo pickup 4
-plasmaInfo seed 0 250
+plasmaInfo seed 0 150
 plasmaInfo pickup 4
-plasmaInfo seed 12 250
+plasmaInfo seed 12 150
 plasmaInfo pickup 1
 plasmaInfo
 plasmaInfo seed 10 150
@@ -73,7 +73,7 @@ try {
     if($log.Contains('ERROR:') -or $log.Contains("Real Script checksum didn't match") -or $log.Contains('WARNING: script')){throw 'Game reported a script/save error'}
     $states=[regex]::Matches($log,'PLASMAAMMO acid=(\d+) cells=(\d+) acidMax=(\d+) cellMax=(\d+) acidFraction=([0-9.eE+-]+) cellFraction=([0-9.eE+-]+) clip=(-?\d+) held=(\d+) alt=(\d+)')
     if($states.Count -ne 19){throw "Expected 19 ammo records, got $($states.Count)"}
-    $expected=@(@(0,0),@(0,10),@(0,10),@(1,20),@(2,40),@(12,0),@(12,40),@(0,250),@(2,250),@(12,250),@(12,250),@(12,250),@(10,150))
+    $expected=@(@(0,0),@(0,10),@(0,10),@(1,20),@(2,40),@(12,0),@(12,40),@(0,150),@(2,150),@(12,150),@(12,150),@(12,150),@(10,150))
     for($i=0;$i -lt $expected.Count;$i++) {
         if([int]$states[$i].Groups[1].Value -ne $expected[$i][0] -or [int]$states[$i].Groups[2].Value -ne $expected[$i][1]){throw "Wrong allocation at $i : $($states[$i].Value)"}
     }
