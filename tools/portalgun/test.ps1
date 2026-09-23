@@ -2,7 +2,7 @@ param(
     [Parameter(Mandatory=$true)][string]$Engine,
     [Parameter(Mandatory=$true)][string]$RetailBase,
     [Parameter(Mandatory=$true)][string]$Profile,
-    [string[]]$Cases = @('input','regression','floor','ceiling','blocked','replacement','access','floor_edge','guidance','guide_lookaway','guide_steering','guide_fast','floor_exit','placement','objects','floor_escape','floor_partial','floor_continuous','floor_approach','floor_edge_slide','floor_corner','floor_clearance','surface_fit','ceiling_entry','floor_slab','wall_step','wall_approach','tapered_shell','sloped_ceiling','clip_column','oblique','terrain_fit','mesh_ground','rough_surfaces','reverse','static_exit')
+    [string[]]$Cases = @('input','regression','floor','ceiling','blocked','replacement','access','floor_edge','guidance','guide_lookaway','guide_steering','guide_fast','floor_exit','placement','objects','replacement_occupants','floor_escape','floor_partial','floor_continuous','floor_approach','floor_edge_slide','floor_corner','floor_clearance','surface_fit','ceiling_entry','floor_slab','wall_step','wall_approach','tapered_shell','sloped_ceiling','clip_column','oblique','terrain_fit','mesh_ground','rough_surfaces','reverse','static_exit')
 )
 $ErrorActionPreference='Stop'
 $Engine=(Resolve-Path -LiteralPath $Engine).Path
@@ -252,11 +252,19 @@ foreach($name in $Cases) {
             if(([regex]::Matches($part,'PORTAL_EXIT ')).Count -ne 1 -or $part -match 'PORTAL_PARTIAL_BLOCK'){throw "Floor approach $side hit an invisible barrier"}
         }
     }
+    if($name -eq 'replacement_occupants') {
+        $release=[regex]::Match($log,'(?s)OCCUPANT_RELEASE_BEGIN(.*?)OCCUPANT_RELEASE_END').Groups[1].Value
+        if($release -notmatch 'PORTAL_REPLACEMENT_CLEAR name=release_prop' -or $release -notmatch 'placed blue' -or $release -match 'rejected:'){throw 'Movable object locked replacement'}
+        foreach($case in @('BLOCKED','PLAYER')) {
+            $part=[regex]::Match($log,"(?s)OCCUPANT_${case}_BEGIN(.*?)OCCUPANT_${case}_END").Groups[1].Value
+            if($part -notmatch 'rejected: leave the opening clear' -or $part -match 'PORTAL_REPLACEMENT_CLEAR|placed blue'){throw "Unsafe $case replacement allowed"}
+        }
+    }
     if($name -eq 'objects') {
         foreach($prop in @('polish_a','polish_b','polish_c')) {
             if(([regex]::Matches($log,'PORTAL_ENTITY_EXIT hhMoveable name='+$prop)).Count -ne 1){throw "Prop $prop did not cross exactly once"}
         }
-        if($log -notmatch 'PORTALGUN rejected: leave the opening clear'){throw 'Occupied replacement guard failed'}
+        if($log -notmatch 'PORTAL_REPLACEMENT_CLEAR name=polish_occupant'){throw 'Movable occupant clearance failed'}
     }
     Write-Output "PASS $name"
 }

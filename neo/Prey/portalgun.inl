@@ -24,13 +24,84 @@ static bool RW_GunPortalEntity(const idEntity *ent) {
     return ent && !ent->fl.noPortal && !ent->IsBound() &&
         (ent->IsType(hhPlayer::Type) || ent->IsType(hhProjectile::Type) || ent->IsType(idMoveable::Type));
 }
-static bool RW_PortalHasOccupants(const hhPortal *portal) {
-    if (!portal) return false;
-    idEntity *entities[MAX_GENTITIES];
-    const int count = gameLocal.clip.EntitiesTouchingBounds(portal->GetPhysics()->GetAbsBounds().Expand(16), -1, entities, MAX_GENTITIES);
-    for (int i = 0; i < count; ++i)
-        if (RW_GunPortalEntity(entities[i]) && RW_PortalOccupied(portal, entities[i]->GetPhysics())) return true;
-    return false;
+// Disable only the wall cutout for final closing-clearance queries. Keeping
+// portal trigger handling active avoids treating their sensor volumes as walls.
+static bool rw_portalClosingQuery = false;
+// Resolve movable occupants before moving either endpoint. Validate every move
+// first, so a blocked object cannot leave a half-updated pair or moved neighbors.
+static bool RW_ClearPortalOccupants(hhPortal *first, hhPortal *second) {
+    idList<idEntity *> occupants;
+    idList<idVec3> positions, normals;
+    hhPortal *portals[2] = { first, second };
+    for (int side = 0; side < 2; ++side) {
+        hhPortal *portal = portals[side];
+        if (!portal) continue;
+        idEntity *entities[MAX_GENTITIES];
+        const int count = gameLocal.clip.EntitiesTouchingBounds(portal->GetPhysics()->GetAbsBounds().Expand(16), -1, entities, MAX_GENTITIES);
+        for (int i = 0; i < count; ++i) {
+            idEntity *entity = entities[i];
+            idPhysics *physics = entity->GetPhysics();
+            if (!RW_GunPortalEntity(entity) || !RW_PortalOccupied(portal, physics)) continue;
+            if (!entity->IsType(idMoveable::Type)) return false;
+            if (occupants.FindIndex(entity) >= 0) continue;
+            const idVec3 normal = portal->GetAxis()[0];
+            const idBounds &bounds = physics->GetBounds();
+            float back = idMath::INFINITY;
+            for (int k = 0; k < 8; ++k) {
+                const idVec3 corner(bounds[(k&1)!=0].x, bounds[(k&2)!=0].y, bounds[(k&4)!=0].z);
+                back = Min(back, (physics->GetOrigin()+corner*physics->GetAxis()-portal->GetOrigin())*normal);
+            }
+            const idVec3 outward = physics->GetOrigin()+normal*Max(0.0f, 3.0f-back);
+            idVec3 end;
+            bool clear = false;
+            // A ball can rest against the lip of an uneven opening. Prefer
+            // straight out, then small diagonal sweeps into nearby free space.
+            for (int ring = 0; ring <= 12 && !clear; ++ring) {
+                const int samples = (ring ? 32 : 1)*5;
+                for (int sample = 0; sample < samples && !clear; ++sample) {
+                    const float angle = (sample/5)*(idMath::TWO_PI/32.0f);
+                    end = outward + normal*((sample%5)*8.0f) + (portal->GetAxis()[1]*idMath::Cos(angle) +
+                        portal->GetAxis()[2]*idMath::Sin(angle))*(ring*4.0f);
+                    trace_t trace;
+                    if (gameLocal.clip.Translation(trace, physics->GetOrigin(), end, physics->GetClipModel(),
+                            physics->GetAxis(), physics->GetClipMask(), entity)) {
+                        // A swept move may finish against a nearby surface
+                        // after the entire hull has already cleared the opening.
+                        if (trace.fraction <= 0 || back+(trace.endpos-physics->GetOrigin())*normal <= 2.25f) continue;
+                        end = trace.endpos;
+                    }
+                    // The final position must be clear even after closure.
+                    const bool oldClosingQuery = rw_portalClosingQuery;
+                    rw_portalClosingQuery = true;
+                    bool blocked = gameLocal.clip.Translation(trace, end, end, physics->GetClipModel(),
+                        physics->GetAxis(), physics->GetClipMask(), entity);
+                    rw_portalClosingQuery = oldClosingQuery;
+                    // Independently clear destinations must not overlap one another.
+                    const idBounds destination = physics->GetAbsBounds().Translate(end-physics->GetOrigin());
+                    for (int k = 0; !blocked && k < occupants.Num(); ++k) {
+                        const idPhysics *other = occupants[k]->GetPhysics();
+                        blocked = destination.IntersectsBounds(other->GetAbsBounds().Translate(positions[k]-other->GetOrigin()));
+                    }
+                    clear = !blocked;
+                }
+            }
+            if (!clear) return false;
+            occupants.Append(entity); positions.Append(end); normals.Append(normal);
+        }
+    }
+    for (int i = 0; i < occupants.Num(); ++i) {
+        idEntity *entity = occupants[i];
+        idPhysics *physics = entity->GetPhysics();
+        idVec3 velocity = physics->GetLinearVelocity();
+        velocity -= normals[i]*Min(0.0f, velocity*normals[i]);
+        entity->SetOrigin(positions[i]);
+        physics->SetLinearVelocity(velocity);
+        entity->BecomeActive(TH_PHYSICS);
+        entity->UpdateVisuals();
+        if (cvarSystem->GetCVarBool("developer"))
+            gameLocal.Printf("PORTAL_REPLACEMENT_CLEAR name=%s origin=%s\n", entity->GetName(), positions[i].ToString());
+    }
+    return true;
 }
 
 // Simulation-time approach assistance, independent of render rate and camera
@@ -319,6 +390,7 @@ bool RW_PortalHoldPlayerAxis(const idEntity *entity) {
 bool RW_PortalClipPlane(const idEntity *entity, const idTraceModel *trm, const idMat3 &axis,
     const idVec3 &start, const idVec3 &end, idPlane &plane, float &limit) {
     limit = 1.0f;
+    if (rw_portalClosingQuery) return false;
     if (!g_portalGun.GetBool() || gameLocal.isMultiplayer || *cvarSystem->GetCVarString("fs_game") || !RW_GunPortalEntity(entity) || !trm) return false;
     hhPortal *a = RW_GunPortal(0), *b = RW_GunPortal(1);
     if (!a || !b || !a->cameraTarget || !b->cameraTarget) return false;
@@ -667,7 +739,7 @@ bool hhPlayer::PlaceGunPortal(int color, const idDict *shot) {
     }
     if (!supported) { gameLocal.Printf("PORTALGUN rejected: no nearby supported opening\n"); return false; }
     if (portal && (RW_PortalOccupied(portal, GetPhysics()) || RW_PortalOccupied(other, GetPhysics()) ||
-        RW_PortalHasOccupants(portal) || RW_PortalHasOccupants(other))) {
+        !RW_ClearPortalOccupants(portal, other))) {
         gameLocal.Printf("PORTALGUN rejected: leave the opening clear before replacing it\n"); return false;
     }
     if (!portal) {
