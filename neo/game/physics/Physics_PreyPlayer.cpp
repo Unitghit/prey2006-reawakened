@@ -2,6 +2,7 @@
 #pragma hdrstop
 
 #include "../../Prey/prey_local.h"
+extern bool RW_PortalHoldPlayerAxis(const idEntity *entity);
 
 const float c_fTraceOriginOffset = 2.0f;
 const float c_fGroundTraceDistance = 50.0f + c_fTraceOriginOffset;
@@ -619,7 +620,7 @@ hhPhysics_Player::InterativeRotateMove
 ================
 */
 bool hhPhysics_Player::IterativeRotateMove( const idVec3& UpVector, const idVec3& IdealUpVector, const idVec3& RotationOrigin, const idVec3& RotationCheckOrigin, int iNumIterations) {
-	if( !orientToGravity ) {
+	if( !orientToGravity || RW_PortalHoldPlayerAxis(self) ) {
 		return false;
 	}
 

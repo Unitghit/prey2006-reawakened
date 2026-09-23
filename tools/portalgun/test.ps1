@@ -2,7 +2,7 @@ param(
     [Parameter(Mandatory=$true)][string]$Engine,
     [Parameter(Mandatory=$true)][string]$RetailBase,
     [Parameter(Mandatory=$true)][string]$Profile,
-    [string[]]$Cases = @('input','regression','floor','ceiling','blocked','replacement','access','floor_edge','guidance','guide_lookaway','guide_steering','guide_fast','floor_exit','placement','objects','floor_escape','floor_partial','floor_continuous','floor_approach','floor_edge_slide','floor_corner','floor_clearance','surface_fit','reverse','static_exit')
+    [string[]]$Cases = @('input','regression','floor','ceiling','blocked','replacement','access','floor_edge','guidance','guide_lookaway','guide_steering','guide_fast','floor_exit','placement','objects','floor_escape','floor_partial','floor_continuous','floor_approach','floor_edge_slide','floor_corner','floor_clearance','surface_fit','ceiling_entry','reverse','static_exit')
 )
 $ErrorActionPreference='Stop'
 $Engine=(Resolve-Path -LiteralPath $Engine).Path
@@ -113,6 +113,12 @@ foreach($name in $Cases) {
         $front=[regex]::Match($log,'(?s)STATIC_FRONT_BEGIN(.*?)STATIC_FRONT_END').Groups[1].Value
         if($behind -notmatch 'PORTAL_EXIT ' -or $behind -match 'PORTALGUN blocked exit'){throw 'Static geometry behind exit blocked crossing'}
         if($front -notmatch 'PORTALGUN blocked exit|PORTAL_PARTIAL_BLOCK' -or $front -match 'PORTAL_EXIT '){throw 'Static geometry in front of exit failed to block crossing'}
+    }
+    if($name -eq 'ceiling_entry') {
+        $jump=[regex]::Match($log,'(?s)CEILING_JUMP_BEGIN(.*?)CEILING_JUMP_END').Groups[1].Value
+        if(([regex]::Matches($jump,'PORTAL_EXIT ')).Count -ne 1 -or $jump -notmatch 'PORTAL_EYE_CROSS feet=68.000 eye=0.000'){throw 'Ceiling jump failed viewpoint crossing'}
+        $positions=[regex]::Matches($jump,'selected=\d+ current=\d+ origin=(-?[0-9.]+)\s+(-?[0-9.]+)\s+(-?[0-9.]+)')
+        if(!$positions.Count -or [double]$positions[$positions.Count-1].Groups[2].Value -ge 495){throw 'Player remained behind ceiling portal exit'}
     }
     if($name -eq 'surface_fit') {
         $recess=[regex]::Match($log,'(?s)SURFACE_RECESS_BEGIN(.*?)SURFACE_RECESS_END').Groups[1].Value

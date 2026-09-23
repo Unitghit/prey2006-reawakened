@@ -318,3 +318,20 @@ keep their placement. Nearby fitting remains bounded to the original search.
 window obstruction, and lower wall placement. Clearance fixture offsets follow
 the new wall height so they retain the same shallow/deep penetration amounts.
 
+
+Ceiling entry uses the signed viewpoint offset, so a jump crosses when the eye
+reaches the opening rather than waiting for the feet to rise above the ceiling.
+Partial overlap tracking also covers ceilings and restores saved eye crossings.
+At the exit, the collision cutout stays active while the rotated hull straddles
+the support plane, even if its origin is behind it. Fully backside hulls remain
+excluded. `ceiling_entry` checks a normal jump and complete exit emergence.
+
+
+After transfer, destination proximity history is rebased to the new position.
+Exit occupancy probes must not turn source coordinates into a second crossing.
+
+
+Head-first exits retain the transformed hull orientation until the feet clear
+the wall. Gravity alignment must not rotate the body upright inside solid wall
+thickness while it is still emerging.
+

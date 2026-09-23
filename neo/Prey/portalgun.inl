@@ -191,6 +191,25 @@ static bool RW_PortalFits(const hhPortal *portal, const idTraceModel *trm, const
     }
     return true;
 }
+bool RW_PortalHoldPlayerAxis(const idEntity *entity) {
+    if (!g_portalGun.GetBool() || gameLocal.isMultiplayer || *cvarSystem->GetCVarString("fs_game") ||
+        !entity || !entity->IsType(hhPlayer::Type)) return false;
+    const idPhysics *physics = entity->GetPhysics();
+    const idClipModel *clip = physics->GetClipModel();
+    if (!clip || !clip->IsTraceModel()) return false;
+    for (int color = 0; color < 2; ++color) {
+        const hhPortal *portal = RW_GunPortal(color);
+        if (!portal || !portal->cameraTarget) continue;
+        const idVec3 normal = portal->GetAxis()[0];
+        const float depth = (physics->GetOrigin()-portal->GetOrigin())*normal;
+        // Do not rotate a head-first emerging hull upright inside the wall.
+        // Resume normal gravity alignment after its feet have cleared enough
+        // for the upright hull's half-width.
+        if (physics->GetAxis()[2]*normal > 0.95f && depth > -physics->GetBounds()[1].z &&
+            depth < 18.0f && RW_PortalFits(portal, clip->GetTraceModel(), physics->GetAxis(), physics->GetOrigin(), true)) return true;
+    }
+    return false;
+}
 bool RW_PortalClipPlane(const idEntity *entity, const idTraceModel *trm, const idMat3 &axis,
     const idVec3 &start, const idVec3 &end, idPlane &plane, float &limit) {
     limit = 1.0f;
@@ -201,7 +220,18 @@ bool RW_PortalClipPlane(const idEntity *entity, const idTraceModel *trm, const i
         hhPortal *portal = i ? b : a;
         const idVec3 normal = portal->GetAxis()[0];
         const idVec3 actualOffset = entity->GetPhysics()->GetOrigin() - portal->GetOrigin();
-        if (actualOffset.LengthSqr() < 128*128 && actualOffset * normal < -Max(4.0f, RW_GroundPortalEyeOffset(portal, entity) + 8.0f)) continue;
+        // After head-first ceiling entry, the feet remain behind the exit
+        // while the rotated hull emerges. Keep the cutout for that overlap,
+        // but still reject players whose whole hull is behind the surface.
+        float bodyFront = 0;
+        if (entity->IsType(hhPlayer::Type)) {
+            const idBounds &body = entity->GetPhysics()->GetBounds();
+            for (int k = 0; k < 8; ++k) {
+                const idVec3 corner(body[(k&1)!=0].x, body[(k&2)!=0].y, body[(k&4)!=0].z);
+                bodyFront = Max(bodyFront, (corner*entity->GetPhysics()->GetAxis())*normal);
+            }
+        }
+        if (actualOffset.LengthSqr() < 128*128 && actualOffset * normal < -Max(4.0f, bodyFront + 8.0f)) continue;
         const float d0 = (start - portal->GetOrigin()) * normal;
         const float d1 = (end - portal->GetOrigin()) * normal;
         // Fast projectiles can cross the complete opening in one physics step.
