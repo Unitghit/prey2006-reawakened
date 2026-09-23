@@ -7,10 +7,20 @@ static hhPortal *RW_GunPortal(int color) {
 }
 static bool RW_PortalFits(const hhPortal *portal, const idTraceModel *trm, const idMat3 &axis, const idVec3 &origin) {
     if (!trm) return false;
+    // Upright wall portals must not turn the oval's narrowing lower edge into
+    // a step under the player's square collision hull. Keep a flat foot opening
+    // with one step-height of clearance, while retaining the curved sides/top.
+    // Floor/ceiling portals keep the original aperture test in their own plane.
+    const bool footClearance = axis[2] * portal->GetAxis()[2] > 0.95f;
     for (int i = 0; i < 8; ++i) {
         const idVec3 corner(trm->bounds[(i&1)!=0].x, trm->bounds[(i&2)!=0].y, trm->bounds[(i&4)!=0].z);
         const idVec3 local = (origin + corner * axis - portal->GetOrigin()) * portal->GetAxis().Transpose();
-        if (Square(local.y / 47.0f) + Square(local.z / 71.0f) > 1.0f) return false;
+        float apertureZ = local.z;
+        if (footClearance && apertureZ < -48.0f) {
+            if (apertureZ < -87.0f) return false;
+            apertureZ = -48.0f;
+        }
+        if (Square(local.y / 47.0f) + Square(apertureZ / 71.0f) > 1.0f) return false;
     }
     return true;
 }
@@ -53,6 +63,46 @@ bool RW_PortalClipPlane(const idEntity *entity, const idTraceModel *trm, const i
     }
     return false;
 }
+// A wall portal close to a floor should be walk-through, not a raised hoop.
+// This adjusts portal placement, never the player's origin or teleport velocity.
+static bool RW_PortalSurfaceSupports(const idVec3 &center, const idMat3 &axis, const idEntity *ignore) {
+    for (int y = -6; y <= 6; ++y) for (int z = -9; z <= 9; ++z) {
+        const float py = y * 8.0f, pz = z * 8.0f;
+        if (Square(py / 49.0f) + Square(pz / 73.0f) > 1.05f) continue;
+        const idVec3 sample = center + axis[1] * py + axis[2] * pz;
+        trace_t support;
+        gameLocal.clip.TracePoint(support, sample + axis[0]*2, sample - axis[0]*2, MASK_SOLID, ignore);
+        if (support.fraction >= 1 || support.c.entityNum != ENTITYNUM_WORLD ||
+            support.c.normal * axis[0] < 0.999f || idMath::Fabs(center * support.c.normal - support.c.dist) > 0.1f) return false;
+    }
+    return true;
+}
+static bool RW_PortalFloorCenter(idVec3 &center, const idMat3 &axis, const idVec3 &gravityUp, const idEntity *ignore) {
+    if (axis[2] * gravityUp < 0.95f) return false;
+    trace_t floor;
+    const idVec3 probe = center + axis[0] * 24;
+    gameLocal.clip.TracePoint(floor, probe, probe - axis[2]*100, MASK_SOLID, ignore);
+    if (floor.fraction >= 1 || floor.c.entityNum != ENTITYNUM_WORLD || floor.c.normal * axis[2] < 0.99f) return false;
+    const float height = (center - floor.endpos) * axis[2];
+    if (height < 56 || height > 96) return false;
+    // The floor trace stops a clip epsilon above the actual plane. Use the
+    // plane itself so two endpoints over the same floor align exactly.
+    const float planeHeight = (center * floor.c.normal - floor.c.dist) / (axis[2] * floor.c.normal);
+    const idVec3 candidate = center + axis[2] * (73.0f - planeHeight);
+    if (!RW_PortalSurfaceSupports(candidate, axis, ignore)) return false;
+    center = candidate;
+    return true;
+}
+static void RW_UpdateGunPortalFloor(hhPortal *portal) {
+    if (portal->spawnArgs.GetBool("rw_portal_floor_aligned")) return;
+    portal->spawnArgs.SetBool("rw_portal_floor_aligned", true);
+    idVec3 center = portal->GetOrigin();
+    if (RW_PortalFloorCenter(center, portal->GetAxis(), -portal->GetPhysics()->GetGravityNormal(), gameLocal.GetLocalPlayer())) {
+        portal->SetOrigin(center);
+        portal->spawnArgs.SetVector("origin", center);
+        portal->UpdateVisuals();
+    }
+}
 bool hhPlayer::PortalGunSelected() const {
     return g_portalGun.GetBool() && !gameLocal.isMultiplayer && !*cvarSystem->GetCVarString("fs_game") && idealWeapon == 1 &&
         spawnArgs.GetBool("rw_weapon_portal_selected") && !IsSpiritOrDeathwalking();
@@ -94,23 +144,12 @@ bool hhPlayer::PlaceGunPortal(int color) {
     const idMat3 axis(normal, side, up);
     idVec3 center = hit.endpos - normal * (hit.endpos * normal - hit.c.dist);
     bool supported = false;
+    RW_PortalFloorCenter(center, axis, -GetPhysics()->GetGravityNormal(), this);
     const idVec3 aimedCenter = center;
     for (int adjustment = 0; adjustment <= 4 && !supported; ++adjustment) {
         center = aimedCenter + up * (adjustment * 8.0f);
         center += up * (floorf(center * up + 0.5f) - center * up);
-        supported = true;
-        // Require support under the full oval, including a small rim margin.
-        for (int y = -6; y <= 6; ++y) for (int z = -9; z <= 9; ++z) {
-            const float py = y * 8.0f, pz = z * 8.0f;
-            if (!supported || Square(py / 49.0f) + Square(pz / 73.0f) > 1.05f) continue;
-            const idVec3 sample = center + side * py + up * pz;
-            trace_t support;
-            gameLocal.clip.TracePoint(support, sample + normal * 2, sample - normal * 2, MASK_SOLID, this);
-            if (support.fraction >= 1 || support.c.entityNum != ENTITYNUM_WORLD ||
-                support.c.normal * normal < 0.999f || idMath::Fabs(center * support.c.normal - support.c.dist) > 0.1f) {
-                supported = false;
-            }
-        }
+        supported = RW_PortalSurfaceSupports(center, axis, this);
     }
     if (!supported) { gameLocal.Printf("PORTALGUN rejected: opening does not fit flat surface\n"); return false; }
     hhPortal *other = RW_GunPortal(1-color), *portal = RW_GunPortal(color);
@@ -134,6 +173,7 @@ bool hhPlayer::PlaceGunPortal(int color) {
         portal = static_cast<hhPortal *>(created);
     }
     portal->SetOrigin(center); portal->SetAxis(axis);
+    portal->spawnArgs.SetBool("rw_portal_floor_aligned", true);
     portal->SetModel(color ? "models/reawakened/portalgun/orange_closed.ase" : "models/reawakened/portalgun/blue_closed.ase");
     portal->GetPhysics()->SetContents(0);
     portal->SetGravity(GetPhysics()->GetGravity());

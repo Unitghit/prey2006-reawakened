@@ -18,7 +18,7 @@ python tools/portalgun/build_assets.py <retail-base-containing-pk4-files> <runti
 ```
 
 Run this locally against the user's own Prey installation. Do not distribute the
-generated retail-derived ASE files. This repository contains only the importer.
+generated retail-derived ASE and material files. This repository contains only the importer.
 Deploy both the updated executable and game DLL: this feature appends a collision
 manager interface method, keeping previous virtual slots in their original order.
 
@@ -37,6 +37,21 @@ boost or position correction. Occupied exits block traversal instead of telefrag
 This is a sandbox experiment: portals can bypass campaign triggers and puzzles.
 Not a complete recreation of Valve's portal mechanics.
 
+## Walk-through wall portals
+
+Upright portals within step range of a flat floor align their centers 73 units
+above that floor. Existing saved portal-tool endpoints receive this adjustment
+once when loaded. Higher placements and floor/ceiling portals are not snapped.
+The lower collision opening has flat foot clearance so the rounded artwork does
+not force the player's box hull to climb a step. The supporting floor still
+participates in collision; traversal does not lift or push the player.
+
+Imported portal materials use a depth bias against their supporting wall. The
+remote clip plane excludes the coplanar backing face by 0.25 units without
+changing the camera or teleport transform. Retail free-standing portals retain
+their original materials and clip planes. Re-run the importer after updating from
+the initial prototype to generate the adjusted local materials.
+
 ## Regression coverage
 
 `test.ps1` runs hidden, muted, isolated-profile tests. It compiles the authored
@@ -46,3 +61,7 @@ floor-to-wall and floor-to-ceiling momentum, and an enemy blocking the exit.
 The room is a collision fixture, not a representative lighting scene.
 Campaign testing additionally checked slot-1 toggling, wheel cycling with the
 Doom weapons, and save/reload of the selected tool.
+
+The `portaltest` campaign save was also checked at 3.63 units/second, including
+stopping while straddling the exit and reversing through it. All four crossings
+kept the floor height at 448.25 and reported zero teleport position correction.

@@ -2675,6 +2675,11 @@ static void Cmd_PortalGun_f(const idCmdArgs &args) {
     else if (args.Argc() > 1 && !idStr::Icmp(args.Argv(1), "orange")) player->PlaceGunPortal(1);
     else if (args.Argc() > 1 && !idStr::Icmp(args.Argv(1), "select")) player->SelectPortalGun(true);
     gameLocal.Printf("PORTALGUN selected=%d current=%d origin=%s velocity=%s\n", player->PortalGunSelected(), player->GetCurrentWeapon(), player->GetOrigin().ToString(), player->GetPhysics()->GetLinearVelocity().ToString());
+    if (cvarSystem->GetCVarBool("developer")) for (int color = 0; color < 2; ++color) {
+        idEntity *portal = gameLocal.FindEntity(color ? "rw_gun_orange" : "rw_gun_blue");
+        if (portal) gameLocal.Printf("PORTALGUN_ENDPOINT %s origin=%s normal=%s up=%s\n", portal->GetName(),
+            portal->GetOrigin().ToString(), portal->GetAxis()[0].ToString(), portal->GetAxis()[2].ToString());
+    }
 }
 
 static void Cmd_SuperShotgunInfo_f(const idCmdArgs &args) {

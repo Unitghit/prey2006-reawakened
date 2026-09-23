@@ -14,8 +14,7 @@ def cross(a, b):
     return [a[1]*b[2]-a[2]*b[1], a[2]*b[0]-a[0]*b[2], a[0]*b[1]-a[1]*b[0]]
 
 
-def read_mesh(base):
-    name = "models/mapobjects/portal/portal.md5mesh"
+def read_asset(base, name):
     loose = base / name
     if loose.is_file():
         return loose.read_text()
@@ -23,7 +22,27 @@ def read_mesh(base):
         with zipfile.ZipFile(archive) as pak:
             if name in pak.namelist():
                 return pak.read(name).decode("ascii")
-    raise SystemExit("Retail Prey portal mesh not found in " + str(base))
+    raise SystemExit("Retail Prey asset not found: " + name + " in " + str(base))
+
+
+def read_mesh(base):
+    return read_asset(base, "models/mapobjects/portal/portal.md5mesh")
+
+
+def material_body(text, name):
+    start = re.search(r"(?m)^" + re.escape(name) + r"\s*\{", text)
+    if not start:
+        raise ValueError("Missing retail material: " + name)
+    opening = text.index("{", start.start())
+    depth = 0
+    # Ignore braces in comments and quoted strings when extracting the declaration.
+    for token in re.finditer(r'//[^\n]*|/\*.*?\*/|"(?:\\.|[^"\\])*"|[{}]', text[opening:], re.S):
+        if token[0] == "{": depth += 1
+        elif token[0] == "}":
+            depth -= 1
+            if depth == 0:
+                return text[opening+1:opening+token.start()]
+    raise ValueError("Unterminated retail material: " + name)
 
 
 def parse_mesh(text):
@@ -77,6 +96,8 @@ def build(retail, output):
     # Keep original UVs and artwork. Flatten the retail funnel against its wall;
     # omit backside and outer refraction, which would sample the supporting wall.
     surfaces = [s for s in surfaces if s[0].endswith(('/portal', '/portal_fx', '/portal_innerwarp'))]
+    retail_materials = read_asset(retail, "materials/portals.mtr")
+    adapted_materials = {}
     models = output/'models/reawakened/portalgun'
     models.mkdir(parents=True, exist_ok=True)
     for color in ('blue', 'orange'):
@@ -88,8 +109,15 @@ def build(retail, output):
                     material = 'models/mapobjects/portal/portal_back'
                 if color == 'blue' and not (inner and not closed):
                     material = material.replace('models/mapobjects/portal/portal', 'models/mapobjects/superportal/superportal')
+                source_material = material
+                material = "reawakened/portalgun/retail_" + material.rsplit("/", 1)[1]
+                if material not in adapted_materials:
+                    body = material_body(retail_materials, source_material)
+                    # Wall-mounted portal passes must win coplanar depth tests,
+                    # including against decals. Retail level portals stay unchanged.
+                    adapted_materials[material] = material + " {\n polygonOffset 1\n" + body + "}\n"
                 materials.append(material)
-                depth = 0.06 if inner else (0.10 if material.endswith('_fx') else 0.08)
+                depth = 0.06 if inner else (0.25 if source_material.endswith('_fx') else 0.125)
                 transformed = [(depth, (p[1]-cy)*sy, (p[2]-cz)*sz) for p in vertices]
                 geometry.append(ase_surface(index, transformed, uv, faces))
             lines = ['*3DSMAX_ASCIIEXPORT 200', '*MATERIAL_LIST {', f'*MATERIAL_COUNT {len(materials)}']
@@ -97,6 +125,8 @@ def build(retail, output):
             lines += ['}'] + geometry
             (models/(color+('_closed' if closed else '')+'.ase')).write_text('\n'.join(lines)+'\n')
     (models/'closed.ase').write_bytes((models/'blue_closed.ase').read_bytes())
+    (output/'materials').mkdir(parents=True, exist_ok=True)
+    (output/'materials/reawakened_portalgun_retail.mtr').write_text('\n'.join(adapted_materials.values()))
     print('Adapted retail blue/orange portal meshes:', models)
 
 

@@ -387,9 +387,12 @@ void hhPortal::CheckPlayerDistances(void) {
 
 #define NEAR_CLIP	0 //6.5
 
+static void RW_UpdateGunPortalFloor(hhPortal *portal);
+
 void hhPortal::Think( void ) {
     if (spawnArgs.GetBool("rw_portalGun")) {
         if (!cvarSystem->GetCVarBool("g_portalGun")) { Hide(); GetPhysics()->SetContents(0); return; }
+        RW_UpdateGunPortalFloor(this);
         Show(); GetPhysics()->SetContents(cameraTarget ? CONTENTS_SOLID : 0);
     }
 

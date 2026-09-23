@@ -161,6 +161,11 @@ static viewDef_t *R_PortalSubviewBySurface( drawSurf_t *drawSurf ) {
 	parms->numClipPlanes = 1;
 	parms->clipPlanes[0] = remoteRenderView->viewaxis[0];
 	parms->clipPlanes[0][3] = -( remoteRenderView->vieworg * parms->clipPlanes[0].Normal() );
+    // A decal-style portal is mounted on solid world geometry. Exclude its
+    // coplanar backing wall from the remote view without shifting the eye or
+    // teleport transform. Free-standing retail portals retain their exact plane.
+    if (drawSurf->material->TestMaterialFlag(MF_POLYGONOFFSET)) parms->clipPlanes[0][3] -= 0.25f;
+
 
 	R_TransformPortalSubview( portalEntity, *remoteRenderView, *parms );
 	// Select the area just inside the exit without displacing either the
