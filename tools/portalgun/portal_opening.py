@@ -32,6 +32,11 @@ def build_opening(mesh, animation, output, cy, cz):
                 raise ValueError('Portal animation rotates joints; cannot flatten without distortion')
             pose.append((p,r))
         frames.append([np.zeros(3) if i==0 else flat(p) for i,(p,r) in enumerate(pose)])
+    # Scripted openings have a stationary lead-in for their accompanying FX.
+    # A gun impact already supplies that cue: retain only the last held pose
+    # so the full duration belongs to the visible expansion, not the pre-roll.
+    while len(frames) > 2 and np.allclose(frames[0], frames[1], atol=1e-5):
+        frames.pop(0)
     def fmt(v):return ' '.join(f'{x:.8f}' for x in v)
     models=output/'models/reawakened/portalgun';models.mkdir(parents=True,exist_ok=True)
     definitions=[]
@@ -63,7 +68,7 @@ def build_opening(mesh, animation, output, cy, cz):
     for i in range(max(0,len(frames)-8),len(frames)):
         t=(i-(len(frames)-8))/7.;t=t*t*(3-2*t)
         frames[i]=[p*(1-t)+target*t for p,target in zip(frames[i],projected)]
-    # Retain every retail pose, compressed to a responsive ~0.3 second opening.
+    # Retain the moving retail poses, retimed to a responsive ~0.3 second opening.
     rate=round((len(frames)-1)/.3)
     lines=['MD5Version 10','commandline "local flattened retail opening"',f'numFrames {len(frames)}',f'numJoints {len(joints)}',f'frameRate {rate}',f'numAnimatedComponents {3*len(joints)}','hierarchy {']
     lines += [f' "{n}" {(-1 if i==0 else 0)} 7 {i*3}' for i,(n,p,r) in enumerate(joints)]+['}','bounds {']
