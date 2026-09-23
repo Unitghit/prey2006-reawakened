@@ -264,9 +264,17 @@ bool hhInventory::SplitAcidAmmo(const idPlayer *owner) const {
 	const idDict *addon = gameLocal.FindEntityDefDict("weaponobj_d3plasmagun", false);
 	return addon && addon->GetBool("rw_saveCompatible");
 }
+bool hhInventory::SharedShotgunAmmo(const idPlayer *owner) const {
+    const idDict *addon = gameLocal.FindEntityDefDict("weaponobj_d3supershotgun", false);
+    return UsesIndependentWeaponAmmo(owner) && addon && addon->GetBool("rw_sharedShotgunAmmo");
+}
+int hhInventory::ShotgunAmmoAvailable(int slot) const {
+    if (ammo[10] < 0) { return -1; }
+    return Max(0, ammo[10] - Max(0, clip[slot == 8 ? 15 : 8]));
+}
 int hhInventory::AcidGroupAmmoCount(const idPlayer *owner) const {
     const idDict *addon = gameLocal.FindEntityDefDict("weaponobj_d3supershotgun", false);
-    return addon && addon->GetBool("rw_saveCompatible") && owner->spawnArgs.GetBool("rw_weapon_d3supershotgun_owned") ? 3 : 2;
+    return !SharedShotgunAmmo(owner) && addon && addon->GetBool("rw_saveCompatible") && owner->spawnArgs.GetBool("rw_weapon_d3supershotgun_owned") ? 3 : 2;
 }
 bool hhInventory::SplitRocketAmmo(const idPlayer *owner) const {
 	if (!UsesIndependentWeaponAmmo(owner) || !cvarSystem->GetCVarBool("g_doom3Shotgun") ||
@@ -298,6 +306,16 @@ bool hhInventory::SynchronizeWeaponAmmo(hhPlayer *owner) {
 		if (ammo[shells] >= 0 && clip[8] > ammo[shells]) { clip[8] = ammo[shells]; }
 		changed = true;
 	}
+    if (SharedShotgunAmmo(owner) && !owner->spawnArgs.GetBool("rw_weapon_shared_shells_initialized")) {
+        // Legacy totals already include each magazine. Merge them only once.
+        if (ammo[10] >= 0 && clip[8] > ammo[10]) { clip[8] = ammo[10]; }
+        if (ammo[15] >= 0 && clip[15] > ammo[15]) { clip[15] = ammo[15]; }
+        if (ammo[10] < 0 || ammo[15] < 0) { ammo[10] = -1; }
+        else { StoreWeaponAmmo(owner, 10, ammo[10] + ammo[15] + WeaponAmmoFraction(owner, 10) + WeaponAmmoFraction(owner, 15)); }
+        StoreWeaponAmmo(owner, 15, 0);
+        owner->spawnArgs.SetBool("rw_weapon_shared_shells_initialized", true);
+        changed = true;
+    }
 	const bool active = SplitRifleAmmo(owner);
 	if (active) {
 		const int shells = AmmoIndexForAmmoClass("ammo_d3shells");
@@ -321,7 +339,7 @@ bool hhInventory::SynchronizeWeaponAmmo(hhPlayer *owner) {
 			owner->spawnArgs.SetInt("rw_weapon_shell_capacity", capacity);
 			changed = true; // Refresh ammo bars restored from an older balance.
 		}
-		if (ammo[shells] >= 0 && ammo[shells] + WeaponAmmoFraction(owner, shells) > capacity) {
+		if (!SharedShotgunAmmo(owner) && ammo[shells] >= 0 && ammo[shells] + WeaponAmmoFraction(owner, shells) > capacity) {
 			StoreWeaponAmmo(owner, shells, capacity);
 			changed = true;
 		}
@@ -455,7 +473,7 @@ int hhInventory::MaxAmmoForAmmoClass( idPlayer *owner, const char *ammo_classnam
 	int max = 0;
 	if (ammo_classname && UsesIndependentWeaponAmmo(owner)) {
 		if (!idStr::Icmp(ammo_classname, "ammo_d3shells")) {
-			return 16; // Stable total cap, including the eight loaded shells.
+			return SharedShotgunAmmo(owner) ? 16 + Max(0, clip[8]) + Max(0, clip[15]) : 16;
 		}
 		if (!idStr::Icmp(ammo_classname, "ammo_d3bullets")) { return 180; }
 		if (!idStr::Icmp(ammo_classname, "ammo_d3belt")) { return 180; }
@@ -802,9 +820,9 @@ float hhInventory::AmmoPercentage(idPlayer *player, ammo_t type) {
 	if (SplitRifleAmmo(player) && type == AmmoIndexForAmmoClass("ammo_rifle")) {
 		const int shells = AmmoIndexForAmmoClass("ammo_d3shells");
 		const float rifleMax = Max(1, MaxAmmoForAmmoClass(player, "ammo_rifle"));
-		const float shellMax = Max(1, MaxAmmoForAmmoClass(player, "ammo_d3shells"));
+		const float shellMax = SharedShotgunAmmo(player) ? 16.0f : Max(1, MaxAmmoForAmmoClass(player, "ammo_d3shells"));
 		const float riflePct = ammo[type] < 0 ? 1.0f : idMath::ClampFloat(0, 1, ammo[type] / rifleMax);
-		const float shellPct = ammo[shells] < 0 ? 1.0f : idMath::ClampFloat(0, 1, ammo[shells] / shellMax);
+		const float shellPct = ammo[shells] < 0 ? 1.0f : idMath::ClampFloat(0, 1, (SharedShotgunAmmo(player) ? Max(0, ammo[shells] - Max(0, clip[8]) - Max(0, clip[15])) : ammo[shells]) / shellMax);
 		if (RifleGroupAmmoCount(player) == 3) {
 			const float mgMax = Max(1, MaxAmmoForAmmoClass(player, "ammo_d3bullets"));
 			const float mgPct = ammo[11] < 0 ? 1.0f : idMath::ClampFloat(0, 1, ammo[11] / mgMax);

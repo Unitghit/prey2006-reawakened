@@ -40,6 +40,8 @@ public:
 	virtual void		UseAmmo();
 	virtual int			AmmoAvailable() const;
 	void				AddToClip( int amount );
+	int SharedShotgunSlot() const;
+	void PublishShotgunClip();
 	static ammo_t		GetAmmoType( const char *ammoname );
 	ID_INLINE ammo_t	GetAmmoType() const;
 	ID_INLINE int		AmmoInClip() const;

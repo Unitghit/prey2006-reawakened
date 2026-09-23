@@ -1054,7 +1054,11 @@ void hhPlayer::UpdateHudAmmo(idUserInterface *_hud) {
 		if ( WeaponGroup(infoSlot) == rover && (inventory.weapons & (1 << infoSlot)) ) {
 			// have this weapon
 			bHeld = true;
-			ammoPct = ammo / weaponInfo[infoSlot].ammoMax;
+			if ((infoSlot == 8 || infoSlot == 15) && inventory.SharedShotgunAmmo(this)) {
+                ammo = inventory.ShotgunAmmoAvailable(infoSlot);
+                altAmmo = ammo;
+            }
+            ammoPct = ammo / (((infoSlot == 8 || infoSlot == 15) && inventory.SharedShotgunAmmo(this)) ? float(16 + Max(0, inventory.clip[infoSlot])) : weaponInfo[infoSlot].ammoMax);
 			altPct = altAmmo / altWeaponInfo[infoSlot].ammoMax;
 			ammoLow = ammo > 0 && ammo <= weaponInfo[infoSlot].ammoLow;
 			altAmmoLow = altAmmo > 0 && altAmmo <= altWeaponInfo[infoSlot].ammoLow;
@@ -1100,7 +1104,11 @@ void hhPlayer::UpdateHudAmmo(idUserInterface *_hud) {
 			altAmmoType = altWeaponInfo[currentWeapon].ammoType;
 			ammo = inventory.ammo[ammoType];
 			altAmmo = inventory.ammo[altAmmoType];
-			ammoPct = ammo / weaponInfo[currentWeapon].ammoMax;
+			if ((currentWeapon == 8 || currentWeapon == 15) && inventory.SharedShotgunAmmo(this)) {
+                ammo = inventory.ShotgunAmmoAvailable(currentWeapon);
+                altAmmo = ammo;
+            }
+            ammoPct = ammo / (((currentWeapon == 8 || currentWeapon == 15) && inventory.SharedShotgunAmmo(this)) ? float(16 + Max(0, inventory.clip[currentWeapon])) : weaponInfo[currentWeapon].ammoMax);
 			altPct = altAmmo / altWeaponInfo[currentWeapon].ammoMax;
 			ammoLow = ammo > 0 && ammo <= weaponInfo[currentWeapon].ammoLow;
 			altAmmoLow = altAmmo > 0 && altAmmo <= altWeaponInfo[currentWeapon].ammoLow;

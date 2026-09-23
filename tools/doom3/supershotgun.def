@@ -1,6 +1,7 @@
-// Slot-6 third weapon. Stable inventory/ammo index 15; two shells per shot.
+// Slot-6 third weapon. Stable inventory index 15; shared shell ammo index 10.
 entityDef weaponobj_d3supershotgun {
     "rw_saveCompatible" "1"
+    "rw_sharedShotgunAmmo" "1"
     "rw_weaponGroup" "6"
     "rw_weaponVariant" "2"
     "rw_ammoCapacity" "16"
@@ -31,7 +32,7 @@ entityDef fireinfo_d3supershotgun {
     "numProjectiles" "20"
     "rw_doubleShotgunSpread" "1"
     "spread" "22"
-    "ammoType" "ammo_d3supershells"
+    "ammoType" "ammo_d3shells"
     "ammoRequired" "2"
     "rw_clipInAmmoUnits" "1"
     "clipSize" "2"
@@ -73,7 +74,8 @@ entityDef weapon_d3supershotgun {
     "model" "d3_worldmodel_shotgun_double"
     "inv_name" "Doom 3 Super Shotgun"
     "inv_weapon" "weaponobj_d3supershotgun"
-    "inv_ammo_acid" "4"
+    "inv_ammo_acid" "0"
+    "inv_ammo_rifle" "30"
     "def_precache1" "weaponobj_d3supershotgun"
 }
 

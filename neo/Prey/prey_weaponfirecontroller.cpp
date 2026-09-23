@@ -353,11 +353,25 @@ void hhWeaponFireController::CalculateMuzzlePosition( idVec3& origin, idMat3& ax
 hhWeaponFireController::UseAmmo
 ================
 */
+int hhWeaponFireController::SharedShotgunSlot() const {
+    if (!owner.IsValid() || !dict || !owner->inventory.SharedShotgunAmmo(owner.GetEntity())) { return -1; }
+    const char *projectile = dict->GetString("def_projectile");
+    if (!idStr::Icmp(projectile, "projectile_d3shotgun")) { return 8; }
+    if (!idStr::Icmp(projectile, "projectile_d3supershotgun")) { return 15; }
+    return -1;
+}
+void hhWeaponFireController::PublishShotgunClip() {
+    const int slot = SharedShotgunSlot();
+    if (slot >= 0 && self.IsValid() && self->IsPrimaryFireController(this)) {
+        owner->inventory.clip[slot] = Max(0, ammoClip);
+    }
+}
 void hhWeaponFireController::UseAmmo() {
 	if( owner.IsValid() ) {
 		owner->UseAmmo( GetAmmoType(), AmmoRequired() );
 		if ( ClipSize() && AmmoRequired() ) {
 			ammoClip -= dict->GetBool("rw_clipInAmmoUnits") ? AmmoRequired() : 1;
+            PublishShotgunClip();
 		}
 	}
 }
@@ -376,6 +390,7 @@ void hhWeaponFireController::AddToClip( int amount ) {
 	if ( ammoClip > AmmoAvailable() ) {
 		ammoClip = AmmoAvailable();
 	}
+    PublishShotgunClip();
 }
 
 /*
@@ -462,6 +477,11 @@ void hhWeaponFireController::Restore( idRestoreGame *savefile ) {
 		if (addon && addon->GetBool("rw_splitAmmo")) { ammoType = idWeapon::GetAmmoNumForName("ammo_d3shells"); }
 	}
 
+    if (!gameLocal.isMultiplayer && !*cvarSystem->GetCVarString("fs_game") && dict &&
+        !idStr::Icmp(dict->GetString("def_projectile"), "projectile_d3supershotgun")) {
+        const idDict *addon = gameLocal.FindEntityDefDict("weaponobj_d3supershotgun", false);
+        if (addon && addon->GetBool("rw_sharedShotgunAmmo")) { ammoType = idWeapon::GetAmmoNumForName("ammo_d3shells"); }
+    }
 	savefile->ReadInt( clipSize );
 	savefile->ReadInt( ammoClip );
 	savefile->ReadInt( lowAmmo );
@@ -485,6 +505,8 @@ hhWeaponFireController::AmmoAvailable
 ================
 */
 int hhWeaponFireController::AmmoAvailable() const {
+    const int slot = SharedShotgunSlot();
+    if (slot >= 0) { return owner->inventory.ShotgunAmmoAvailable(slot); }
 	if ( owner.IsValid() ) {
 		return owner->HasAmmo( GetAmmoType(), dict->GetBool("rw_clipInAmmoUnits") ? 1 : AmmoRequired() );
 	} else {

@@ -2674,6 +2674,10 @@ static void Cmd_SuperShotgunInfo_f(const idCmdArgs &args) {
 			gameLocal.Printf("SSGPICKUP accepted=%d\n", player->Give("ammo_acid", args.Argv(2)));
 		}
 	}
+    gameLocal.Printf("SHAREDSHELLS total=%d reserve=%d shotgun=%d super=%d availableSG=%d availableSSG=%d capacity=%d legacy=%d\n",
+        player->inventory.ammo[10], Max(0, player->inventory.ammo[10] - Max(0, player->inventory.clip[8]) - Max(0, player->inventory.clip[15])),
+        player->inventory.clip[8], player->inventory.clip[15], player->inventory.ShotgunAmmoAvailable(8), player->inventory.ShotgunAmmoAvailable(15),
+        player->inventory.MaxAmmoForAmmoClass(player, "ammo_d3shells"), player->inventory.ammo[15]);
 	gameLocal.Printf("SSGAMMO acid=%d shells=%d acidMax=%d shellMax=%d acidFraction=%s shellFraction=%s clip=%d held=%d alt=%d\n",
 		player->inventory.ammo[2], player->inventory.ammo[15],
 		player->inventory.MaxAmmoForAmmoClass(player, "ammo_acid"), player->inventory.MaxAmmoForAmmoClass(player, "ammo_d3supershells"),

@@ -15,7 +15,8 @@ if(!(Test-Path -LiteralPath "$enginePath/base/def/doom3_plasmagun.def")){throw '
 $base=Join-Path $profile 'base'
 New-Item -ItemType Directory -Path "$base/savegames" -Force | Out-Null
 Copy-Item -LiteralPath $seed -Destination "$base/savegames/seed.save"
-$withSuperShotgun=Test-Path -LiteralPath "$enginePath/base/def/doom3_supershotgun.def"
+$ssgDef=Join-Path $enginePath "base/def/doom3_supershotgun.def"
+$withSuperShotgun=(Test-Path -LiteralPath $ssgDef) -and !((Get-Content -LiteralPath $ssgDef -Raw) -match '"rw_sharedShotgunAmmo"\s+"1"')
 $config=@'
 set g_doom3Shotgun 1
 loadGame seed

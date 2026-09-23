@@ -47,23 +47,24 @@ Each acquired, enabled weapon gets an equal share of its group's supply budget,
 expressed relative to that weapon's full reserve, not equal bullet counts.
 Use fixed thirds for rifle-group pickups and fixed halves for slot-5 pickups,
 including ammo-only entities and dropped weapons. Pickup rates are independent
-of capacity: keep the shotgun capped at 16 total shells and Machine Gun at 180 rounds.
+of capacity: keep the shotguns at 16 shared reserve shells plus private magazines and Machine Gun at 180 rounds.
 The Machine Gun unlocks with the Leech Gun (also on existing saves), but still
 receives rifle-group pickup supply. Leech Gun energy absorption is unchanged.
 The Chaingun unlocks with the Autocannon and uses slot 5's primary supply only.
 Its independent reserve is capped at 180 including 60 loaded rounds; Autocannon
 primary capacity is 200 while paired. Secondary grenades remain unchanged.
 The Plasma Gun unlocks with the Acid Sprayer in slot 6 and receives only acid
-pickup supply. With the Super Shotgun installed, fixed thirds supply separate
-reserves capped at 8 acid units, 150 cells (50 loaded), and 16 Super Shotgun
-shells (two loaded). Without the expansion, the original acid/Plasma halves
-remain. Existing acquired acid is preserved.
+pickup supply, split in halves with the Acid Sprayer (12 acid units and 150 cells,
+including 50 loaded). The Super Shotgun shares the slot-2 shell reserve: 16 loose
+shells plus 8 loaded in the Shotgun and 2 in the Super Shotgun. It still unlocks
+with slot 6. Pickup amounts stay unchanged and the shell share is credited once.
+Existing acquired acid is preserved.
 The Doom Rocket Launcher unlocks with the original launcher in slot 7. Fixed
 halves of rocket pickup supply fill independent 12-rocket reserves; the Doom
 launcher holds five loaded rockets. Existing acquired Prey rockets are preserved.
 Preserve fractional pickup credit. Full or locked reserves do not donate their
 unused pickup share to another gun. Once acquired,
-ammunition belongs exclusively to its gun: firing/reloading must never consume
+ammunition belongs exclusively to its gun (except the shared loose shell reserve): firing/reloading must never consume
 another gun's ammo. Mode toggles retain dormant reserves without conversion or
 refills. Existing shared-ammo prototype saves receive a one-time normalized split.
 Retain legitimate over-cap ammunition after mode changes until it is spent.

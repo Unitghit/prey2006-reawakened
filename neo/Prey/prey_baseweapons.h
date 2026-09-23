@@ -148,6 +148,7 @@ class hhWeapon: public hhAnimatedEntity {
 		virtual void		InitScriptObject( const char* objectType );
 		static idEntity*	SpawnWorldModel( const char* worldModelDict, idActor* _owner );
 		virtual void		GetMasterDefaultPosition( idVec3 &masterOrigin, idMat3 &masterAxis ) const;
+		bool IsPrimaryFireController(const hhWeaponFireController *controller) const { return fireController == controller; }
 		virtual	hhPlayer*	GetOwner() const { return owner.GetEntity(); }
 		virtual void		UpdateCrosshairs( bool &crosshair, bool &targeting );
 

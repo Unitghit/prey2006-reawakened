@@ -44,13 +44,13 @@ energy absorption is unchanged and never supplies Machine Gun bullets:
 | Weapon | Total ammunition, including loaded rounds | Magazine |
 | --- | --- | --- |
 | Hunter Rifle | 75 before Leech unlock, then 50 | Original behavior |
-| Shotgun | **16 shells** | 8 |
+| Shotgun | **16 shared reserve shells, plus private loaded shells** | 8 |
 | Machine Gun | **180 rounds** | 60 |
 | Autocannon (when Chaingun unlocked) | 200 primary rounds | Original behavior |
 | Chaingun | **180 rounds** | 60 |
-| Acid Sprayer (paired / with Super Shotgun) | 12 / 8 acid units | Original behavior |
+| Acid Sprayer (paired) | 12 acid units | Original behavior |
 | Plasma Gun | **150 cells** | 50 |
-| Super Shotgun | **16 shells** | 2 |
+| Super Shotgun | **Same shared shell reserve** | 2 |
 | Doom Rocket Launcher | **12 rockets** | 5 |
 
 Primary Autocannon pickups supply only the slot-5 pair. For example, a 40-round
@@ -272,7 +272,7 @@ Historical validation figures above describe earlier revisions.
 
 The Plasma Gun is the orange second weapon in slot 6. It uses independent cells
 supplied only by Acid Sprayer ammo boxes and weapon pickups, including dropped
-weapons. Without the Super Shotgun, fixed half shares apply: the regular four-unit acid pickup supplies
+weapons. Fixed half shares apply: the regular four-unit acid pickup supplies
 two acid units and 40 cells; the weapon pickup supplies eight acid units and
 160 cells before the 150-cell total capacity limit (50 loaded plus 100 reserve).
 Pickup rates are unchanged; excess cells in older saves clamp to 150 when enabled.
@@ -345,8 +345,9 @@ Doom 3 installation root. If `d3xp/pak*.pk4` contains the expansion weapon, its
 assets are imported locally. Base Doom 3 owners retain the existing weapon pack
 without the Super Shotgun. Keep imported assets installed for saves using them.
 
-The Super Shotgun holds 16 shells total, including two loaded, and consumes two
-per blast. It automatically reloads after firing when sufficient shells remain;
+The shotguns share 16 reserve shells, plus eight private loaded shells in the
+Shotgun and two in the Super Shotgun (26 combined when full). The Super Shotgun
+consumes two per blast. It automatically reloads after firing when sufficient shells remain;
 R also reloads. One remaining shell cannot fire. Its 20 pellets deal 16 base
 damage each, with the expansion's eight-pellet narrow and twelve-pellet wide
 elliptical spread. The ellipse sampling follows id Software's released
@@ -354,16 +355,16 @@ elliptical spread. The ellipse sampling follows id Software's released
 Concentrated lethal hits use the existing protected close-range gib behavior.
 There is no invented alternate attack.
 
-With all three slot-6 weapons installed, acid supply uses fixed thirds. A normal
-four-unit acid box supplies 1 1/3 acid units, 26 2/3 Plasma cells, and two Super
-Shotgun shells. A sixteen-unit Acid Sprayer weapon/drop supplies 5 1/3 acid units,
-106 2/3 cells, and eight shells, limited by available room. Fractions persist.
-The acid pickup cap becomes eight; existing excess acid remains until spent.
-Plasma retains its 150-cell cap. Acquired pools are independent, and full pools
-never donate unused supply to another weapon. Without expansion assets, the
-existing two-weapon half shares remain.
+Both shotguns draw from rifle-group pickups without dividing that pickup share
+again. A standard original 30-round rifle pickup adds two shells once to the
+shared pool when the three rifle-supply weapons are unlocked. Acid pickups
+supply only the Acid Sprayer and Plasma Gun in halves (2 acid units and 40 cells
+from a four-unit box). The Super Shotgun still unlocks in slot 6 with the Acid
+Sprayer. Loaded shells cannot be borrowed by the other gun. Existing saves merge
+both old shell totals and fractional credit once, retaining any excess until
+spent; reloading, toggling and loading saves do not create ammunition.
 
-Inventory/ammo index 15 uses the existing 16-entry serialized arrays. The HUD
+Inventory index 15 uses the existing 16-entry serialized arrays. The HUD
 cache now covers all 16 slots, but its historical 15 saved records are retained;
 the complete cache is reconstructed after loading. No inventory or script save
 layout is expanded. The versioned Super Shotgun script is now a save ABI.
@@ -372,7 +373,7 @@ Hidden/muted tests cover two-shell consumption, reloading, fractional pickup
 allocation, full pools, equipped/disabled saves, a save during reload, refusal to
 fire with one shell, real ammo/weapon pickups, slot-key and wheel cycling, purple
 HUD rendering, and concentrated Hunter gibs. `test_supershotgun_ammo.ps1` tests
-independent reserves; `test_plasma_ammo.ps1` supports both expansion and base-only
+shared reserves and private magazines; `test_plasma_ammo.ps1` supports both expansion and base-only
 installations. Developer diagnostics: `superShotgunInfo` and
 `d3_supershotgunTrace 1`.
 

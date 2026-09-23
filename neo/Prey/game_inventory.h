@@ -16,6 +16,8 @@ public:
 	bool GiveAcidGroupAmmo(hhPlayer *owner, int amount);
 	bool GiveRocketGroupAmmo(hhPlayer *owner, int amount);
 	bool SynchronizeWeaponAmmo(hhPlayer *owner);
+	bool SharedShotgunAmmo(const idPlayer *owner) const;
+	int ShotgunAmmoAvailable(int slot) const;
 	bool GiveRifleGroupAmmo(hhPlayer *owner, int amount);
 	virtual void		GetPersistantData( idDict &dict );
 	virtual void		RestoreInventory( idPlayer *owner, const idDict &dict );
