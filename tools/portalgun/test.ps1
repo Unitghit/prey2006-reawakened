@@ -85,6 +85,12 @@ foreach($name in $Cases) {
         $probes=[regex]::Matches($log,'PORTAL_PROBE fraction=([0-9.]+)')
         if($probes.Count -ne 2 -or [double]$probes[0].Groups[1].Value -ne 1 -or [double]$probes[1].Groups[1].Value -ge 1){throw 'Floor edge clearance or embedded-hull boundary failed'}
     }
+    if($name -eq 'floor_partial') {
+        $partial=[regex]::Match($log,'(?s)FLOOR_PARTIAL_BEGIN(.*?)FLOOR_PARTIAL_END').Groups[1].Value
+        $backside=[regex]::Match($log,'(?s)FLOOR_BACKSIDE_BEGIN(.*?)FLOOR_BACKSIDE_END').Groups[1].Value
+        if(([regex]::Matches($partial,'PORTAL_EXIT ')).Count -ne 1){throw 'Partial floor crossing did not recover exactly once'}
+        if($backside -match 'PORTAL_EXIT '){throw 'Backside floor entry incorrectly recovered'}
+    }
     if($name -eq 'objects') {
         foreach($prop in @('polish_a','polish_b','polish_c')) {
             if(([regex]::Matches($log,'PORTAL_ENTITY_EXIT hhMoveable name='+$prop)).Count -ne 1){throw "Prop $prop did not cross exactly once"}

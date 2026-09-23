@@ -481,14 +481,21 @@ void hhPortal::Think( void ) {
 		}
 	}
 
-    // A freshly placed floor opening may already be above the feet by its
-    // decal clearance. Seed a real crossing instead of waiting for an origin
-    // which started behind the plane to cross it from the front.
+    // Floor contact/step-down can put the feet behind the plane before the
+    // proximity list sees them (including a saved partial crossing). Recover
+    // while the actual hull still straddles the opening, not just within the
+    // artwork offset. A player wholly behind the floor is not an entrant.
     if (spawnArgs.GetBool("rw_portalGun") && cameraTarget && player &&
         GetAxis()[0] * -player->GetPhysics()->GetGravityNormal() > 0.95f) {
         const float depth = (player->GetOrigin() - GetOrigin()) * GetAxis()[0];
         const idClipModel *clip = player->GetPhysics()->GetClipModel();
-        if (depth <= 0 && depth >= -2 && clip && clip->IsTraceModel() &&
+        float frontDepth = depth;
+        const idBounds &bounds = player->GetPhysics()->GetBounds();
+        for (int corner = 0; corner < 8; ++corner) {
+            const idVec3 point(bounds[(corner&1)!=0].x, bounds[(corner&2)!=0].y, bounds[(corner&4)!=0].z);
+            frontDepth = Max(frontDepth, depth + (point * player->GetPhysics()->GetAxis()) * GetAxis()[0]);
+        }
+        if (depth <= 0 && frontDepth > 0.25f && clip && clip->IsTraceModel() &&
             player->GetPhysics()->GetLinearVelocity() * GetAxis()[0] <= 0.1f &&
             RW_PortalFits(this, clip->GetTraceModel(), player->GetPhysics()->GetAxis(), player->GetOrigin(), true)) {
             AddProximityEntity(player);

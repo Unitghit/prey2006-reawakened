@@ -241,3 +241,10 @@ including perimeter samples, rather than requiring backing for the larger
 traversal envelope. The nearest-position search is bounded to 64 units. Low wall
 shots can align upward to a walk-through height when that surface supports it.
 Real exit obstructions retain the existing full-hull rejection checks.
+
+Floor entry also recovers an already-partial crossing when contact resolution or a
+save places the feet below the portal before its proximity history is initialized.
+Recovery requires the player hull to still cross the plane, fit the aperture, and
+not be moving outward. Fully backside players are excluded. `floor_partial`
+checks both partial recovery and backside rejection; destination obstruction
+checks still apply before teleporting.
