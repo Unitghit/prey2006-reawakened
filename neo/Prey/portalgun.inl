@@ -396,22 +396,17 @@ bool RW_PortalCoverPlane(const idPlane &wall, const idVec3 &query, idPlane &cove
         if (distance < nearestDistance) { nearest = portal; nearestDistance = distance; }
     }
     if (nearest) {
-        hhPortal *portal = nearest;
-        const idVec3 surface = portal->GetOrigin() - portal->GetAxis()[0] * RW_PORTAL_SURFACE_OFFSET;
-        if (!portal->spawnArgs.GetBool("rw_portal_cover_checked")) {
-            trace_t trace;
-            gameLocal.clip.TracePoint(trace, surface + wall.Normal()*32, surface - wall.Normal(), CONTENTS_PLAYERCLIP, NULL);
-            const bool valid = trace.fraction < 1 && trace.c.entityNum == ENTITYNUM_WORLD && trace.c.normal * wall.Normal() > 0.95f;
-            portal->spawnArgs.SetBool("rw_portal_cover_checked", true);
-            portal->spawnArgs.SetBool("rw_portal_cover_valid", valid);
-            if (valid) {
-                portal->spawnArgs.SetVector("rw_portal_cover_normal", trace.c.normal);
-                portal->spawnArgs.SetFloat("rw_portal_cover_dist", trace.c.dist);
-            }
-        }
-        if (portal->spawnArgs.GetBool("rw_portal_cover_valid")) {
-            cover.SetNormal(portal->spawnArgs.GetVector("rw_portal_cover_normal"));
-            cover.SetDist(portal->spawnArgs.GetFloat("rw_portal_cover_dist"));
+        // Uneven terrain can have several actor-clip facets under one portal.
+        // Query the facet beneath this hull, rather than caching the center's
+        // plane for every future entry, exit and restored save.
+        const idVec3 sample = query - wall.Normal()*wall.Distance(query);
+        trace_t trace;
+        gameLocal.clip.TracePoint(trace, sample + wall.Normal()*32, sample - wall.Normal()*8,
+            CONTENTS_PLAYERCLIP, NULL);
+        if (trace.fraction > 0 && trace.fraction < 1 && trace.c.entityNum == ENTITYNUM_WORLD &&
+            trace.c.normal * wall.Normal() > 0.95f) {
+            cover.SetNormal(trace.c.normal);
+            cover.SetDist(trace.c.dist);
             return true;
         }
     }
