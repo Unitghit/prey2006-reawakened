@@ -402,11 +402,18 @@ void hhPortal::ResetGunPortalCrossings() {
     proximityEntities.Clear();
 }
 
+static void RW_GunPortalVisual(hhPortal *portal, bool restart);
+
 void hhPortal::Think( void ) {
     if (spawnArgs.GetBool("rw_portalGun")) {
         if (!cvarSystem->GetCVarBool("g_portalGun")) { Hide(); GetPhysics()->SetContents(0); return; }
         RW_UpdateGunPortalFloor(this);
         Show(); GetPhysics()->SetContents(cameraTarget ? CONTENTS_SOLID : 0);
+        const int openingEnd = spawnArgs.GetInt("rw_open_end");
+        if (openingEnd && gameLocal.time >= openingEnd) {
+            spawnArgs.SetInt("rw_open_end", 0);
+            RW_GunPortalVisual(this, false);
+        }
     }
 
 	int				i;

@@ -68,9 +68,39 @@ as the `portalsize` reference. Both colors retain the larger 96 by 144 traversal
 envelope and existing player corner/foot allowances. Visual sizing does not change
 teleport frames, collision clearance, placement support checks or saved positions.
 Re-run the importer and restart the game to update existing saved portals too.
-The importer omits the
-backside and outer refraction surfaces. Original texture animations remain;
-the retail skeletal opening/closing animation is not part of this prototype.
+The importer omits the backside and outer refraction surfaces.
+
+## Traveling shots and opening effects
+
+Firing captures the world aim and sends a harmless blue/orange visual projectile
+at 4,000 units per second. Placement happens on arrival, after a fresh surface and
+occupancy check; the previous portal remains usable until then. New same-color
+shots supersede older flights. Opposite colors travel independently. Solid objects
+that intercept a shot reject it without damage or relocation. Turning away does
+not retarget a flight. Disabling the feature or losing its owner cancels it.
+
+Prey's particle system supplies the flight core, fading world-space trail, impact
+burst and smaller rejected-hit burst. With a local Portal import, these use the
+energy-ball and blue/orange particle textures referenced by Portal's projectile
+particle definitions. This is an adaptation, not execution of Source's PCF system.
+Without the optional import, the effects use a retail Prey particle texture.
+
+`build_assets.py` now also requires numpy. It flattens the retail skeletal opening
+animation by projecting its translation-only joint motion onto the surface plane.
+The outer energy layer plays the native opening motion; the core rim, view aperture
+and traversal clearance are fully open immediately. The last eight frames settle into
+our existing static portal shape, avoiding a snap at completion. Floors and ceilings
+use the same surface-oriented effect. Stable openings return to the static mesh.
+Flight state, pending times and opening animation survive saves in the updated
+build; existing saves have no pending state and need no conversion.
+
+Update the game DLL, source-built shot definitions/particles/materials, and rerun
+both local importers for the complete feature. The existing launcher Portal gun
+option controls it. The `shots` regression case covers replacement timing, saved
+flights/openings, looking away, superseded shots, rejected surfaces, late obstacles
+and cancellation. `portalGun shootblue` / `shootorange` are developer-only test
+commands; the older immediate `blue` / `orange` placement commands remain for
+physics fixtures.
 
 ## Local asset preparation
 

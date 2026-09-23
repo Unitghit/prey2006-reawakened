@@ -264,25 +264,47 @@ void hhPlayer::SelectPortalGun(bool selected) {
     if (weapon.IsValid() && !selected) { weapon->Show(); weapon->ShowWeapon(); }
     UpdateHudWeapon();
 }
-bool hhPlayer::PlaceGunPortal(int color) {
+static void RW_GunPortalVisual(hhPortal *portal, bool restart) {
+    const bool orange = !idStr::Icmp(portal->GetName(), "rw_gun_orange");
+    const char *color = orange ? "orange" : "blue";
+    const char *closed = portal->cameraTarget ? "" : "_closed";
+    const idStr model = va("rw_portal_%s%s_opening", color, closed);
+    if ((restart || portal->spawnArgs.GetInt("rw_open_end") > gameLocal.time) &&
+        declManager->FindType(DECL_MODELDEF, model, false)) {
+        if (restart) portal->spawnArgs.SetInt("rw_open_start", gameLocal.time);
+        portal->SetModel(model);
+        const int anim = portal->GetAnimator()->GetAnim("open");
+        const int start = portal->spawnArgs.GetInt("rw_open_start");
+        portal->GetAnimator()->PlayAnim(ANIMCHANNEL_ALL, anim, start, 0);
+        portal->spawnArgs.SetInt("rw_open_end", start + portal->GetAnimator()->AnimLength(anim));
+    } else {
+        portal->SetModel(va("models/reawakened/portalgun/%s%s.ase", color, closed));
+    }
+    portal->UpdateVisuals();
+}
+
+bool hhPlayer::PlaceGunPortal(int color, const idDict *shot) {
     if (!g_portalGun.GetBool() || gameLocal.isMultiplayer || *cvarSystem->GetCVarString("fs_game") || color < 0 || color > 1 ||
         health <= 0 || InVehicle() || IsSpiritOrDeathwalking() || gameLocal.inCinematic) return false;
-    const idVec3 eye = GetEyePosition();
+    const idVec3 eye = shot ? shot->GetVector("shot_eye") : GetEyePosition();
 
     // firstPersonViewAxis includes Prey's local-gravity orientation.
     trace_t hit;
-    idVec3 shotDirection = firstPersonViewAxis[0];
-    if (cvarSystem->GetCVarBool("developer") && spawnArgs.GetBool("rw_portal_test_aim")) {
+    idVec3 shotDirection = shot ? shot->GetVector("shot_direction") : firstPersonViewAxis[0];
+    if (!shot && cvarSystem->GetCVarBool("developer") && spawnArgs.GetBool("rw_portal_test_aim")) {
         shotDirection = spawnArgs.GetVector("rw_portal_test_direction");
         spawnArgs.SetBool("rw_portal_test_aim", false);
     }
     gameLocal.clip.TracePoint(hit, eye, eye + shotDirection * 8192.0f, MASK_SOLID, this);
+    if (shot && (hit.endpos - shot->GetVector("shot_target")).LengthSqr() > Square(2.0f)) {
+        gameLocal.Printf("PORTALGUN rejected: target obstructed during flight\n"); return false;
+    }
     if (hit.fraction >= 1 || hit.c.entityNum != ENTITYNUM_WORLD) {
         gameLocal.Printf("PORTALGUN rejected: aim at a stationary world surface\n"); return false;
     }
     idVec3 normal = hit.c.normal;
     normal.Normalize();
-    const idVec3 gravityUp = -GetPhysics()->GetGravityNormal();
+    const idVec3 gravityUp = shot ? shot->GetVector("shot_up") : -GetPhysics()->GetGravityNormal();
     idVec3 up = gravityUp - normal * (gravityUp * normal);
     if (idMath::Fabs(gravityUp * normal) > 0.95f) {
         // Floor/ceiling ovals follow the shooter's approach, not world axes.
@@ -290,7 +312,7 @@ bool hhPlayer::PlaceGunPortal(int color) {
         if (up.Normalize() < 0.1f) {
             // A vertical shot has no projected forward direction. View-left
             // retains yaw even at the pitch limit, so use it to recover heading.
-            up = firstPersonViewAxis[1].Cross(gravityUp);
+            up = (shot ? shot->GetVector("shot_left") : firstPersonViewAxis[1]).Cross(gravityUp);
             up -= normal * (up * normal);
         }
     }
@@ -299,7 +321,7 @@ bool hhPlayer::PlaceGunPortal(int color) {
     const idMat3 axis(normal, side, up);
     idVec3 center = hit.endpos - normal * (hit.endpos * normal - hit.c.dist);
     bool supported = false;
-    RW_PortalFloorCenter(center, axis, -GetPhysics()->GetGravityNormal(), this);
+    RW_PortalFloorCenter(center, axis, gravityUp, this);
     center += up * (floorf(center * up + 0.5f) - center * up);
     const idVec3 aimedCenter = center;
     hhPortal *other = RW_GunPortal(1-color), *portal = RW_GunPortal(color);
@@ -338,21 +360,124 @@ bool hhPlayer::PlaceGunPortal(int color) {
     portal->spawnArgs.SetMatrix("rotation", axis);
     portal->spawnArgs.SetFloat("rw_portal_surface_offset", RW_PORTAL_SURFACE_OFFSET);
     portal->spawnArgs.SetBool("rw_portal_floor_aligned", true);
-    portal->SetModel(color ? "models/reawakened/portalgun/orange_closed.ase" : "models/reawakened/portalgun/blue_closed.ase");
     portal->GetPhysics()->SetContents(0);
     portal->SetGravity(GetPhysics()->GetGravity());
     if (other) {
         portal->cameraTarget = other; other->cameraTarget = portal;
         portal->spawnArgs.Set("cameraTarget", other->GetName()); other->spawnArgs.Set("cameraTarget", portal->GetName());
-        portal->SetModel(color ? "models/reawakened/portalgun/orange.ase" : "models/reawakened/portalgun/blue.ase");
-        other->SetModel(color ? "models/reawakened/portalgun/blue.ase" : "models/reawakened/portalgun/orange.ase");
         portal->GetPhysics()->SetContents(CONTENTS_SOLID); other->GetPhysics()->SetContents(CONTENTS_SOLID);
-        other->UpdateVisuals();
+        RW_GunPortalVisual(other, false);
     }
-    portal->UpdateVisuals();
+    RW_GunPortalVisual(portal, true);
     gameLocal.Printf("PORTALGUN placed %s at %s normal %s paired=%d\n", color ? "orange" : "blue", portal->GetOrigin().ToString(), normal.ToString(), other != NULL);
     return true;
 }
+CLASS_DECLARATION(idEntity, hhPortalShot)
+END_CLASS
+
+void hhPortalShot::Spawn() {
+    GetPhysics()->SetContents(0);
+    fl.neverDormant = true;
+    SetShaderParm(SHADERPARM_TIMEOFFSET, -MS2SEC(gameLocal.time));
+    BecomeActive(TH_THINK | TH_UPDATEVISUALS);
+}
+
+static void RW_PortalShotImpact(const idVec3 &point, const idVec3 &normal, int color, bool success) {
+    idDict args;
+    args.Set("classname", "rw_portal_shot_impact");
+    args.Set("model", va("rw_portal_%s_%s.prt", color ? "orange" : "blue", success ? "impact" : "reject"));
+    args.SetVector("origin", point + normal * 1.5f);
+    const idMat3 surface = normal.ToMat3();
+    // Prey's cone particles emit along local Z.
+    args.SetMatrix("rotation", idMat3(surface[1], surface[2], surface[0]));
+    args.SetFloat("shaderParm4", -MS2SEC(gameLocal.time));
+    idEntity *effect = NULL;
+    if (gameLocal.SpawnEntityDef(args, &effect) && effect) {
+        effect->GetPhysics()->SetContents(0);
+        effect->PostEventMS(&EV_Remove, 1200);
+    }
+}
+
+void hhPortalShot::Think() {
+    idEntity *entity = gameLocal.FindEntity(spawnArgs.GetString("shot_owner"));
+    hhPlayer *owner = entity && entity->IsType(hhPlayer::Type) ? static_cast<hhPlayer *>(entity) : NULL;
+    const int color = spawnArgs.GetInt("shot_color");
+    if (!owner || owner->health <= 0 || !g_portalGun.GetBool() ||
+        owner->spawnArgs.GetInt(va("rw_shot_serial_%d", color)) != spawnArgs.GetInt("shot_serial")) {
+        Hide(); BecomeInactive(TH_THINK); PostEventMS(&EV_Remove, 0); return;
+    }
+    const int start = spawnArgs.GetInt("shot_start"), end = spawnArgs.GetInt("shot_end");
+    const idVec3 target = spawnArgs.GetVector("shot_target");
+    const float fraction = idMath::ClampFloat(0, 1, float(gameLocal.time-start)/Max(1,end-start));
+    const idVec3 next = spawnArgs.GetVector("shot_muzzle") * (1-fraction) + target*fraction;
+    trace_t obstacle;
+    gameLocal.clip.TracePoint(obstacle, GetOrigin(), next, MASK_SOLID, owner);
+    const bool blocked = obstacle.fraction < 1 && (obstacle.endpos-target).LengthSqr() > Square(2.0f);
+    SetOrigin(blocked ? obstacle.endpos : next);
+    const char *trail = color ? "rw_portal_orange_trail" : "rw_portal_blue_trail";
+    const idDeclParticle *particle = static_cast<const idDeclParticle *>(declManager->FindType(DECL_PARTICLE, trail, false));
+    const int smokeStart = spawnArgs.GetInt("shot_trail_start", va("%d", start));
+    if (particle && !gameLocal.smokeParticles->EmitSmoke(particle, smokeStart,
+        gameLocal.random.RandomFloat(), GetOrigin(), GetAxis())) {
+        spawnArgs.SetInt("shot_trail_start", gameLocal.time);
+    }
+    if (fraction >= 1 || blocked) {
+        const bool success = !blocked && owner->PlaceGunPortal(color, &spawnArgs);
+        if (blocked || spawnArgs.GetBool("shot_hit")) RW_PortalShotImpact(GetOrigin(),
+            blocked ? obstacle.c.normal : spawnArgs.GetVector("shot_normal"), color, success);
+        gameLocal.Printf("PORTALGUN_SHOT impact %s success=%d blocked=%d\n", color ? "orange" : "blue", success, blocked);
+        Hide(); BecomeInactive(TH_THINK); PostEventMS(&EV_Remove, 0); return;
+    }
+    Present();
+}
+
+void hhPlayer::FireGunPortal(int color) {
+    if (color < 0 || color > 1 || !g_portalGun.GetBool() || gameLocal.isMultiplayer ||
+        *cvarSystem->GetCVarString("fs_game") || health <= 0 || InVehicle() || IsSpiritOrDeathwalking() || gameLocal.inCinematic) return;
+    const idVec3 eye = GetEyePosition();
+    idVec3 direction = firstPersonViewAxis[0];
+    if (cvarSystem->GetCVarBool("developer") && spawnArgs.GetBool("rw_portal_test_aim")) {
+        direction = spawnArgs.GetVector("rw_portal_test_direction");
+        spawnArgs.SetBool("rw_portal_test_aim", false);
+    }
+    trace_t hit;
+    gameLocal.clip.TracePoint(hit, eye, eye + direction*8192.0f, MASK_SOLID, this);
+    idVec3 muzzle = eye + firstPersonViewAxis[0]*14 - firstPersonViewAxis[1]*6 - firstPersonViewAxis[2]*5;
+    if (weapon.IsValid() && PortalGunViewAvailable()) {
+        const jointHandle_t joint = weapon->GetAnimator()->GetJointHandle("ValveBiped.Front_Cover");
+        idMat3 axis;
+        if (joint != INVALID_JOINT && weapon->idAnimatedEntity::GetJointWorldTransform(joint, gameLocal.time, muzzle, axis))
+            muzzle += idVec3(0,2.2f,2.8f)*axis;
+    }
+    trace_t clearance;
+    gameLocal.clip.TracePoint(clearance, eye, muzzle, MASK_SOLID, this);
+    // The weapon's presentation can still be on the previous side on the
+    // teleport tick. Never start a flight at that stale, distant transform.
+    if (clearance.fraction < 1 || (muzzle-eye).LengthSqr() > Square(96.0f)) muzzle = eye;
+    const int serial = spawnArgs.GetInt(va("rw_shot_serial_%d", color)) + 1;
+    idDict args;
+    args.Set("classname", "rw_portal_shot");
+    args.Set("model", color ? "rw_portal_orange_flight.prt" : "rw_portal_blue_flight.prt");
+    args.SetVector("origin", muzzle);
+    args.SetMatrix("rotation", direction.ToMat3());
+    args.Set("shot_owner", GetName());
+    args.SetInt("shot_color", color); args.SetInt("shot_serial", serial);
+    args.SetInt("shot_start", gameLocal.time);
+    args.SetInt("shot_end", gameLocal.time + Max(16, int((hit.endpos-muzzle).Length()*1000.0f/4000.0f)));
+    args.SetVector("shot_muzzle", muzzle); args.SetVector("shot_eye", eye);
+    args.SetVector("shot_direction", direction); args.SetVector("shot_target", hit.endpos);
+    args.SetVector("shot_up", -GetPhysics()->GetGravityNormal());
+    args.SetVector("shot_left", firstPersonViewAxis[1]);
+    args.SetVector("shot_normal", hit.fraction < 1 ? hit.c.normal : -direction);
+    args.SetBool("shot_hit", hit.fraction < 1);
+    idEntity *shot = NULL;
+    if (gameLocal.SpawnEntityDef(args, &shot) && shot) {
+        spawnArgs.SetInt(va("rw_shot_serial_%d", color), serial);
+        spawnArgs.SetInt("rw_portal_view_fire", color+1);
+        gameLocal.Printf("PORTALGUN_SHOT launch %s travel=%d\n", color ? "orange" : "blue", args.GetInt("shot_end")-gameLocal.time);
+    }
+}
+
 void hhPlayer::UpdatePortalGun() {
     if (!g_portalGun.GetBool() && spawnArgs.GetBool("rw_weapon_portal_selected")) {
         spawnArgs.SetBool("rw_weapon_portal_selected", false);
@@ -378,11 +503,11 @@ void hhPlayer::UpdatePortalGun() {
     if (!selected) return;
     if (!ActiveGui() && !gameLocal.inCinematic && !bFrozen && health > 0) {
         if ((buttons & BUTTON_ATTACK) && !(previous & BUTTON_ATTACK)) {
-            PlaceGunPortal(0);
+            FireGunPortal(0);
             spawnArgs.SetInt("rw_portal_view_fire", 1);
         }
         if ((buttons & BUTTON_ATTACK_ALT) && !(previous & BUTTON_ATTACK_ALT)) {
-            PlaceGunPortal(1);
+            FireGunPortal(1);
             spawnArgs.SetInt("rw_portal_view_fire", 2);
         }
     }

@@ -35,6 +35,26 @@ foreach($name in $Cases) {
         if($log -notmatch 'Saved material_orange' -or $log -notmatch 'PORTAL_EXIT'){throw 'Material save/crossing failed'}
         if($log -match 'GL_INVALID|error at|R_AutospriteDeform:|unknown token|Couldn.t load.*portalgun'){throw 'Material shader/asset failure'}
     }
+    if($name -eq 'shots') {
+        if($log -match 'Unknown classname|Couldn.t load.*(rw_portal_(blue|orange)|portalgun)|invalid joint|unknown token'){throw 'Shot asset failure'}
+        $flight=[regex]::Match($log,'(?s)SHOT_FLIGHT_SAVE_BEGIN(.*?)SHOT_FLIGHT_SAVE_END').Groups[1].Value
+        if($flight -notmatch 'Saved shot_flight' -or $flight -notmatch 'Saved shot_opening' -or
+            ([regex]::Matches($flight,'PORTALGUN_SHOT impact blue success=1')).Count -ne 1 -or
+            $flight -notmatch 'PORTALGUN_OPENING rw_gun_blue remaining=0'){throw 'In-flight/opening save failed'}
+        if($flight -notmatch 'PORTALGUN_ENDPOINT rw_gun_blue origin=511 0 73' -or
+            $flight -notmatch 'PORTALGUN placed blue at 511 180 73'){throw 'Portal replacement moved before arrival or lost the captured target'}
+        $look=[regex]::Match($log,'(?s)SHOT_LOOK_BEGIN(.*?)SHOT_LOOK_END').Groups[1].Value
+        if($look -notmatch 'PORTALGUN placed orange at 0 511 73'){throw 'Looking away changed a shot already in flight'}
+        $supersede=[regex]::Match($log,'(?s)SHOT_SUPERSEDE_BEGIN(.*?)SHOT_SUPERSEDE_END').Groups[1].Value
+        if(([regex]::Matches($supersede,'PORTALGUN_SHOT launch blue')).Count -ne 2 -or
+            ([regex]::Matches($supersede,'PORTALGUN_SHOT impact blue success=1')).Count -ne 1){throw 'Superseded shot placed an old portal'}
+        foreach($phase in @('REJECT','BLOCKED')) {
+            $part=[regex]::Match($log,"(?s)SHOT_${phase}_BEGIN(.*?)SHOT_${phase}_END").Groups[1].Value
+            if($part -notmatch 'PORTALGUN_SHOT impact blue success=0' -or $part -match 'PORTALGUN placed'){throw "$phase replaced a portal"}
+        }
+        $disabled=[regex]::Match($log,'(?s)SHOT_DISABLE_BEGIN(.*?)SHOT_DISABLE_END').Groups[1].Value
+        if($disabled -notmatch 'PORTALGUN_FLIGHTS 0' -or $disabled -match 'PORTALGUN placed'){throw 'Disabled flight survived'}
+    }
     if($name -in @('regression','floor','ceiling') -and $log -notmatch 'PORTAL_EXIT[\s\S]{0,100}collision_adjustment 0\.000000'){throw "$name failed continuous traversal"}
     if($name -eq 'regression' -and $log -notmatch 'origin=495\.75 100'){throw 'Solid-wall control failed'}
     if($name -in @('floor','ceiling') -and $log -notmatch 'PORTAL_EXIT[^\r\n]*speed 596\.960'){throw "$name lost fall velocity"}

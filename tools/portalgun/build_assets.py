@@ -131,6 +131,8 @@ def build(retail, output):
     (models/'closed.ase').write_bytes((models/'blue_closed.ase').read_bytes())
     (output/'materials').mkdir(parents=True, exist_ok=True)
     (output/'materials/reawakened_portalgun_retail.mtr').write_text('\n'.join(adapted_materials.values()))
+    from portal_opening import build_opening
+    build_opening(read_mesh(retail), read_asset(retail, 'models/mapobjects/portal/anim/open.md5anim'), output, cy, cz)
     print('Adapted retail blue/orange portal meshes:', models)
 
 

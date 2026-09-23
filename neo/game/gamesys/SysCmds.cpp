@@ -2701,11 +2701,21 @@ static void Cmd_PortalGun_f(const idCmdArgs &args) {
     if (args.Argc() > 1 && !idStr::Icmp(args.Argv(1), "blue")) player->PlaceGunPortal(0);
     else if (args.Argc() > 1 && !idStr::Icmp(args.Argv(1), "orange")) player->PlaceGunPortal(1);
     else if (args.Argc() > 1 && !idStr::Icmp(args.Argv(1), "select")) player->SelectPortalGun(true);
+    if (cvarSystem->GetCVarBool("developer") && args.Argc() == 2) {
+        if (!idStr::Icmp(args.Argv(1), "shootblue")) player->FireGunPortal(0);
+        if (!idStr::Icmp(args.Argv(1), "shootorange")) player->FireGunPortal(1);
+        int shots = 0;
+        for (idEntity *e = gameLocal.spawnedEntities.Next(); e; e = e->spawnNode.Next())
+            if (!idStr::Icmp(e->spawnArgs.GetString("classname"), "rw_portal_shot") && !e->IsHidden()) ++shots;
+        gameLocal.Printf("PORTALGUN_FLIGHTS %d\n", shots);
+    }
     gameLocal.Printf("PORTALGUN selected=%d current=%d origin=%s velocity=%s\n", player->PortalGunSelected(), player->GetCurrentWeapon(), player->GetOrigin().ToString(), player->GetPhysics()->GetLinearVelocity().ToString());
     if (cvarSystem->GetCVarBool("developer")) for (int color = 0; color < 2; ++color) {
         idEntity *portal = gameLocal.FindEntity(color ? "rw_gun_orange" : "rw_gun_blue");
         if (portal) gameLocal.Printf("PORTALGUN_ENDPOINT %s origin=%s normal=%s up=%s\n", portal->GetName(),
             portal->GetOrigin().ToString(), portal->GetAxis()[0].ToString(), portal->GetAxis()[2].ToString());
+        if (portal) gameLocal.Printf("PORTALGUN_OPENING %s remaining=%d\n", portal->GetName(),
+            Max(0, portal->spawnArgs.GetInt("rw_open_end") - gameLocal.time));
     }
 }
 

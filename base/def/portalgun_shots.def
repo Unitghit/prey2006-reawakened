@@ -1,0 +1,7 @@
+entityDef rw_portal_shot {
+    "spawnclass" "hhPortalShot"
+}
+entityDef rw_portal_shot_impact {
+    "spawnclass" "idStaticEntity"
+    "solid" "0"
+}

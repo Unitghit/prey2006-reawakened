@@ -1,0 +1,16 @@
+// Retail Prey fallback for installations without imported Portal textures.
+reawakened/portalgun/shot_ball {
+    translucent
+    noShadows
+    { blend add map textures/particles/soul.tga vertexColor glowStage }
+}
+reawakened/portalgun/shot_blue {
+    translucent
+    noShadows
+    { blend add map textures/particles/soul.tga vertexColor glowStage }
+}
+reawakened/portalgun/shot_orange {
+    translucent
+    noShadows
+    { blend add map textures/particles/soul.tga vertexColor glowStage }
+}

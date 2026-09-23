@@ -70,7 +70,8 @@ public:
     bool PortalGunViewAvailable() const;
     void UpdatePortalGun();
     void UpdatePortalGunView();
-    bool PlaceGunPortal(int color);
+    bool PlaceGunPortal(int color, const idDict *shot = NULL);
+    void FireGunPortal(int color);
     void SelectPortalGun(bool selected);
 
 	weaponInfo_t				weaponInfo[MAX_WEAPONS];

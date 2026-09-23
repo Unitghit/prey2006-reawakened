@@ -58,6 +58,15 @@ def main():
     textures.mkdir(parents=True,exist_ok=True)
     for name in ('bluelight','orangelight','portalgun_effects'):
         vtf_image(vpk.read('materials/sprites/'+name+'.vtf')).save(textures/(name+'.tga'))
+    shared = VPK(install/'hl2/hl2_textures_dir.vpk')
+    for name in ('energyball','portal_1_particle','portal_2_particle'):
+        asset='materials/effects/'+name+'.vtf'
+        vtf_image((vpk if asset in vpk.entries else shared).read(asset)).save(textures/(name+'.tga'))
+    materials=output/'materials';materials.mkdir(parents=True,exist_ok=True)
+    (materials/'portalgun_shots.mtr').write_text('\n'.join(
+        f'reawakened/portalgun/shot_{kind} {{\n translucent\n noShadows\n'
+        f' {{ blend add map textures/reawakened/portalgun/{texture}.tga vertexColor glowStage }}\n}}'
+        for kind,texture in [('ball','energyball'),('blue','portal_1_particle'),('orange','portal_2_particle')])+'\n')
     base='materials/models/weapons/v_models/v_portalgun/'
     for name in ('v_portalgun','v_portalgun_glass','v_portalgun_normal','v_portalgun_exponent'):
         vtf_image(vpk.read(base+name+'.vtf')).save(textures/(name+'.tga'))

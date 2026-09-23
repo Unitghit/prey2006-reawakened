@@ -1,0 +1,176 @@
+particle rw_portal_blue_flight {
+ {
+  count 3
+  material reawakened/portalgun/shot_ball
+  time 0.1
+  cycles 0
+  bunching 0
+  distribution sphere 0.5 0.5 0.5
+  direction cone "60"
+  orientation view
+  speed 0
+  size 3 to 5
+  aspect 1
+  randomDistribution 1
+  boundsExpansion 8
+  fadeIn 0.05
+  fadeOut 0.8
+  color 0.2 0.55 1 1
+  fadeColor 0 0 0 0
+  gravity 0
+ }
+}
+particle rw_portal_blue_trail {
+ {
+  count 24
+  material reawakened/portalgun/shot_blue
+  time 0.24
+  cycles 0
+  bunching 1
+  distribution sphere 0.5 0.5 0.5
+  direction cone "60"
+  orientation view
+  speed 0
+  size 2 to 0
+  aspect 1
+  randomDistribution 1
+  boundsExpansion 8
+  fadeIn 0.05
+  fadeOut 0.8
+  color 0.2 0.55 1 1
+  fadeColor 0 0 0 0
+  gravity 0
+ }
+}
+particle rw_portal_blue_impact {
+ {
+  count 24
+  material reawakened/portalgun/shot_blue
+  time 0.55
+  cycles 1
+  bunching 0
+  distribution sphere 0.5 0.5 0.5
+  direction cone "60"
+  orientation view
+  speed 70 to 10
+  size 2 to 0
+  aspect 1
+  randomDistribution 1
+  boundsExpansion 8
+  fadeIn 0.05
+  fadeOut 0.8
+  color 0.2 0.55 1 1
+  fadeColor 0 0 0 0
+  gravity 0
+ }
+}
+particle rw_portal_blue_reject {
+ {
+  count 10
+  material reawakened/portalgun/shot_blue
+  time 0.22
+  cycles 1
+  bunching 0
+  distribution sphere 0.5 0.5 0.5
+  direction cone "60"
+  orientation view
+  speed 35 to 0
+  size 1.5 to 0
+  aspect 1
+  randomDistribution 1
+  boundsExpansion 8
+  fadeIn 0.05
+  fadeOut 0.8
+  color 0.2 0.55 1 1
+  fadeColor 0 0 0 0
+  gravity 0
+ }
+}
+particle rw_portal_orange_flight {
+ {
+  count 3
+  material reawakened/portalgun/shot_ball
+  time 0.1
+  cycles 0
+  bunching 0
+  distribution sphere 0.5 0.5 0.5
+  direction cone "60"
+  orientation view
+  speed 0
+  size 3 to 5
+  aspect 1
+  randomDistribution 1
+  boundsExpansion 8
+  fadeIn 0.05
+  fadeOut 0.8
+  color 1 0.4 0.08 1
+  fadeColor 0 0 0 0
+  gravity 0
+ }
+}
+particle rw_portal_orange_trail {
+ {
+  count 24
+  material reawakened/portalgun/shot_orange
+  time 0.24
+  cycles 0
+  bunching 1
+  distribution sphere 0.5 0.5 0.5
+  direction cone "60"
+  orientation view
+  speed 0
+  size 2 to 0
+  aspect 1
+  randomDistribution 1
+  boundsExpansion 8
+  fadeIn 0.05
+  fadeOut 0.8
+  color 1 0.4 0.08 1
+  fadeColor 0 0 0 0
+  gravity 0
+ }
+}
+particle rw_portal_orange_impact {
+ {
+  count 24
+  material reawakened/portalgun/shot_orange
+  time 0.55
+  cycles 1
+  bunching 0
+  distribution sphere 0.5 0.5 0.5
+  direction cone "60"
+  orientation view
+  speed 70 to 10
+  size 2 to 0
+  aspect 1
+  randomDistribution 1
+  boundsExpansion 8
+  fadeIn 0.05
+  fadeOut 0.8
+  color 1 0.4 0.08 1
+  fadeColor 0 0 0 0
+  gravity 0
+ }
+}
+particle rw_portal_orange_reject {
+ {
+  count 10
+  material reawakened/portalgun/shot_orange
+  time 0.22
+  cycles 1
+  bunching 0
+  distribution sphere 0.5 0.5 0.5
+  direction cone "60"
+  orientation view
+  speed 35 to 0
+  size 1.5 to 0
+  aspect 1
+  randomDistribution 1
+  boundsExpansion 8
+  fadeIn 0.05
+  fadeOut 0.8
+  color 1 0.4 0.08 1
+  fadeColor 0 0 0 0
+  gravity 0
+ }
+}

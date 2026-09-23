@@ -2,6 +2,15 @@
 #ifndef __GAME_PORTAL_H__
 #define __GAME_PORTAL_H__
 
+// Cosmetic flight with a validated placement on arrival. All persistent state
+// lives in the normal entity spawn dictionary, so no player save layout changes.
+class hhPortalShot : public idEntity {
+public:
+    CLASS_PROTOTYPE(hhPortalShot);
+    void Spawn();
+    virtual void Think();
+};
+
 #if GAMEPORTAL_PVS
 
 // Allows us to create a PVS link between two areas
