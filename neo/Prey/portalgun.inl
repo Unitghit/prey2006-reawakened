@@ -176,6 +176,31 @@ static bool RW_GroundPortalPartialBlocked(hhPortal *portal, idEntity *entity, co
             }
         }
     }
+    // A moving exit obstruction can catch a corner of the emerged hull.
+    // Find a small, fully collision-checked lateral clearance rather than
+    // freezing the entire player at that overlap. Never bypass the obstruction:
+    // the final emerged hull must be clear and the source sweep must succeed.
+    if (blocked && clearOrigin) {
+        const float limit = Min(pm_stepsize.GetFloat(), pm_bboxwidth.GetFloat()*0.5f);
+        const idVec3 relative = origin-portal->GetOrigin();
+        for (float distance = 2; distance <= limit; distance += 2) {
+            for (int sample = 0; sample < 16; ++sample) {
+                const float angle = sample * (idMath::TWO_PI/16.0f);
+                const idVec3 direction = portal->GetAxis()[1]*idMath::Cos(angle) + portal->GetAxis()[2]*idMath::Sin(angle);
+                if (direction*relative >= -0.01f) continue;
+                const idVec3 candidate = origin + direction*distance;
+                if (!RW_PortalFits(portal, sourceClip->GetTraceModel(), sourceHullAxis, candidate, true) ||
+                    RW_GroundPortalPartialBlocked(portal, entity, candidate)) continue;
+                trace_t source;
+                if (gameLocal.clip.Translation(source, origin, candidate, sourceClip, sourceHullAxis,
+                        entity->GetPhysics()->GetClipMask(), entity)) continue;
+                *clearOrigin = candidate;
+                if (cvarSystem->GetCVarBool("com_fpsTrace"))
+                    gameLocal.Printf("PORTAL_ENTRY_LATERAL_CLEARANCE distance=%.3f\n", distance);
+                return false;
+            }
+        }
+    }
     if (blocked && cvarSystem->GetCVarBool("com_fpsTrace"))
         gameLocal.Printf("PORTAL_PARTIAL_BLOCK depth=%.3f entity=%d\n", depth, trace.c.entityNum);
     return blocked;
@@ -686,3 +711,5 @@ void hhPlayer::UpdatePortalGunView() {
     weapon->SetShaderParm(6, idMath::ClampFloat(0, 1,
         (spawnArgs.GetInt("rw_portal_view_flash_end") - gameLocal.time) / 200.0f));
 }
+
+

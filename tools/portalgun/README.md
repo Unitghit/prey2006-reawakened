@@ -340,3 +340,11 @@ slab underside. Both source sweep and destination occupancy must still pass.
 `floor_clearance` covers fast entry beyond the old skin threshold and a blocked
 exit. `floor_slab` covers the underside ambiguity in independently authored
 world geometry. Momentum has no added speed cap.
+
+Partial entry also searches for a small lateral clearance when an exit component
+catches the emerged hull. Candidates stay within the smaller of step height and
+half the hull width and must move toward the aperture center. Each candidate
+requires a clear source sweep, a valid aperture fit, and an unobstructed emerged
+hull at the destination. This does not disable collision with doors or props.
+The `portalstuck5` campaign regression released with a two-unit correction;
+`floor_clearance` and `static_exit` retain genuinely blocked exit coverage.
