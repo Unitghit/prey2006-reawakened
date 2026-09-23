@@ -95,6 +95,39 @@ static void RW_AssistFloorExit(idEntity *entity, idEntity *destination, const id
         gameLocal.Printf("PORTAL_FLOOR_EXIT before=%.3f after=%.3f clearance=%.3f\n", outgoing, minimum, space);
 }
 
+// During camera-delayed ground entry, only the emerged slice belongs in the
+// destination world. Clip the query hull at the source plane before transforming
+// it; testing the full body would collide with objects still behind the exit.
+static bool RW_GroundPortalPartialBlocked(hhPortal *portal, idEntity *entity, const idVec3 &origin) {
+    if (!portal->cameraTarget) return false;
+    const float eyeOffset = RW_GroundPortalEyeOffset(portal, entity);
+    const idVec3 normal = portal->GetAxis()[0];
+    const float depth = (origin-portal->GetOrigin())*normal;
+    if (eyeOffset <= 0 || depth >= -0.25f) return false;
+    const idMat3 sourceHullAxis = entity->GetPhysics()->GetAxis();
+    const float upDot = sourceHullAxis[2]*normal;
+    if (upDot < 0.95f) return false;
+    idBounds emerged = entity->GetPhysics()->GetBounds();
+    const float sideExtent = Max(idMath::Fabs(emerged[0].x), idMath::Fabs(emerged[1].x))*idMath::Fabs(sourceHullAxis[0]*normal) +
+        Max(idMath::Fabs(emerged[0].y), idMath::Fabs(emerged[1].y))*idMath::Fabs(sourceHullAxis[1]*normal);
+    emerged[1].z = Min(emerged[1].z, (-depth-sideExtent)/upDot);
+    if (emerged[1].z <= emerged[0].z + 0.25f) return false;
+    const idMat3 inverse = portal->GetAxis().Transpose();
+    const idMat3 destination = portal->cameraTarget->GetAxis();
+    idMat3 remoteAxis = sourceHullAxis;
+    for (int k = 0; k < 3; ++k) PortalRotate(remoteAxis[k], inverse, destination, true);
+    idVec3 remote = origin-portal->GetOrigin();
+    PortalRotate(remote, inverse, destination, true);
+    remote += portal->cameraTarget->GetOrigin();
+    idTraceModel shape(emerged);
+    idClipModel clip(shape);
+    trace_t trace;
+    const bool blocked = gameLocal.clip.Translation(trace, remote, remote, &clip, remoteAxis, entity->GetPhysics()->GetClipMask(), entity);
+    if (blocked && cvarSystem->GetCVarBool("com_fpsTrace"))
+        gameLocal.Printf("PORTAL_PARTIAL_BLOCK depth=%.3f entity=%d\n", depth, trace.c.entityNum);
+    return blocked;
+}
+
 static bool RW_PortalFits(const hhPortal *portal, const idTraceModel *trm, const idMat3 &axis, const idVec3 &origin, bool playerHull) {
     if (!trm) return false;
     // Upright wall portals must not turn the oval's narrowing lower edge into
@@ -131,7 +164,7 @@ bool RW_PortalClipPlane(const idEntity *entity, const idTraceModel *trm, const i
         hhPortal *portal = i ? b : a;
         const idVec3 normal = portal->GetAxis()[0];
         const idVec3 actualOffset = entity->GetPhysics()->GetOrigin() - portal->GetOrigin();
-        if (actualOffset.LengthSqr() < 128*128 && actualOffset * normal < -4.0f) continue;
+        if (actualOffset.LengthSqr() < 128*128 && actualOffset * normal < -Max(4.0f, RW_GroundPortalEyeOffset(portal, entity) + 8.0f)) continue;
         const float d0 = (start - portal->GetOrigin()) * normal;
         const float d1 = (end - portal->GetOrigin()) * normal;
         // Fast projectiles can cross the complete opening in one physics step.
@@ -146,7 +179,9 @@ bool RW_PortalClipPlane(const idEntity *entity, const idTraceModel *trm, const i
             }
         }
         // Never open unrelated, remote or backside world geometry.
-        if (d0 < -90 || d0 > 90 || d1 < -90 || d1 > 90) continue;
+        const float eyeOffset = RW_GroundPortalEyeOffset(portal, entity);
+        const bool groundCrossing = eyeOffset > 0 && d0 + eyeOffset >= -8 && d1 + eyeOffset <= 0 && d1 < d0;
+        if (d0 < -90 || d0 > 90 || (d1 < -90 && !groundCrossing) || d1 > 90) continue;
         if (!RW_PortalFits(portal, trm, axis, start, entity->IsType(hhPlayer::Type))) continue;
         if (!RW_PortalFits(portal, trm, axis, end, entity->IsType(hhPlayer::Type))) {
             // Once a hull straddles the wall, the oval edge must be a real

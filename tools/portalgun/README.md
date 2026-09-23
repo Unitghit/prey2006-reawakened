@@ -255,3 +255,22 @@ contact gathering, and contents checks use the same boundary. Movable entities
 and trace-model props retain normal collision. `static_exit` checks that geometry
 behind an exit does not block the emerging hull, while geometry in front does.
 The small test obstacle mesh is independently authored test geometry.
+
+## Continuous ground entry
+
+Ground portals retain the player on the source side until the eye crosses the
+portal plane. The feet and body can enter first; source collision keeps the
+opening available through that interval. Existing partial-entry saves resume
+without forcing an immediate feet-based teleport. A swept eye crossing also
+handles fast falls whose final hull has already passed the thin portal trigger.
+
+The emerged part of the player hull is checked in the destination while entering,
+so an obstructed exit stops further inward movement before camera transfer.
+The blocked view and weapon pose are corrected together. Outward motion can
+withdraw from partial entry without teleportation. No fade or artificial entry
+impulse is applied; the existing rigid transform preserves crossing velocity.
+
+`floor_continuous` checks partial-entry save/load, outward withdrawal, and both
+normal and fast eye-plane crossings. Floor momentum assertions compare the speed
+immediately before and after crossing; the extra fall distance before eye entry
+naturally increases speed relative to the former feet-triggered transition.

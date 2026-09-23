@@ -402,6 +402,14 @@ void hhPortal::ResetGunPortalCrossings() {
     proximityEntities.Clear();
 }
 
+static float RW_GroundPortalEyeOffset(const hhPortal *portal, const idEntity *entity) {
+    if (!portal->spawnArgs.GetBool("rw_portalGun") || !entity->IsType(hhPlayer::Type) ||
+        portal->GetAxis()[0] * -entity->GetPhysics()->GetGravityNormal() <= 0.95f) return 0;
+    const hhPlayer *player = static_cast<const hhPlayer *>(entity);
+    return Max(0.0f, (player->GetEyePosition() - player->GetOrigin()) * portal->GetAxis()[0]);
+}
+
+static bool RW_GroundPortalPartialBlocked(hhPortal *, idEntity *, const idVec3 &);
 static void RW_GunPortalVisual(hhPortal *portal, bool restart);
 
 void hhPortal::Think( void ) {
@@ -481,10 +489,9 @@ void hhPortal::Think( void ) {
 		}
 	}
 
-    // Floor contact/step-down can put the feet behind the plane before the
-    // proximity list sees them (including a saved partial crossing). Recover
-    // while the actual hull still straddles the opening, not just within the
-    // artwork offset. A player wholly behind the floor is not an entrant.
+    // Keep a partially entered ground portal tracked until the viewpoint,
+    // rather than the feet, crosses it. Saved overlaps seed only a genuinely
+    // crossed viewpoint; ordinary partial entry keeps its real movement history.
     if (spawnArgs.GetBool("rw_portalGun") && cameraTarget && player &&
         GetAxis()[0] * -player->GetPhysics()->GetGravityNormal() > 0.95f) {
         const float depth = (player->GetOrigin() - GetOrigin()) * GetAxis()[0];
@@ -496,11 +503,13 @@ void hhPortal::Think( void ) {
             frontDepth = Max(frontDepth, depth + (point * player->GetPhysics()->GetAxis()) * GetAxis()[0]);
         }
         if (depth <= 0 && frontDepth > 0.25f && clip && clip->IsTraceModel() &&
-            player->GetPhysics()->GetLinearVelocity() * GetAxis()[0] <= 0.1f &&
             RW_PortalFits(this, clip->GetTraceModel(), player->GetPhysics()->GetAxis(), player->GetOrigin(), true)) {
             AddProximityEntity(player);
-            for (int k = 0; k < proximityEntities.Num(); ++k) if (proximityEntities[k].entity.GetEntity() == player)
-                proximityEntities[k].lastPortalPoint = player->GetOrigin() + GetAxis()[0] * (0.25f - depth);
+            const float eyeDepth = depth + RW_GroundPortalEyeOffset(this, player);
+            if (eyeDepth <= 0 && player->GetPhysics()->GetLinearVelocity() * GetAxis()[0] <= 0.1f)
+                for (int k = 0; k < proximityEntities.Num(); ++k) if (proximityEntities[k].entity.GetEntity() == player)
+                    if ((proximityEntities[k].lastPortalPoint - GetOrigin()) * GetAxis()[0] + RW_GroundPortalEyeOffset(this, player) <= 0)
+                        proximityEntities[k].lastPortalPoint = player->GetOrigin() + GetAxis()[0] * (0.25f - eyeDepth);
         }
     }
 
@@ -521,6 +530,24 @@ void hhPortal::Think( void ) {
 		hit = proximityEntities[i].entity.GetEntity();
 		idVec3 location = proximityEntities[i].lastPortalPoint;
 		idVec3 nextLocation = hit->GetPortalPoint();
+        // Test the portion already through the exit before committing another
+        // inward step. Moving back out remains possible without a teleport.
+        if (RW_GroundPortalEyeOffset(this, hit) > 0 &&
+            (nextLocation-location)*GetAxis()[0] <= 0 &&
+            RW_GroundPortalPartialBlocked(this, hit, nextLocation)) {
+            hhPlayer *blockedPlayer = static_cast<hhPlayer *>(hit);
+            const renderView_t oldView = *blockedPlayer->GetRenderView();
+            hit->SetOrigin(location);
+            idVec3 velocity = hit->GetPhysics()->GetLinearVelocity();
+            velocity -= GetAxis()[0] * Min(0.0f, velocity*GetAxis()[0]);
+            hit->GetPhysics()->SetLinearVelocity(velocity);
+            blockedPlayer->cameraInterpolator.SetTargetPosition(location, INTERPOLATE_NONE);
+            blockedPlayer->CalculateFirstPersonView();
+            blockedPlayer->CalculateRenderView();
+            gameLocal.SnapPortalViewModels(oldView);
+            proximityEntities[i].lastPortalPoint = location;
+            continue;
+        }
 		proximityEntities[i].lastPortalPoint = nextLocation;
 		if ( !AttemptPortal( plane, hit, location, nextLocation ) ) {
 			proximityEntities.RemoveIndex( i );
@@ -552,6 +579,9 @@ bool hhPortal::AttemptPortal( idPlane &plane, idEntity *hit, idVec3 location, id
 		return false;
 	}
 
+    const float eyeOffset = RW_GroundPortalEyeOffset(this, hit);
+    const bool sweptEyeCrossing = eyeOffset > 0 &&
+        plane.Distance(location) + eyeOffset > 0 && plane.Distance(nextLocation) + eyeOffset <= 0;
 	if (hit->IsType(hhPlayer::Type)) { //rww - don't portal dead players
 		hhPlayer *pl = static_cast<hhPlayer *>(hit);
 		if (pl->health <= 0) {
@@ -559,17 +589,19 @@ bool hhPortal::AttemptPortal( idPlane &plane, idEntity *hit, idVec3 location, id
 		}
 
 		// Check if the player is intersecting this portal.  If not, then don't try to portal it
-		if ( !GetPhysics()->GetAbsBounds().IntersectsBounds( pl->GetPhysics()->GetAbsBounds() ) ) {
+		if ( !sweptEyeCrossing && !GetPhysics()->GetAbsBounds().IntersectsBounds( pl->GetPhysics()->GetAbsBounds() ) ) {
 			return false;
 		}
 	}
 
-	int side = plane.Side( location );
+    idPlane crossingPlane = plane;
+    if (eyeOffset > 0) crossingPlane.FitThroughPoint(GetOrigin() - plane.Normal()*eyeOffset);
+    int side = crossingPlane.Side( location );
 	if ( side == PLANESIDE_ON || side == PLANESIDE_CROSS ) {
 		side = PLANESIDE_BACK;
 	}
 
-	int nextSide = plane.Side( nextLocation );
+	int nextSide = crossingPlane.Side( nextLocation );
 	if ( nextSide == PLANESIDE_ON || nextSide == PLANESIDE_CROSS ) {
 		nextSide = PLANESIDE_BACK;
 	}
@@ -588,7 +620,7 @@ bool hhPortal::AttemptPortal( idPlane &plane, idEntity *hit, idVec3 location, id
 	// Compute the location on the plane where the entity would hit
 	float scale;
 	idVec3 dir = nextLocation - location;
-	plane.RayIntersection( location, dir, scale );
+	crossingPlane.RayIntersection( location, dir, scale );
 
     if (hit->IsType(hhPlayer::Type) && cvarSystem->GetCVarBool("com_fpsTrace")) {
         const idVec3 v = hit->GetPhysics()->GetLinearVelocity();
@@ -598,6 +630,8 @@ bool hhPortal::AttemptPortal( idPlane &plane, idEntity *hit, idVec3 location, id
     // The legacy path drops the remainder of this tick's movement. Players
     // use the actual endpoint and the same rigid transform as their velocity.
     const idVec3 crossingPoint = location + dir * scale;
+    if (eyeOffset > 0 && cvarSystem->GetCVarBool("com_fpsTrace"))
+        gameLocal.Printf("PORTAL_EYE_CROSS feet=%.3f eye=%.3f\n", (crossingPoint-GetOrigin())*plane.Normal(), (crossingPoint-GetOrigin())*plane.Normal()+eyeOffset);
     if (spawnArgs.GetBool("rw_portalGun")) {
         const idClipModel *clip = hit->GetPhysics()->GetClipModel();
         if (!clip || !clip->IsTraceModel() || !RW_PortalFits(this, clip->GetTraceModel(), hit->GetPhysics()->GetAxis(), crossingPoint, hit->IsType(hhPlayer::Type))) return false;

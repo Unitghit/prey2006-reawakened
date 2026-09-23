@@ -2,7 +2,7 @@ param(
     [Parameter(Mandatory=$true)][string]$Engine,
     [Parameter(Mandatory=$true)][string]$RetailBase,
     [Parameter(Mandatory=$true)][string]$Profile,
-    [string[]]$Cases = @('input','regression','floor','ceiling','blocked','replacement','access','floor_edge','guidance','guide_lookaway','guide_steering','guide_fast','floor_exit','placement','objects')
+    [string[]]$Cases = @('input','regression','floor','ceiling','blocked','replacement','access','floor_edge','guidance','guide_lookaway','guide_steering','guide_fast','floor_exit','placement','objects','floor_escape','floor_partial','floor_continuous','reverse','static_exit')
 )
 $ErrorActionPreference='Stop'
 $Engine=(Resolve-Path -LiteralPath $Engine).Path
@@ -58,7 +58,11 @@ foreach($name in $Cases) {
     }
     if($name -in @('regression','floor','ceiling') -and $log -notmatch 'PORTAL_EXIT[\s\S]{0,100}collision_adjustment 0\.000000'){throw "$name failed continuous traversal"}
     if($name -eq 'regression' -and $log -notmatch 'origin=495\.75 100'){throw 'Solid-wall control failed'}
-    if($name -in @('floor','ceiling') -and $log -notmatch 'PORTAL_EXIT[^\r\n]*speed 596\.960'){throw "$name lost fall velocity"}
+    if($name -in @('floor','ceiling')) {
+        $motion=[regex]::Matches($log,'PORTAL_MOTION[\s\S]{0,150}?speed ([0-9.]+)')
+        $exit=[regex]::Match($log,'PORTAL_EXIT[^\r\n]*speed ([0-9.]+)')
+        if(!$motion.Count -or !$exit.Success -or [math]::Abs([double]$motion[$motion.Count-1].Groups[1].Value - [double]$exit.Groups[1].Value) -gt .01){throw "$name lost crossing velocity"}
+    }
     if($name -eq 'blocked' -and ($log -notmatch 'PORTALGUN blocked exit' -or $log -notmatch 'ROCKETTARGET name=portalblock health=100')){throw 'Blocked-exit protection failed'}
     if($name -eq 'replacement') {
         $log=$log -replace '\r?\n',' ' -replace '(?<![0-9])-\s*0(?![0-9.])','0'
@@ -86,6 +90,17 @@ foreach($name in $Cases) {
         $probes=[regex]::Matches($log,'PORTAL_PROBE fraction=([0-9.]+)')
         if($probes.Count -ne 2 -or [double]$probes[0].Groups[1].Value -ne 1 -or [double]$probes[1].Groups[1].Value -ge 1){throw 'Floor edge clearance or embedded-hull boundary failed'}
     }
+    if($name -eq 'floor_continuous') {
+        foreach($phase in @('PARTIAL','REVERSE')) {
+            $part=[regex]::Match($log,"(?s)CONTINUOUS_${phase}_BEGIN(.*?)CONTINUOUS_${phase}_END").Groups[1].Value
+            if(!$part -or $part -match 'PORTAL_EXIT '){throw "$phase teleported before the eye crossed"}
+        }
+        foreach($phase in @('CROSS','FAST')) {
+            $part=[regex]::Match($log,"(?s)CONTINUOUS_${phase}_BEGIN(.*?)CONTINUOUS_${phase}_END").Groups[1].Value
+            if(([regex]::Matches($part,'PORTAL_EXIT ')).Count -ne 1 -or $part -notmatch 'PORTAL_EYE_CROSS feet=-68.000 eye=0.000'){throw "$phase did not cross exactly at the viewpoint"}
+        }
+        if($log -notmatch 'Saved partial_camera'){throw 'Partial-entry save failed'}
+    }
     if($name -eq 'floor_partial') {
         $partial=[regex]::Match($log,'(?s)FLOOR_PARTIAL_BEGIN(.*?)FLOOR_PARTIAL_END').Groups[1].Value
         $backside=[regex]::Match($log,'(?s)FLOOR_BACKSIDE_BEGIN(.*?)FLOOR_BACKSIDE_END').Groups[1].Value
@@ -96,7 +111,7 @@ foreach($name in $Cases) {
         $behind=[regex]::Match($log,'(?s)STATIC_BEHIND_BEGIN(.*?)STATIC_BEHIND_END').Groups[1].Value
         $front=[regex]::Match($log,'(?s)STATIC_FRONT_BEGIN(.*?)STATIC_FRONT_END').Groups[1].Value
         if($behind -notmatch 'PORTAL_EXIT ' -or $behind -match 'PORTALGUN blocked exit'){throw 'Static geometry behind exit blocked crossing'}
-        if($front -notmatch 'PORTALGUN blocked exit' -or $front -match 'PORTAL_EXIT '){throw 'Static geometry in front of exit failed to block crossing'}
+        if($front -notmatch 'PORTALGUN blocked exit|PORTAL_PARTIAL_BLOCK' -or $front -match 'PORTAL_EXIT '){throw 'Static geometry in front of exit failed to block crossing'}
     }
     if($name -eq 'objects') {
         foreach($prop in @('polish_a','polish_b','polish_c')) {
