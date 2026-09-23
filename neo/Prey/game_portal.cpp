@@ -1072,7 +1072,17 @@ bool hhPortal::PortalEntity( idEntity *ent, const idVec3 &point, const idVec3 *c
                                 ent->GetPhysics()->GetClipMask(), ent)) continue;
                         gameLocal.clip.Translation(test, candidate, newLocation, hull, newEntAxis,
                             ent->GetPhysics()->GetClipMask(), ent);
-                        if (test.fraction <= 0.0f || (test.endpos-newLocation).Length() > 2.0f) continue;
+                        const float unresolved = (test.endpos-newLocation).Length();
+                        idVec3 exitUp = -cameraTarget->GetGravity();
+                        exitUp.Normalize();
+                        // A raised/sloping exit floor needs ordinary step-up
+                        // clearance, not the two-unit allowance for wall skins.
+                        // Only a pure upward correction ending on a walkable
+                        // supporting face qualifies; ceilings and walls do not.
+                        const bool floorStep = offset*exitUp > distance*0.999f &&
+                            test.fraction > 0.0f && test.fraction < 1.0f &&
+                            test.c.normal*exitUp > 0.7f && unresolved <= limit;
+                        if (test.fraction <= 0.0f || (unresolved > 2.0f && !floorStep)) continue;
                         idVec3 sourceOffset = offset;
                         PortalRotate(sourceOffset, destAxis.Transpose(), GetAxis(), true);
                         const idVec3 sourceCandidate = point+sourceOffset;
@@ -1502,5 +1512,6 @@ void hhPortal::Event_HideGlowPortal( void ) {
 }
 
 #include "portalgun.inl"
+
 
 

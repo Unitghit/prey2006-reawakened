@@ -355,3 +355,11 @@ require clear destination occupancy, a reverse hull sweep reaching within two
 units of the original contact, a source-side swept hull, and aperture fit.
 Ordinary unobstructed crossings retain their exact position and momentum.
 The `portalstuck6` wall-to-wall campaign setup exercises a sloped static-mesh snag.
+
+For wall-portal exits, a pure upward correction may use the normal bounded step
+clearance when the reverse sweep finds a walkable supporting face. This handles
+raised or sloped destination floors; walls and ceilings retain the two-unit skin
+limit. Source travel and destination occupancy checks still apply. `wall_step`
+checks a ten-unit raised exit floor, while `static_exit` verifies an obstruction
+in front of the exit still blocks. Both directions of `portalstuck6` are tested
+separately because its source and destination slopes differ.
