@@ -87,7 +87,8 @@ Without the optional import, the effects use a retail Prey particle texture.
 
 `build_assets.py` now also requires numpy. It flattens the retail skeletal opening
 animation by projecting its translation-only joint motion onto the surface plane.
-The outer energy layer plays the native opening motion; the core rim, view aperture
+The rim and rendered view aperture follow the native skeletal opening together.
+All retail poses play in approximately 0.3 seconds. The collision aperture
 and traversal clearance are fully open immediately. The last eight frames settle into
 our existing static portal shape, avoiding a snap at completion. Floors and ceilings
 use the same surface-oriented effect. Stable openings return to the static mesh.

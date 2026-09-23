@@ -44,16 +44,14 @@ def build_opening(mesh, animation, output, cy, cz):
             for block in blocks:
                 material=re.search(r'shader "([^"]+)"',block)[1].rsplit('/',1)[1]
                 inner=material=='portal_innerwarp'
-                fixed=inner or material=='portal'
                 if inner and closed:material='portal_back'
                 if color=='blue' and not(inner and not closed):material=material.replace('portal','superportal',1)
                 depth=.06 if inner else (.25 if material.endswith('_fx') else .125)
                 block=re.sub(r'shader "[^"]+"',f'shader "reawakened/portalgun/retail_{material}"',block)
                 def weight(m):
                     i=int(m[2]);p=joints[i][1]+joints[i][2]@np.array(list(map(float,m[4].split())))
-                    # Animate the outer energy layer. Keep a complete rim
-                    # around the already-open aperture throughout the effect.
-                    if fixed:i=0
+                    # Preserve the retail skinning for both the rim and warp
+                    # surface: the rendered doorway grows with its energy frame.
                     p=flat(p)-projected[i];p[0]=depth
                     return f'weight {m[1]} {i} {m[3]} ( {fmt(p)} )'
                 block=re.sub(r'weight\s+(\d+)\s+(\d+)\s+([\d.]+)\s+\( ([^)]*) \)',weight,block)
@@ -65,7 +63,8 @@ def build_opening(mesh, animation, output, cy, cz):
     for i in range(max(0,len(frames)-8),len(frames)):
         t=(i-(len(frames)-8))/7.;t=t*t*(3-2*t)
         frames[i]=[p*(1-t)+target*t for p,target in zip(frames[i],projected)]
-    rate=int(re.search(r'frameRate\s+(\d+)',animation)[1])
+    # Retain every retail pose, compressed to a responsive ~0.3 second opening.
+    rate=round((len(frames)-1)/.3)
     lines=['MD5Version 10','commandline "local flattened retail opening"',f'numFrames {len(frames)}',f'numJoints {len(joints)}',f'frameRate {rate}',f'numAnimatedComponents {3*len(joints)}','hierarchy {']
     lines += [f' "{n}" {(-1 if i==0 else 0)} 7 {i*3}' for i,(n,p,r) in enumerate(joints)]+['}','bounds {']
     # Conservative bounds cover the retail overshoot and the flattened artwork.
