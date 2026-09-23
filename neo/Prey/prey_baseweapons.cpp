@@ -649,7 +649,8 @@ void hhWeapon::UpdateGUI() {
 	renderEntity.gui[ 0 ]->SetStateBool( "altammoempty", ( altammoamount == 0 ) );
 	renderEntity.gui[ 0 ]->SetStateInt( "clipammoAmount", AmmoInClip() );
 	if (!idStr::Icmp(dict->GetString("classname"), "weaponobj_d3machinegun") ||
-		!idStr::Icmp(dict->GetString("classname"), "weaponobj_d3chaingun")) {
+		!idStr::Icmp(dict->GetString("classname"), "weaponobj_d3chaingun") ||
+		!idStr::Icmp(dict->GetString("classname"), "weaponobj_d3plasmagun")) {
 		renderEntity.gui[0]->SetStateInt("player_ammo", AmmoInClip());
 		renderEntity.gui[0]->SetStateInt("player_totalammo", Max(0, ammoamount - AmmoInClip()));
 		renderEntity.gui[0]->SetStateInt("player_clips", Max(0, ammoamount - AmmoInClip()) / Max(1, ClipSize()));

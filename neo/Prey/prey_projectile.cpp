@@ -972,6 +972,9 @@ void hhProjectile::DamageEntityHit( const trace_t* collision, const idVec3& velo
                 if ( !blast.IsValid() || !blast->QueueHit(this, entHit, killer, dir, damage, damageScale,
                                                          CLIPMODEL_ID_TO_JOINT_HANDLE(collision->c.id)) ) {
                     entHit->Damage( this, killer, dir, damage, damageScale, CLIPMODEL_ID_TO_JOINT_HANDLE(collision->c.id) );
+                    if (cvarSystem->GetCVarBool("d3_plasmaTrace") && !idStr::Icmp(spawnArgs.GetString("classname"), "projectile_d3plasmagun")) {
+                        gameLocal.Printf("PLASMABOLT damaged=%s health=%d\n", entHit->GetName(), entHit->health);
+                    }
                 }
 
 				if ( playerHit && def->dict.GetInt( "freeze_duration" ) > 0 ) {
@@ -1117,6 +1120,9 @@ void hhProjectile::Fizzle( void ) {
 	if ( state == EXPLODED || state == FIZZLED || state == COLLIDED ) {	//HUMANHEAD bjk
 		return;
 	}
+	if (cvarSystem->GetCVarBool("d3_plasmaTrace") && !idStr::Icmp(spawnArgs.GetString("classname"), "projectile_d3plasmagun")) {
+		gameLocal.Printf("PLASMABOLT fizzle origin=%s\n", GetOrigin().ToString());
+	}
 
 	int removeTime = StartSound( "snd_fizzle", SND_CHANNEL_BODY, 0, true );
 
@@ -1161,6 +1167,9 @@ hhProjectile::Explode
 ================
 */
 void hhProjectile::Explode( const trace_t* collision, const idVec3& velocity, int removeDelay ) {
+    if (cvarSystem->GetCVarBool("d3_plasmaTrace") && !idStr::Icmp(spawnArgs.GetString("classname"), "projectile_d3plasmagun")) {
+        gameLocal.Printf("PLASMABOLT impact origin=%s\n", GetOrigin().ToString());
+    }
 	const char *fxname = NULL;
 	int length = 0;
 
@@ -1362,6 +1371,9 @@ bool hhProjectile::ProcessAllowCollisionEvent( const trace_t* collision ) {
 //=============================================================================
 
 void hhProjectile::Portalled(idEntity *portal) {
+	if (cvarSystem->GetCVarBool("d3_plasmaTrace") && !idStr::Icmp(spawnArgs.GetString("classname"), "projectile_d3plasmagun")) {
+		gameLocal.Printf("PLASMABOLT portalled via=%s origin=%s\n", portal->GetName(), GetOrigin().ToString());
+	}
 	if ( fxFly.IsValid() ) {
 		hhFxInfo fxInfo;
 		fxInfo.SetNormal( -GetAxis()[0] );

@@ -2104,6 +2104,9 @@ void idPlayer::SavePersistantInfo( void ) {
 	if (spawnArgs.FindKey("rw_weapon_d3chaingun_owned")) {
 		playerInfo.SetInt("rw_weapon_d3chaingun_clip", inventory.clip[11]);
 	}
+	if (spawnArgs.FindKey("rw_weapon_d3plasmagun_owned")) {
+		playerInfo.SetInt("rw_weapon_d3plasmagun_clip", inventory.clip[13]);
+	}
 
 	playerInfo.SetInt( "max_ammo_energy", spawnArgs.GetInt( "max_ammo_energy" ) );	//HUMANHEAD bjk: possibly unneeded but def works with it in
 }

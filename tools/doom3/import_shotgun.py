@@ -180,6 +180,8 @@ def main():
         import_machinegun(index, read, text, block, files)
         from import_chaingun import import_chaingun
         import_chaingun(index, read, text, block, files)
+        from import_plasmagun import import_plasmagun
+        import_plasmagun(index, read, text, block, files)
 
     # Validate everything before writing; no path may escape the output folder.
     for name in files:

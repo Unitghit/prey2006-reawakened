@@ -1,8 +1,8 @@
 # Doom 3 weapon prototype
 
-Optional additional Shotgun, Machine Gun and Chaingun for Prey2006 Reawakened.
+Optional Shotgun, Machine Gun, Chaingun and Plasma Gun for Prey2006 Reawakened.
 Press 2 to cycle Hunter Rifle / Shotgun, 4 for Leech Gun / Machine Gun,
-or 5 for Autocannon / Chaingun.
+5 for Autocannon / Chaingun, or 6 for Acid Sprayer / Plasma Gun.
 Original weapons are blue and the first addition in each slot is orange.
 Both silhouette and surrounding highlight change color. Wheel/controller
 cycling visits all available guns.
@@ -20,7 +20,7 @@ From a packaged Reawakened installation:
 python tools/doom3/import_shotgun.py "D:/Games/Doom 3" engine/base --prey-base engine/base --save-compatible
 ```
 
-The historical command name is retained. Compatible imports now install all three
+The historical command name is retained. Compatible imports now install all four
 weapons. For development, pass the retail Prey base directory followed by the
 active engine's base directory using repeated `--prey-base` arguments. The
 importer validates dependencies before writing and records hashes in
@@ -32,6 +32,7 @@ Owning the Hunter Rifle unlocks the Shotgun. Owning the Leech Gun unlocks the
 Machine Gun, including in existing saves. Old rifle-only Machine Gun grants
 are hidden until the Leech Gun is acquired; their ammo remains stored.
 Owning the Autocannon unlocks the Chaingun, also on existing saves.
+Owning the Acid Sprayer unlocks the Plasma Gun, including in existing saves.
 Normal campaign saves use the same folder with the option enabled or disabled.
 Keep imported assets installed when disabling the option.
 
@@ -45,6 +46,8 @@ energy absorption is unchanged and never supplies Machine Gun bullets:
 | Machine Gun | **180 rounds** | 60 |
 | Autocannon (when Chaingun unlocked) | 200 primary rounds | Original behavior |
 | Chaingun | **300 rounds** | 60 |
+| Acid Sprayer (when Plasma Gun unlocked) | 12 acid units | Original behavior |
+| Plasma Gun | **250 cells** | 50 |
 
 Primary Autocannon pickups supply only the slot-5 pair. For example, a 40-round
 pickup gives 20 Autocannon rounds and 30 Chaingun bullets when both reserves
@@ -260,3 +263,28 @@ pickup supplies 50 and 75. Full partners no longer transfer their pickup share.
 Secondary ammunition remains untouched. Tests cover authored ammo entities,
 weapon pickups, dropped weapons, fractional persistence and full reserves.
 Historical validation figures above describe earlier revisions.
+
+## Slot-6 Plasma Gun
+
+The Plasma Gun is the orange second weapon in slot 6. It uses independent cells
+supplied only by Acid Sprayer ammo boxes and weapon pickups, including dropped
+weapons. Fixed half shares apply: the regular four-unit acid pickup supplies
+two acid units and 40 cells; the weapon pickup supplies eight acid units and
+160 cells. Full reserves never transfer their unused pickup share. Existing acid
+ammo is preserved, including amounts above the paired 12-unit cap; a newly
+unlocked cell reserve receives subsequent pickups without a free refill.
+Slot 5 retains its existing Autocannon/Chaingun pair and ammo rules.
+
+The local adapter imports the retail models, animations, Bank GUI font, sounds,
+bolt mesh and trail/impact particles. It retains a 50-cell magazine, 0.125-second
+fire interval, zero spread, 700-unit/second bolt speed and 16 direct damage.
+Prey's projectile class supplies portal traversal and collision behavior; the
+retail particles run through Prey's FX system. It has no invented alternate fire.
+
+Stable inventory index 13 and ammo index 13 leave quick grenades at weapon index
+12. Existing weapon scripts and fixed save array sizes are unchanged. Hidden,
+muted tests cover unlock/selection, ammo boxes and dropped weapons, independent
+spending, reloads, fractional/full pickups, enemy damage, portal shots, equipped
+and disabled saves, Spirit Walk and a real level transition. The repeatable
+test_plasma_ammo.ps1 checks ammo and save behavior. Set d3_plasmaTrace to 1 only
+for diagnostic bolt traversal/impact logs.

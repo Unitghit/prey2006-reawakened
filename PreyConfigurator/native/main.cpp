@@ -371,6 +371,7 @@ void App::Verify(const fs::path& output) {
         fs::create_directories(mod/L"def");
         Atomic(mod/L"def/doom3_machinegun.def","// Verification-only import marker\n");
         Atomic(mod/L"def/doom3_chaingun.def","// Verification-only import marker\n");
+        Atomic(mod/L"def/doom3_plasmagun.def","// Verification-only import marker\n");
     }
     auto expected=Arguments(root,initial);Action(PlayId);require(!IsWindow(window),"Successful Save & Play did not close");
     auto resultFile=root/EngineDirectory/L"launch-result.json";

@@ -258,6 +258,12 @@ bool hhInventory::SplitAutocannonAmmo(const idPlayer *owner) const {
 	const idDict *addon = gameLocal.FindEntityDefDict("weaponobj_d3chaingun", false);
 	return addon && addon->GetBool("rw_saveCompatible");
 }
+bool hhInventory::SplitAcidAmmo(const idPlayer *owner) const {
+	if (!UsesIndependentWeaponAmmo(owner) || !cvarSystem->GetCVarBool("g_doom3Shotgun") ||
+		!owner->spawnArgs.GetBool("rw_weapon_d3plasmagun_owned")) { return false; }
+	const idDict *addon = gameLocal.FindEntityDefDict("weaponobj_d3plasmagun", false);
+	return addon && addon->GetBool("rw_saveCompatible");
+}
 bool hhInventory::SynchronizeWeaponAmmo(hhPlayer *owner) {
 	if (!UsesIndependentWeaponAmmo(owner)) { return false; }
 	bool changed = false;
@@ -326,6 +332,15 @@ bool hhInventory::SynchronizeWeaponAmmo(hhPlayer *owner) {
 		StoreWeaponAmmo(owner, 12, 300);
 		changed = true;
 	}
+	const bool acidActive = SplitAcidAmmo(owner);
+	if (owner->spawnArgs.GetInt("rw_weapon_acid_split_active", "-1") != int(acidActive)) {
+		owner->spawnArgs.SetBool("rw_weapon_acid_split_active", acidActive);
+		changed = true;
+	}
+	if (acidActive && ammo[13] >= 0 && ammo[13] + WeaponAmmoFraction(owner, 13) > 250) {
+		StoreWeaponAmmo(owner, 13, 250);
+		changed = true;
+	}
 	return changed;
 }
 
@@ -371,6 +386,27 @@ bool hhInventory::GiveAutocannonGroupAmmo(hhPlayer *owner, int amount) {
 	return true;
 }
 
+bool hhInventory::GiveAcidGroupAmmo(hhPlayer *owner, int amount) {
+	if (amount <= 0) { return false; }
+	const int count = 2;
+	const int indices[] = { AmmoIndexForAmmoClass("ammo_acid"), 13 };
+	const double full[] = { double(idInventory::MaxAmmoForAmmoClass(owner, "ammo_acid")), 500.0 };
+	if (full[0] <= 0) { return false; }
+	bool accepted = false;
+	// A full partner never donates its share: all slot-6 pickups give half
+	// the original supply to each independent reserve that has room.
+	for (int i = 0; i < count; ++i) {
+		if (ammo[indices[i]] < 0) { continue; }
+		const double total = ammo[indices[i]] + WeaponAmmoFraction(owner, indices[i]);
+		const double room = Max(0.0, double(MaxAmmoForAmmoClass(owner, idWeapon::GetAmmoNameForNum((ammo_t)indices[i]))) - total);
+		const double grant = Min(room, amount / full[0] * full[i] / 2.0);
+		if (grant > 1e-12) { StoreWeaponAmmo(owner, indices[i], total + grant); accepted = true; }
+	}
+	if (!accepted) { return false; }
+	ammoPulse = true;
+	return true;
+}
+
 int hhInventory::MaxAmmoForAmmoClass( idPlayer *owner, const char *ammo_classname ) const {
 	int max = 0;
 	if (ammo_classname && UsesIndependentWeaponAmmo(owner)) {
@@ -379,6 +415,10 @@ int hhInventory::MaxAmmoForAmmoClass( idPlayer *owner, const char *ammo_classnam
 		}
 		if (!idStr::Icmp(ammo_classname, "ammo_d3bullets")) { return 180; }
 		if (!idStr::Icmp(ammo_classname, "ammo_d3belt")) { return 300; }
+		if (!idStr::Icmp(ammo_classname, "ammo_d3cells")) { return 250; }
+		if (!idStr::Icmp(ammo_classname, "ammo_acid") && SplitAcidAmmo(owner)) {
+			return idInventory::MaxAmmoForAmmoClass(owner, ammo_classname) / 2;
+		}
 		if (!idStr::Icmp(ammo_classname, "ammo_autocannon") && SplitAutocannonAmmo(owner)) {
 			return idInventory::MaxAmmoForAmmoClass(owner, ammo_classname) / 2;
 		}
@@ -465,6 +505,10 @@ bool hhInventory::Give( idPlayer *owner, const idDict &spawnArgs, const char *st
 		if (playerOwner && !idStr::Icmp(statname, "ammo_autocannon") && UsesIndependentWeaponAmmo(owner)) {
 			playerOwner->SynchronizeDoom3Shotgun();
 			if (SplitAutocannonAmmo(owner)) { return GiveAutocannonGroupAmmo(playerOwner, atoi(value)); }
+		}
+		if (playerOwner && !idStr::Icmp(statname, "ammo_acid") && UsesIndependentWeaponAmmo(owner)) {
+			playerOwner->SynchronizeDoom3Shotgun();
+			if (SplitAcidAmmo(owner)) { return GiveAcidGroupAmmo(playerOwner, atoi(value)); }
 		}
 		i = AmmoIndexForAmmoClass( statname );
 		max = MaxAmmoForAmmoClass( owner, statname );
@@ -684,6 +728,12 @@ float hhInventory::AmmoPercentage(idPlayer *player, ammo_t type) {
 		const float autoMax = Max(1, MaxAmmoForAmmoClass(player, "ammo_autocannon"));
 		const float autoPct = ammo[type] < 0 ? 1.0f : idMath::ClampFloat(0, 1, ammo[type] / autoMax);
 		const float beltPct = ammo[12] < 0 ? 1.0f : idMath::ClampFloat(0, 1, ammo[12] / 300.0f);
+		return 0.5f * (autoPct + beltPct);
+	}
+	if (SplitAcidAmmo(player) && type == AmmoIndexForAmmoClass("ammo_acid")) {
+		const float autoMax = Max(1, MaxAmmoForAmmoClass(player, "ammo_acid"));
+		const float autoPct = ammo[type] < 0 ? 1.0f : idMath::ClampFloat(0, 1, ammo[type] / autoMax);
+		const float beltPct = ammo[13] < 0 ? 1.0f : idMath::ClampFloat(0, 1, ammo[13] / 250.0f);
 		return 0.5f * (autoPct + beltPct);
 	}
 	if (SplitRifleAmmo(player) && type == AmmoIndexForAmmoClass("ammo_rifle")) {

@@ -23,8 +23,8 @@ unchanged. Import retail assets locally, never into the source repository.
 | 2 | Hunter Rifle | Shotgun | |
 | 3 | Crawler Grenades | Grenades | |
 | 4 | Leech Gun | Machine Gun | |
-| 5 | Autocannon | Chaingun | Plasma Gun (planned) |
-| 6 | Acid Sprayer | Super Shotgun, Doom-only mode | |
+| 5 | Autocannon | Chaingun | |
+| 6 | Acid Sprayer | Plasma Gun | Super Shotgun, Doom-only mode (planned) |
 | 7 | Rocket Launcher | Rocket Launcher | |
 
 The Super Shotgun uses Resurrection of Evil assets. Its inclusion in the
@@ -53,6 +53,9 @@ receives rifle-group pickup supply. Leech Gun energy absorption is unchanged.
 The Chaingun unlocks with the Autocannon and uses slot 5's primary supply only.
 Its independent reserve is capped at 300 including 60 loaded rounds; Autocannon
 primary capacity is 200 while paired. Secondary grenades remain unchanged.
+The Plasma Gun unlocks with the Acid Sprayer in slot 6 and receives only acid
+pickup supply. Fixed halves supply separate reserves capped at 12 acid units
+and 250 cells (including a 50-cell magazine). Existing acquired acid is preserved.
 Preserve fractional pickup credit. Full or locked reserves do not donate their
 unused pickup share to another gun. Once acquired,
 ammunition belongs exclusively to its gun: firing/reloading must never consume
@@ -107,7 +110,7 @@ Reawakened binary that lacks the added weapon classes.
 3. Implemented for rifle / shotgun / Machine Gun: independent reserves, normalized pickups,
    fractional credit, overflow and cabinet demand, migration and persistence.
    Extend allocation metadata when importing each remaining gun.
-4. Machine Gun and slot-5 Chaingun completed. Import and adapt each remaining gun, including expansion Super Shotgun.
+4. Machine Gun, slot-5 Chaingun and slot-6 Plasma Gun completed. Import and adapt each remaining gun, including expansion Super Shotgun.
 5. Complete Doom-only campaign interactions and native launcher modes.
 6. Validate old normal saves, legacy prototype saves, new saves with an added
    weapon equipped, mode changes both ways, death/spirit walking, and transitions
