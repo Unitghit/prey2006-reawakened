@@ -2,7 +2,7 @@ param(
     [Parameter(Mandatory=$true)][string]$Engine,
     [Parameter(Mandatory=$true)][string]$RetailBase,
     [Parameter(Mandatory=$true)][string]$Profile,
-    [string[]]$Cases = @('input','regression','floor','ceiling','blocked','replacement','access','floor_edge','guidance','guide_lookaway','guide_steering','guide_fast','floor_exit','placement','objects','floor_escape','floor_partial','floor_continuous','floor_approach','floor_edge_slide','floor_corner','floor_clearance','surface_fit','ceiling_entry','floor_slab','wall_step','reverse','static_exit')
+    [string[]]$Cases = @('input','regression','floor','ceiling','blocked','replacement','access','floor_edge','guidance','guide_lookaway','guide_steering','guide_fast','floor_exit','placement','objects','floor_escape','floor_partial','floor_continuous','floor_approach','floor_edge_slide','floor_corner','floor_clearance','surface_fit','ceiling_entry','floor_slab','wall_step','wall_approach','reverse','static_exit')
 )
 $ErrorActionPreference='Stop'
 $Engine=(Resolve-Path -LiteralPath $Engine).Path
@@ -109,6 +109,14 @@ foreach($name in $Cases) {
         if(([regex]::Matches($partial,'PORTAL_EXIT ')).Count -ne 1){throw 'Partial floor crossing did not recover exactly once'}
         if($backside -match 'PORTAL_EXIT '){throw 'Backside floor entry incorrectly recovered'}
     }
+    if($name -eq 'wall_approach') {
+        $idle=[regex]::Match($log,'(?s)APPROACH_IDLE_BEGIN(.*?)APPROACH_IDLE_END').Groups[1].Value
+        $walk=[regex]::Match($log,'(?s)APPROACH_WALK_BEGIN(.*?)APPROACH_WALK_END').Groups[1].Value
+        if($idle -match 'PORTAL_APPROACH_GUIDANCE|PORTAL_EXIT '){throw 'Portal approach moved an idle player'}
+        if($walk -notmatch 'PORTAL_APPROACH_GUIDANCE' -or ([regex]::Matches($walk,'PORTAL_EXIT ')).Count -ne 1){throw 'Portal shoulder approach failed crossing'}
+        $positions=[regex]::Matches($walk,'selected=\d+ current=\d+ origin=(-?[0-9.]+)\s+(-?[0-9.]+)\s+(-?[0-9.]+)')
+        if(!$positions.Count -or [double]$positions[$positions.Count-1].Groups[2].Value -ge 463){throw 'Player failed to walk fully beyond portal exit'}
+    }
     if($name -eq 'wall_step') {
         if($log -notmatch 'PORTAL_EXIT_CLEARANCE' -or $log -notmatch 'PORTAL_EXIT ' -or $log -match 'PORTALGUN blocked exit'){throw 'Raised wall portal exit failed step clearance'}
     }
@@ -170,4 +178,3 @@ foreach($name in $Cases) {
     }
     Write-Output "PASS $name"
 }
-

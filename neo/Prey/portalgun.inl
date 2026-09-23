@@ -71,6 +71,52 @@ void RW_AssistPortalFall(const idEntity *entity, const idVec3 &origin, const idV
         gameLocal.Printf("PORTAL_GUIDANCE time=%d distance=%.3f correction=%.3f\n", gameLocal.time, idMath::Sqrt(nearest), correction.Length());
 }
 
+// Guide a walking hull past the narrow shoulder of an upright opening. This
+// changes lateral velocity only; all movement still uses ordinary swept collision.
+void RW_AssistPortalApproach(const idEntity *entity, const idVec3 &origin,
+    const idVec3 &wish, float dt, idVec3 &velocity) {
+    if (!g_portalGun.GetBool() || gameLocal.isMultiplayer || *cvarSystem->GetCVarString("fs_game") ||
+        !entity || !entity->IsType(hhPlayer::Type) || dt <= 0) return;
+    const hhPlayer *player = static_cast<const hhPlayer *>(entity);
+    if (player->health <= 0 || player->IsSpiritOrDeathwalking() || player->InVehicle()) return;
+    const idPhysics *physics = entity->GetPhysics();
+    const idClipModel *clip = physics->GetClipModel();
+    if (!clip || !clip->IsTraceModel()) return;
+    for (int color = 0; color < 2; ++color) {
+        hhPortal *portal = RW_GunPortal(color);
+        if (!portal || !portal->cameraTarget || portal->GetAxis()[2]*-physics->GetGravityNormal() < 0.99f) continue;
+        const idVec3 normal = portal->GetAxis()[0];
+        const idVec3 local = (origin-portal->GetOrigin())*portal->GetAxis().Transpose();
+        if (local.x < 0 || local.x > 64 || idMath::Fabs(local.y) > 47 || wish*normal > -0.5f ||
+            RW_PortalFits(portal, clip->GetTraceModel(), physics->GetAxis(), origin, true)) continue;
+        const idVec3 toward = portal->GetAxis()[1]*(local.y > 0 ? -1.0f : 1.0f);
+        // Explicit steering away from the center overrides assistance.
+        if (wish*toward < -0.25f) continue;
+        for (float distance = 2; distance <= 24; distance += 2) {
+            const idVec3 candidate = origin+toward*distance;
+            if (!RW_PortalFits(portal, clip->GetTraceModel(), physics->GetAxis(), candidate, true)) continue;
+            trace_t trace;
+            if (gameLocal.clip.Translation(trace, origin, candidate, clip, physics->GetAxis(), physics->GetClipMask(), entity)) {
+                // A sloped approach may require the same up/across/down sweep
+                // used by normal walking. This validates guidance, not a warp.
+                const idVec3 up = -physics->GetGravityNormal();
+                const float step = Min(pm_stepsize.GetFloat(), pm_bboxwidth.GetFloat()*0.5f);
+                const idVec3 raised = origin+up*step;
+                const idVec3 across = candidate+up*step;
+                if (gameLocal.clip.Translation(trace, origin, raised, clip, physics->GetAxis(), physics->GetClipMask(), entity) ||
+                    gameLocal.clip.Translation(trace, raised, across, clip, physics->GetAxis(), physics->GetClipMask(), entity)) break;
+                gameLocal.clip.Translation(trace, across, candidate, clip, physics->GetAxis(), physics->GetClipMask(), entity);
+                if (trace.fraction <= 0 || (trace.fraction < 1 && trace.c.normal*up < 0.7f) ||
+                    !RW_PortalFits(portal, clip->GetTraceModel(), physics->GetAxis(), trace.endpos, true)) break;
+            }
+            const float target = Min(48.0f, distance/dt);
+            velocity += toward*Max(0.0f, target-velocity*toward);
+            if (cvarSystem->GetCVarBool("com_fpsTrace"))
+                gameLocal.Printf("PORTAL_APPROACH_GUIDANCE distance=%.3f\n", distance);
+            return;
+        }
+    }
+}
 static void RW_AssistFloorExit(idEntity *entity, idEntity *destination, const idVec3 &origin,
     const idMat3 &axis, idVec3 &velocity) {
     if (!entity->IsType(hhPlayer::Type)) return;
@@ -711,5 +757,3 @@ void hhPlayer::UpdatePortalGunView() {
     weapon->SetShaderParm(6, idMath::ClampFloat(0, 1,
         (spawnArgs.GetInt("rw_portal_view_flash_end") - gameLocal.time) / 200.0f));
 }
-
-

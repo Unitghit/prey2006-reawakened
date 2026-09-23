@@ -632,6 +632,7 @@ void idPhysics_Player::FlyMove( void ) {
 idPhysics_Player::AirMove
 ===================
 */
+extern void RW_AssistPortalApproach(const idEntity *, const idVec3 &, const idVec3 &, float, idVec3 &);
 extern void RW_AssistPortalFall(const idEntity *, const idVec3 &, const idVec3 &, int, int, float, idVec3 &);
 
 void idPhysics_Player::AirMove( void ) {
@@ -797,6 +798,8 @@ void idPhysics_Player::WalkMove( void ) {
 
 	gameLocal.push.InitSavingPushedEntityPositions();
 
+	if (current.movementType == PM_NORMAL && waterLevel == WATERLEVEL_NONE)
+        RW_AssistPortalApproach(self, current.origin, wishdir, frametime, current.velocity);
 	idPhysics_Player::SlideMove( false, true, true, true );
 }
 

@@ -363,3 +363,14 @@ limit. Source travel and destination occupancy checks still apply. `wall_step`
 checks a ten-unit raised exit floor, while `static_exit` verifies an obstruction
 in front of the exit still blocks. Both directions of `portalstuck6` are tested
 separately because its source and destination slopes differ.
+
+Walking approach guidance handles the shoulder of upright portals before any
+teleport is attempted. While actively walking inward, a hull narrowly outside
+the opening can receive at most 48 units/second of lateral guidance toward its
+center. The search is limited to 24 units and a 64-unit approach band. It checks
+aperture fit and a swept source path, including normal up/across/down step
+clearance on slopes. Movement still runs through ordinary player collision;
+no origin warp or collision exclusion is added. Steering outward overrides it.
+`wall_approach` verifies no idle movement, an edge approach, and walking at least
+48 units beyond the destination. Campaign `portalstuck6` is tested at five blue
+approach offsets (-30 through +30), requiring full physical exit in every case.
