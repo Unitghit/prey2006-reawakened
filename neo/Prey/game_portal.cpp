@@ -1061,7 +1061,9 @@ bool hhPortal::PortalEntity( idEntity *ent, const idVec3 &point, const idVec3 *c
             if (hull && gameLocal.clip.Translation(occupied, newLocation, newLocation, hull, newEntAxis,
                     ent->GetPhysics()->GetClipMask(), ent)) {
                 bool cleared = false;
-                const float limit = Min(pm_stepsize.GetFloat(), pm_bboxwidth.GetFloat()*0.5f);
+                const float stepLimit = Min(pm_stepsize.GetFloat(), pm_bboxwidth.GetFloat()*0.5f);
+                const bool actorClip = (occupied.c.contents & CONTENTS_PLAYERCLIP) && !(occupied.c.contents & CONTENTS_SOLID);
+                const float limit = actorClip ? pm_bboxwidth.GetFloat() : stepLimit;
                 for (float distance = 2; distance <= limit && !cleared; distance += 2) {
                     for (int sample = 0; sample < 16 && !cleared; ++sample) {
                         const float angle = sample*(idMath::TWO_PI/16.0f);
@@ -1081,8 +1083,13 @@ bool hhPortal::PortalEntity( idEntity *ent, const idVec3 &point, const idVec3 *c
                         // supporting face qualifies; ceilings and walls do not.
                         const bool floorStep = offset*exitUp > distance*0.999f &&
                             test.fraction > 0.0f && test.fraction < 1.0f &&
-                            test.c.normal*exitUp > 0.7f && unresolved <= limit;
-                        if (test.fraction <= 0.0f || (unresolved > 2.0f && !floorStep)) continue;
+                            test.c.normal*exitUp > 0.7f && unresolved <= stepLimit;
+                        // Some maps use tall invisible collision columns near
+                        // ceiling trim. Allow a bounded offset within the opening,
+                        // without exempting those columns from normal collision.
+                        const bool clipClearance = actorClip && (test.c.contents & CONTENTS_PLAYERCLIP) &&
+                            !(test.c.contents & CONTENTS_SOLID) && unresolved <= limit;
+                        if (test.fraction <= 0.0f || (unresolved > 2.0f && !floorStep && !clipClearance)) continue;
                         idVec3 sourceOffset = offset;
                         PortalRotate(sourceOffset, destAxis.Transpose(), GetAxis(), true);
                         const idVec3 sourceCandidate = point+sourceOffset;

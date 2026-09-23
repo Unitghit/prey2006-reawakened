@@ -390,3 +390,13 @@ a sloped slab's hidden back face must not block emergence merely because its
 axis-aligned bounds overlap the opening. Polygons extending in front remain
 collidable. `sloped_ceiling` verifies one crossing followed by full emergence
 and falling clear; `portalstuck8` is tested directly from the saved approach.
+
+Exit clearance may search up to one player hull width when the obstruction and
+reverse sweep contact are invisible player-clip geometry without solid contents.
+Candidates still require destination occupancy clearance, a valid source aperture
+fit, and a clear full-hull source sweep. Real solid contacts retain the smaller
+skin/step limits. This handles collision columns that extend farther from ceiling
+trim than the old step-sized search could reach, without disabling the column.
+`clip_column` checks a sloped-ceiling exit next to a tall invisible column;
+`static_exit` retains blocking coverage for solid obstacles. Campaign saves
+`portalstuck8` and `portalstuck9` cover the two different sloped-ceiling cases.
