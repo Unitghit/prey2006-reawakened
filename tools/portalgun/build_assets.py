@@ -10,6 +10,13 @@ import sys
 import zipfile
 
 
+def remove_blue_lightning(body):
+    """Keep the retail blue mist/glow, omitting its four flashing arc stages."""
+    return re.sub(
+        r'\{[^{}]*\bmap\s+models/mapobjects/superportal/superportal_lightning[1-4]\.tga\b[^{}]*\}',
+        '', body, flags=re.IGNORECASE)
+
+
 def cross(a, b):
     return [a[1]*b[2]-a[2]*b[1], a[2]*b[0]-a[0]*b[2], a[0]*b[1]-a[1]*b[0]]
 
@@ -117,6 +124,8 @@ def build(retail, output):
                 material = "reawakened/portalgun/retail_" + material.rsplit("/", 1)[1]
                 if material not in adapted_materials:
                     body = material_body(retail_materials, source_material)
+                    if source_material == 'models/mapobjects/superportal/superportal_fx':
+                        body = remove_blue_lightning(body)
                     # Wall-mounted portal passes must win coplanar depth tests,
                     # including against decals. Retail level portals stay unchanged.
                     adapted_materials[material] = material + " {\n polygonOffset 1\n" + body + "}\n"
