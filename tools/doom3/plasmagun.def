@@ -88,7 +88,7 @@ entityDef d3_plasma_impactfx {
 
 entityDef damage_d3plasmagun {
     "inherit" "missile_rifle"
-    "damage" "24"
+    "damage" "25"
     "gib" "1"
     "knockback" "2"
 }
