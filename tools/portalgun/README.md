@@ -87,12 +87,12 @@ Without the optional import, the effects use a retail Prey particle texture.
 
 `build_assets.py` now also requires numpy. It flattens the retail skeletal opening
 animation by projecting its translation-only joint motion onto the surface plane.
-The rim and rendered view aperture follow the native skeletal opening together.
-The stationary scripted-effect lead-in is removed; the moving retail poses play
-in approximately 0.3 seconds. The collision aperture
-and traversal clearance are fully open immediately. The last eight frames settle into
-our existing static portal shape, avoiding a snap at completion. Floors and ceilings
-use the same surface-oriented effect. Stable openings return to the static mesh.
+The rim and rendered view aperture grow together at fixed proportions, using the
+expanding portion of the retail motion as a timing envelope over approximately
+0.45 seconds. The scripted lead-in and overshoot/recoil are omitted. The final
+pose exactly matches the static artwork, without an added settling transition.
+Collision and traversal clearance are fully open immediately. Floors and ceilings
+use the same surface-oriented effect.
 Flight state, pending times and opening animation survive saves in the updated
 build; existing saves have no pending state and need no conversion.
 

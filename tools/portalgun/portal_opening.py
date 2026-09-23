@@ -37,39 +37,42 @@ def build_opening(mesh, animation, output, cy, cz):
     # so the full duration belongs to the visible expansion, not the pre-roll.
     while len(frames) > 2 and np.allclose(frames[0], frames[1], atol=1e-5):
         frames.pop(0)
+    extent=np.array([np.linalg.norm(f) for f in frames])
+    peak=int(np.argmax(extent))
+    growth=np.maximum.accumulate((extent[:peak+1]-extent[0])/(extent[peak]-extent[0]))
+    scales=.01+.99*growth
     def fmt(v):return ' '.join(f'{x:.8f}' for x in v)
     models=output/'models/reawakened/portalgun';models.mkdir(parents=True,exist_ok=True)
     definitions=[]
     blocks=[b for b in mesh.split('mesh {')[1:] if re.search(r'shader "[^"]+/(portal|portal_fx|portal_innerwarp)"',b)]
+    # Translate each weighted point together, preserving the oval proportions.
+    # Only the expanding retail timing envelope is retained; no recoil/settle.
+    positions=[np.zeros(3)];converted=[]
+    for block in blocks:
+        def weight(m):
+            joint=int(m[2]);p=joints[joint][1]+joints[joint][2]@np.array(list(map(float,m[4].split())))
+            positions.append(flat(p))
+            return f'weight {m[1]} {len(positions)-1} {m[3]} ( DEPTH 0 0 )'
+        converted.append(re.sub(r'weight\s+(\d+)\s+(\d+)\s+([\d.]+)\s+\( ([^)]*) \)',weight,block))
+    projected=positions
+    joints=[('root' if i==0 else f'weight_{i}',p,None) for i,p in enumerate(positions)]
     for color in ('blue','orange'):
         for closed in (False,True):
             name=color+('_closed' if closed else '')+'_opening'
-            lines=['MD5Version 10','commandline "local flattened retail portal animation"',f'numJoints {len(joints)}',f'numMeshes {len(blocks)}','joints {']
-            lines += [f' "{n}" {(-1 if i==0 else 0)} ( {fmt(projected[i])} ) ( 0 0 0 )' for i,(n,p,r) in enumerate(joints)]+['}']
-            for block in blocks:
+            lines=['MD5Version 10','commandline "local flattened retail portal animation"',f'numJoints {len(joints)}',f'numMeshes {len(converted)}','joints {']
+            lines += [f' "{n}" {(-1 if i==0 else 0)} ( {fmt(p)} ) ( 0 0 0 )' for i,(n,p,r) in enumerate(joints)]+['}']
+            for block in converted:
                 material=re.search(r'shader "([^"]+)"',block)[1].rsplit('/',1)[1]
                 inner=material=='portal_innerwarp'
                 if inner and closed:material='portal_back'
                 if color=='blue' and not(inner and not closed):material=material.replace('portal','superportal',1)
                 depth=.06 if inner else (.25 if material.endswith('_fx') else .125)
                 block=re.sub(r'shader "[^"]+"',f'shader "reawakened/portalgun/retail_{material}"',block)
-                def weight(m):
-                    i=int(m[2]);p=joints[i][1]+joints[i][2]@np.array(list(map(float,m[4].split())))
-                    # Preserve the retail skinning for both the rim and warp
-                    # surface: the rendered doorway grows with its energy frame.
-                    p=flat(p)-projected[i];p[0]=depth
-                    return f'weight {m[1]} {i} {m[3]} ( {fmt(p)} )'
-                block=re.sub(r'weight\s+(\d+)\s+(\d+)\s+([\d.]+)\s+\( ([^)]*) \)',weight,block)
-                lines.append('mesh {'+block)
+                lines.append('mesh {'+block.replace('DEPTH',str(depth)))
             (models/(name+'.md5mesh')).write_text('\n'.join(lines)+'\n')
             definitions.append(f'model rw_portal_{name} {{\n mesh models/reawakened/portalgun/{name}.md5mesh\n anim open models/reawakened/portalgun/open_flat.md5anim\n}}')
-    # Settle into the existing flattened portal's bind shape instead of
-    # snapping from the retail animation's larger final pose to our mesh.
-    for i in range(max(0,len(frames)-8),len(frames)):
-        t=(i-(len(frames)-8))/7.;t=t*t*(3-2*t)
-        frames[i]=[p*(1-t)+target*t for p,target in zip(frames[i],projected)]
-    # Retain the moving retail poses, retimed to a responsive ~0.3 second opening.
-    rate=round((len(frames)-1)/.3)
+    frames=[[p*scale for p in projected] for scale in scales]
+    rate=round((len(frames)-1)/.45)
     lines=['MD5Version 10','commandline "local flattened retail opening"',f'numFrames {len(frames)}',f'numJoints {len(joints)}',f'frameRate {rate}',f'numAnimatedComponents {3*len(joints)}','hierarchy {']
     lines += [f' "{n}" {(-1 if i==0 else 0)} 7 {i*3}' for i,(n,p,r) in enumerate(joints)]+['}','bounds {']
     # Conservative bounds cover the retail overshoot and the flattened artwork.
