@@ -1,5 +1,8 @@
 // Experimental single-player portal tool. State uses existing entity/player save dictionaries.
 static idCVar g_portalGun("g_portalGun", "0", CVAR_GAME | CVAR_BOOL | CVAR_ARCHIVE, "experimental slot-1 blue/orange portal tool");
+// Keep the opening ahead of thin wall-decoration layers, without separating
+// the visible aperture from the plane that actually teleports the player.
+static const float RW_PORTAL_SURFACE_OFFSET = 1.0f;
 static const char *RW_PortalName(int color) { return color ? "rw_gun_orange" : "rw_gun_blue"; }
 static hhPortal *RW_GunPortal(int color) {
     idEntity *ent = gameLocal.FindEntity(RW_PortalName(color));
@@ -58,7 +61,7 @@ bool RW_PortalClipPlane(const idEntity *entity, const idTraceModel *trm, const i
             limit = Max(0.0f, low - 0.001f);
         }
         plane.SetNormal(normal);
-        plane.FitThroughPoint(portal->GetOrigin());
+        plane.FitThroughPoint(portal->GetOrigin() - normal * portal->spawnArgs.GetFloat("rw_portal_surface_offset"));
         return true;
     }
     return false;
@@ -94,14 +97,18 @@ static bool RW_PortalFloorCenter(idVec3 &center, const idMat3 &axis, const idVec
     return true;
 }
 static void RW_UpdateGunPortalFloor(hhPortal *portal) {
-    if (portal->spawnArgs.GetBool("rw_portal_floor_aligned")) return;
+    const float previousOffset = portal->spawnArgs.GetFloat("rw_portal_surface_offset");
+    const bool floorAligned = portal->spawnArgs.GetBool("rw_portal_floor_aligned");
+    if (floorAligned && previousOffset == RW_PORTAL_SURFACE_OFFSET) return;
+    // Save migration: work in the real wall plane, then apply the attachment
+    // offset once. Never accumulate offsets across reloads or repeated Thinks.
+    idVec3 center = portal->GetOrigin() - portal->GetAxis()[0] * previousOffset;
+    if (!floorAligned) RW_PortalFloorCenter(center, portal->GetAxis(), -portal->GetPhysics()->GetGravityNormal(), gameLocal.GetLocalPlayer());
     portal->spawnArgs.SetBool("rw_portal_floor_aligned", true);
-    idVec3 center = portal->GetOrigin();
-    if (RW_PortalFloorCenter(center, portal->GetAxis(), -portal->GetPhysics()->GetGravityNormal(), gameLocal.GetLocalPlayer())) {
-        portal->SetOrigin(center);
-        portal->spawnArgs.SetVector("origin", center);
-        portal->UpdateVisuals();
-    }
+    portal->spawnArgs.SetFloat("rw_portal_surface_offset", RW_PORTAL_SURFACE_OFFSET);
+    portal->SetOrigin(center + portal->GetAxis()[0] * RW_PORTAL_SURFACE_OFFSET);
+    portal->spawnArgs.SetVector("origin", portal->GetOrigin());
+    portal->UpdateVisuals();
 }
 bool hhPlayer::PortalGunSelected() const {
     return g_portalGun.GetBool() && !gameLocal.isMultiplayer && !*cvarSystem->GetCVarString("fs_game") && idealWeapon == 1 &&
@@ -167,12 +174,13 @@ bool hhPlayer::PlaceGunPortal(int color) {
         args.Set("model", "models/reawakened/portalgun/closed.ase");
         args.Set("mins", "-4 -48 -72"); args.Set("maxs", "4 48 72");
         args.Set("deformType", "0"); args.Set("shaderParm5", "100000"); args.Set("shaderParm6", "99999");
-        args.SetVector("origin", center); args.SetMatrix("rotation", axis);
+        args.SetVector("origin", center + normal * RW_PORTAL_SURFACE_OFFSET); args.SetMatrix("rotation", axis);
         idEntity *created = NULL;
         if (!gameLocal.SpawnEntityDef(args, &created) || !created || !created->IsType(hhPortal::Type)) return false;
         portal = static_cast<hhPortal *>(created);
     }
-    portal->SetOrigin(center); portal->SetAxis(axis);
+    portal->SetOrigin(center + normal * RW_PORTAL_SURFACE_OFFSET); portal->SetAxis(axis);
+    portal->spawnArgs.SetFloat("rw_portal_surface_offset", RW_PORTAL_SURFACE_OFFSET);
     portal->spawnArgs.SetBool("rw_portal_floor_aligned", true);
     portal->SetModel(color ? "models/reawakened/portalgun/orange_closed.ase" : "models/reawakened/portalgun/blue_closed.ase");
     portal->GetPhysics()->SetContents(0);
@@ -186,7 +194,7 @@ bool hhPlayer::PlaceGunPortal(int color) {
         other->UpdateVisuals();
     }
     portal->UpdateVisuals();
-    gameLocal.Printf("PORTALGUN placed %s at %s normal %s paired=%d\n", color ? "orange" : "blue", center.ToString(), normal.ToString(), other != NULL);
+    gameLocal.Printf("PORTALGUN placed %s at %s normal %s paired=%d\n", color ? "orange" : "blue", portal->GetOrigin().ToString(), normal.ToString(), other != NULL);
     return true;
 }
 void hhPlayer::UpdatePortalGun() {

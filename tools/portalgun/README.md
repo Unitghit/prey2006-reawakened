@@ -46,6 +46,12 @@ The lower collision opening has flat foot clearance so the rounded artwork does
 not force the player's box hull to climb a step. The supporting floor still
 participates in collision; traversal does not lift or push the player.
 
+The opening and its teleport frame sit one unit ahead of the supporting wall,
+clearing thin decoration layers such as the half-unit-offset grime decal in
+`dirtyblueportal`. Collision cutting still uses the real wall plane. The offset
+is stored in the existing spawn dictionary and migrated once for older saves;
+reloading cannot accumulate additional movement.
+
 Imported portal materials use a depth bias against their supporting wall. The
 remote clip plane excludes the coplanar backing face by 0.25 units without
 changing the camera or teleport transform. Retail free-standing portals retain
