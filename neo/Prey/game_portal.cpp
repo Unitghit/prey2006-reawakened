@@ -102,6 +102,20 @@ hhPortal::hhPortal(void) {
 }
 
 hhPortal::~hhPortal() {
+    // Gun endpoints can be removed independently. Unlink surviving endpoints
+    // before the raw cameraTarget pointer becomes invalid.
+    if (spawnArgs.GetBool("rw_portalGun")) {
+        for (idEntity *ent = gameLocal.spawnedEntities.Next(); ent; ent = ent->spawnNode.Next()) {
+            if (ent != this && ent->IsType(hhPortal::Type) &&
+                ent->spawnArgs.GetBool("rw_portalGun") && ent->cameraTarget == this) {
+                ent->cameraTarget = NULL;
+                ent->GetRenderEntity()->remoteRenderView = NULL;
+                ent->spawnArgs.Delete("cameraTarget");
+                ent->UpdateVisuals();
+            }
+        }
+    }
+
 	proximityEntities.Clear(); // Clear the list of potential entities to be portalled
 	SAFE_REMOVE(m_portalIdleFx);
 
@@ -420,6 +434,8 @@ void hhPortal::Think( void ) {
         if (!cvarSystem->GetCVarBool("g_portalGun")) { Hide(); GetPhysics()->SetContents(0); return; }
         RW_UpdateGunPortalFloor(this);
         Show(); GetPhysics()->SetContents(cameraTarget ? CONTENTS_SOLID : 0);
+        if (spawnArgs.GetBool("rw_energy_linked") != (cameraTarget != NULL))
+            RW_GunPortalVisual(this, false);
         const int openingEnd = spawnArgs.GetInt("rw_open_end");
         if (openingEnd && gameLocal.time >= openingEnd) {
             spawnArgs.SetInt("rw_open_end", 0);

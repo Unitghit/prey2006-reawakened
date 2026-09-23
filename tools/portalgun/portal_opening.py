@@ -4,6 +4,21 @@ import re
 import numpy as np
 
 
+def energy_polygon(points):
+    """Convex perimeter of the flattened aperture, as source vertex indices."""
+    unique = {}
+    for i,p in enumerate(points):
+        unique.setdefault((round(float(p[1]),4),round(float(p[2]),4)),i)
+    ordered = sorted(unique)
+    def turn(a,b,c): return (b[0]-a[0])*(c[1]-a[1])-(b[1]-a[1])*(c[0]-a[0])
+    lower, upper = [], []
+    for chain, sequence in ((lower,ordered),(upper,reversed(ordered))):
+        for point in sequence:
+            while len(chain)>=2 and turn(chain[-2],chain[-1],point)<=0: chain.pop()
+            chain.append(point)
+    return [unique[p] for p in lower[:-1]+upper[:-1]]
+
+
 def matrix(q):
     x,y,z=q;w=-math.sqrt(max(0,1-x*x-y*y-z*z))
     return np.array([[1-2*y*y-2*z*z,2*x*y-2*z*w,2*x*z+2*y*w],
@@ -59,7 +74,7 @@ def build_opening(mesh, animation, output, cy, cz):
     for color in ('blue','orange'):
         for closed in (False,True):
             name=color+('_closed' if closed else '')+'_opening'
-            lines=['MD5Version 10','commandline "local flattened retail portal animation"',f'numJoints {len(joints)}',f'numMeshes {len(converted)}','joints {']
+            lines=['MD5Version 10','commandline "local flattened retail portal animation"',f'numJoints {len(joints)}',f'numMeshes {len(converted)+(0 if closed else 1)}','joints {']
             lines += [f' "{n}" {(-1 if i==0 else 0)} ( {fmt(p)} ) ( 0 0 0 )' for i,(n,p,r) in enumerate(joints)]+['}']
             for block in converted:
                 material=re.search(r'shader "([^"]+)"',block)[1].rsplit('/',1)[1]
@@ -68,7 +83,29 @@ def build_opening(mesh, animation, output, cy, cz):
                 if color=='blue' and not(inner and not closed):material=material.replace('portal','superportal',1)
                 depth=.06 if inner else (.25 if material.endswith('_fx') else .125)
                 block=re.sub(r'shader "[^"]+"',f'shader "reawakened/portalgun/retail_{material}"',block)
-                lines.append('mesh {'+block.replace('DEPTH',str(depth)))
+                if inner:
+                    # The retail aperture UVs are a strip, not a planar disk.
+                    # Give only our energy layer planar UVs; preserve the live view.
+                    weights = {int(m[1]): (int(m[2]), float(m[3])) for m in re.finditer(r'weight\s+(\d+)\s+(\d+)\s+([\d.]+)', block)}
+                    verts = list(re.finditer(r'vert\s+(\d+)\s+\( ([^)]*) \)\s+(\d+)\s+(\d+)', block))
+                    points = [sum((projected[weights[w][0]] * weights[w][1] for w in range(int(v[3]),int(v[3])+int(v[4]))), np.zeros(3)) for v in verts]
+                    hull = energy_polygon(points)
+                    ymin,ymax = min(p[1] for p in points),max(p[1] for p in points)
+                    zmin,zmax = min(p[2] for p in points),max(p[2] for p in points)
+                    energy = '\n shader "reawakened/portalgun/energy_'+color+('_closed' if closed else '')+'"\n'
+                    energy += f' numverts {len(hull)}\n'
+                    for i,k in enumerate(hull):
+                        v,point=verts[k],points[k]
+                        energy += f' vert {i} ( {(point[1]-ymin)/(ymax-ymin):.8f} {(point[2]-zmin)/(zmax-zmin):.8f} ) {v[3]} {v[4]}\n'
+                    energy += f' numtris {len(hull)-2}\n'
+                    for i in range(1,len(hull)-1): energy += f' tri {i-1} 0 {i+1} {i}\n'
+                    energy += f' numweights {len(weights)}\n'
+                    energy += '\n'.join(re.findall(r'weight\s+\d+\s+\d+\s+[\d.]+\s+\( [^)]* \)',block))+'\n}\n'
+                    if not closed:
+                        lines.append('mesh {'+block.replace('DEPTH',str(depth)))
+                    lines.append('mesh {'+energy.replace('DEPTH','.08'))
+                else:
+                    lines.append('mesh {'+block.replace('DEPTH',str(depth)))
             (models/(name+'.md5mesh')).write_text('\n'.join(lines)+'\n')
             definitions.append(f'model rw_portal_{name} {{\n mesh models/reawakened/portalgun/{name}.md5mesh\n anim open models/reawakened/portalgun/open_flat.md5anim\n}}')
     frames=[[p*scale for p in projected] for scale in scales]

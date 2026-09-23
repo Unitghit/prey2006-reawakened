@@ -32,6 +32,16 @@ foreach($name in $Cases) {
     if($process.ExitCode -ne 0){throw "$name exited with $($process.ExitCode)"}
     $log=Get-Content -LiteralPath "$base/$name.log" -Raw
     if($log -match 'ERROR:|shutting down:'){throw "$name reported an engine error"}
+    if($name -eq 'energy') {
+        foreach($color in @('blue','orange')) {
+            if($log -notmatch "PORTAL_ENERGY rw_gun_$color linked=0") { throw "Missing unlinked $color state" }
+            if($log -notmatch "PORTAL_ENERGY rw_gun_$color linked=1") { throw "Missing linked $color state" }
+        }
+        foreach($capture in @('energy_opening','energy_blue','energy_reload','energy_link0','energy_link1','energy_link2','energy_linked','energy_replaced','energy_orange','energy_orange_reload')) {
+            if(!(Test-Path "$base/$capture.tga")) { throw "Missing $capture capture" }
+        }
+        if($log -match 'GL_INVALID|unknown token|bad blend|Couldn.t load image: (textures|models)/.*(energy|noise|portal)') { throw 'Energy material rendering error' }
+    }
     if($name -eq 'body_split') {
         foreach($phase in @('WALL','RELOAD','FLOOR')) {
             $part=[regex]::Match($log,"(?s)BODY_${phase}_BEGIN(.*?)BODY_${phase}_END").Groups[1].Value
