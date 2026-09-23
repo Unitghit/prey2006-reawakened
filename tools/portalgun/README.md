@@ -382,3 +382,11 @@ This remains restricted to non-solid player-clip surfaces with a detected cover;
 solid geometry and unrelated offset faces are unchanged. `tapered_shell` tests
 walking fully out through a tapered shell, not just observing a teleport event.
 `portalstuck7` reproduces this from its untouched saved pose with forward input.
+
+Sloped ceiling exits retain their rotated player hull until gravity alignment
+has enough clearance from the support plane. Translation collision also tests
+actual polygon vertices when a polygon's bounding box straddles the cutout:
+a sloped slab's hidden back face must not block emergence merely because its
+axis-aligned bounds overlap the opening. Polygons extending in front remain
+collidable. `sloped_ceiling` verifies one crossing followed by full emergence
+and falling clear; `portalstuck8` is tested directly from the saved approach.

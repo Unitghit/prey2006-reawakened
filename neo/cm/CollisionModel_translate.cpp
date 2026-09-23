@@ -540,6 +540,19 @@ idCollisionModelManagerLocal::TranslateTrmThroughPolygon
 */
 bool idCollisionModelManagerLocal::TranslateTrmThroughPolygon( cm_traceWork_t *tw, cm_polygon_t *p ) {
     if (PortalClipSurface(p->plane) || PortalCoverSurface(p->plane, p->contents) || (portalClipActive && p->bounds.PlaneDistance(portalClipPlane) < -0.01f)) { return false; }
+    // The axis-aligned bounds of a sloped ceiling can straddle the portal
+    // plane even when the polygon itself is entirely behind it. Test its
+    // real vertices before allowing the hidden back face to stop emergence.
+    if (portalClipActive && p->bounds.PlaneDistance(portalClipPlane) <= 0.01f) {
+        bool behind = true;
+        for (int edge = 0; edge < p->numEdges; ++edge) {
+            const int edgeNum = p->edges[edge];
+            const cm_edge_t &modelEdge = tw->model->edges[abs(edgeNum)];
+            const idVec3 &vertex = tw->model->vertices[modelEdge.vertexNum[INTSIGNBITSET(edgeNum)]].p;
+            if (portalClipPlane.Distance(vertex) > 0.01f) { behind = false; break; }
+        }
+        if (behind) return false;
+    }
 	int i, j, k, edgeNum;
 	float fraction, d;
 	idVec3 endp;

@@ -294,6 +294,25 @@ bool RW_PortalHoldPlayerAxis(const idEntity *entity) {
         // for the upright hull's half-width.
         if (physics->GetAxis()[2]*normal > 0.95f && depth > -physics->GetBounds()[1].z &&
             depth < 18.0f && RW_PortalFits(portal, clip->GetTraceModel(), physics->GetAxis(), physics->GetOrigin(), true)) return true;
+        // Wall-to-sloped-ceiling exits emerge sideways. Gravity alignment must
+        // not swing the tall hull back through the supporting ceiling while its
+        // current orientation is still passing through the opening.
+        const idVec3 gravityUp = -physics->GetGravityNormal();
+        if (physics->GetAxis()[2]*gravityUp < 0.999f) {
+            const idBounds &bounds = physics->GetBounds();
+            float front = depth;
+            for (int k = 0; k < 8; ++k) {
+                const idVec3 corner(bounds[(k&1)!=0].x, bounds[(k&2)!=0].y, bounds[(k&4)!=0].z);
+                front = Max(front, depth + (corner*physics->GetAxis())*normal);
+            }
+            const float vertical = normal*gravityUp;
+            const float radius = idMath::Sqrt(Square(Max(idMath::Fabs(bounds[0].x), idMath::Fabs(bounds[1].x))) +
+                Square(Max(idMath::Fabs(bounds[0].y), idMath::Fabs(bounds[1].y))));
+            const float uprightBack = Min(bounds[0].z*vertical, bounds[1].z*vertical) -
+                radius*idMath::Sqrt(Max(0.0f, 1.0f-vertical*vertical));
+            if (front > 0 && depth + uprightBack < 1.0f && depth > -bounds[1].z &&
+                RW_PortalFits(portal, clip->GetTraceModel(), physics->GetAxis(), physics->GetOrigin(), true)) return true;
+        }
     }
     return false;
 }

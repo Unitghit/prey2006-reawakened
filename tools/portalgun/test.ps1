@@ -2,7 +2,7 @@ param(
     [Parameter(Mandatory=$true)][string]$Engine,
     [Parameter(Mandatory=$true)][string]$RetailBase,
     [Parameter(Mandatory=$true)][string]$Profile,
-    [string[]]$Cases = @('input','regression','floor','ceiling','blocked','replacement','access','floor_edge','guidance','guide_lookaway','guide_steering','guide_fast','floor_exit','placement','objects','floor_escape','floor_partial','floor_continuous','floor_approach','floor_edge_slide','floor_corner','floor_clearance','surface_fit','ceiling_entry','floor_slab','wall_step','wall_approach','tapered_shell','reverse','static_exit')
+    [string[]]$Cases = @('input','regression','floor','ceiling','blocked','replacement','access','floor_edge','guidance','guide_lookaway','guide_steering','guide_fast','floor_exit','placement','objects','floor_escape','floor_partial','floor_continuous','floor_approach','floor_edge_slide','floor_corner','floor_clearance','surface_fit','ceiling_entry','floor_slab','wall_step','wall_approach','tapered_shell','sloped_ceiling','reverse','static_exit')
 )
 $ErrorActionPreference='Stop'
 $Engine=(Resolve-Path -LiteralPath $Engine).Path
@@ -15,6 +15,7 @@ Copy-Item "$PSScriptRoot/tests/rw_portal_lab.map" "$base/maps/"
 Copy-Item "$PSScriptRoot/tests/rw_portal_surface.map" "$base/maps/"
 Copy-Item "$PSScriptRoot/tests/rw_portal_slab.map" "$base/maps/"
 Copy-Item "$PSScriptRoot/tests/rw_portal_taper.map" "$base/maps/"
+Copy-Item "$PSScriptRoot/tests/rw_portal_slope.map" "$base/maps/"
 Copy-Item "$PSScriptRoot/tests/portal_lab.mtr" "$base/materials/"
 Copy-Item "$PSScriptRoot/tests/portal_obstacle.ase" "$base/models/"
 foreach($name in $Cases) {
@@ -109,6 +110,12 @@ foreach($name in $Cases) {
         $backside=[regex]::Match($log,'(?s)FLOOR_BACKSIDE_BEGIN(.*?)FLOOR_BACKSIDE_END').Groups[1].Value
         if(([regex]::Matches($partial,'PORTAL_EXIT ')).Count -ne 1){throw 'Partial floor crossing did not recover exactly once'}
         if($backside -match 'PORTAL_EXIT '){throw 'Backside floor entry incorrectly recovered'}
+    }
+    if($name -eq 'sloped_ceiling') {
+        $part=[regex]::Match($log,'(?s)SLOPE_EXIT_BEGIN(.*?)SLOPE_EXIT_END').Groups[1].Value
+        $positions=[regex]::Matches($part,'selected=\d+ current=\d+ origin=(-?[0-9.]+)\s+(-?[0-9.]+)\s+(-?[0-9.]+)')
+        if(([regex]::Matches($part,'PORTAL_EXIT ')).Count -ne 1 -or !$positions.Count -or
+            [double]$positions[$positions.Count-1].Groups[3].Value -ge 80){throw 'Player failed to fully emerge from sloped ceiling'}
     }
     if($name -eq 'tapered_shell') {
         $part=[regex]::Match($log,'(?s)TAPER_EXIT_BEGIN(.*?)TAPER_EXIT_END').Groups[1].Value
