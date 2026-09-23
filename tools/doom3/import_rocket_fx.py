@@ -45,7 +45,12 @@ def import_rocket_fx(index, read, text, block, files, shaders):
         decl = next((d for src in sources if (d := block(re.sub(r'\bparticle\s+', 'table ', src), name))), None)
         if not decl:
             raise ValueError('Missing particle '+name)
-        decl = decl.replace('table '+name, 'particle d3_'+name, 1)
+        # Doom declarations are case-insensitive (rocketExplosion is authored
+        # as rocketexplosion). Always emit a particle, not the lookup's table alias.
+        decl, renamed = re.subn(r'^table\s+'+re.escape(name)+r'\b',
+                                'particle d3_'+name, decl, count=1, flags=re.I)
+        if renamed != 1:
+            raise ValueError('Could not namespace particle '+name)
         shaders.update(re.findall(r'\bmaterial\s+"?([\w/.-]+)', decl))
         decl = re.sub(r'(\bmaterial\s+"?)([\w/.-]+)', r'\1doom3/\2', decl)
         particles.append(decl)
