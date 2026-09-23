@@ -45,7 +45,7 @@ energy absorption is unchanged and never supplies Machine Gun bullets:
 | Shotgun | **16 shells** | 8 |
 | Machine Gun | **180 rounds** | 60 |
 | Autocannon (when Chaingun unlocked) | 200 primary rounds | Original behavior |
-| Chaingun | **300 rounds** | 60 |
+| Chaingun | **180 rounds** | 60 |
 | Acid Sprayer (when Plasma Gun unlocked) | 12 acid units | Original behavior |
 | Plasma Gun | **150 cells** | 50 |
 

@@ -31,9 +31,9 @@ chaingunInfo
 chaingunInfo pickup 2
 chaingunInfo seed 200 0
 chaingunInfo pickup 40
-chaingunInfo seed 0 300
+chaingunInfo seed 0 180
 chaingunInfo pickup 40
-chaingunInfo seed 200 300
+chaingunInfo seed 200 180
 chaingunInfo pickup 1
 chaingunInfo altpickup 1
 chaingunInfo seed 100 120
@@ -73,7 +73,7 @@ try {
     if($log.Contains('ERROR:') -or $log.Contains("Real Script checksum didn't match") -or $log.Contains('WARNING: script')){throw 'Game reported a script/save error'}
     $states=[regex]::Matches($log,'CHAINAMMO auto=(\d+) belt=(\d+) autoMax=(\d+) beltMax=(\d+) autoFraction=([0-9.eE+-]+) beltFraction=([0-9.eE+-]+) clip=(-?\d+) held=(\d+) alt=(\d+)')
     if($states.Count -ne 19){throw "Expected 19 ammo records, got $($states.Count)"}
-    $expected=@(@(0,0),@(0,0),@(1,1),@(1,1),@(2,3),@(200,0),@(200,30),@(0,300),@(20,300),@(200,300),@(200,300),@(200,300),@(100,120))
+    $expected=@(@(0,0),@(0,0),@(1,1),@(1,1),@(2,3),@(200,0),@(200,30),@(0,180),@(20,180),@(200,180),@(200,180),@(200,180),@(100,120))
     for($i=0;$i -lt $expected.Count;$i++) {
         if([int]$states[$i].Groups[1].Value -ne $expected[$i][0] -or [int]$states[$i].Groups[2].Value -ne $expected[$i][1]){throw "Wrong allocation at $i : $($states[$i].Value)"}
     }

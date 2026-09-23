@@ -51,7 +51,7 @@ of capacity: keep the shotgun capped at 16 total shells and Machine Gun at 180 r
 The Machine Gun unlocks with the Leech Gun (also on existing saves), but still
 receives rifle-group pickup supply. Leech Gun energy absorption is unchanged.
 The Chaingun unlocks with the Autocannon and uses slot 5's primary supply only.
-Its independent reserve is capped at 300 including 60 loaded rounds; Autocannon
+Its independent reserve is capped at 180 including 60 loaded rounds; Autocannon
 primary capacity is 200 while paired. Secondary grenades remain unchanged.
 The Plasma Gun unlocks with the Acid Sprayer in slot 6 and receives only acid
 pickup supply. Fixed halves supply separate reserves capped at 12 acid units

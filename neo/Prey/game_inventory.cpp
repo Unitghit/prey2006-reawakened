@@ -334,8 +334,8 @@ bool hhInventory::SynchronizeWeaponAmmo(hhPlayer *owner) {
 	}
 	// Existing acquired rounds remain in their own reserve. Newly unlocked
 	// Chainguns receive supply from subsequent primary Autocannon pickups.
-	if (autocannonActive && ammo[12] >= 0 && ammo[12] + WeaponAmmoFraction(owner, 12) > 300) {
-		StoreWeaponAmmo(owner, 12, 300);
+	if (autocannonActive && ammo[12] >= 0 && ammo[12] + WeaponAmmoFraction(owner, 12) > 180) {
+		StoreWeaponAmmo(owner, 12, 180);
 		changed = true;
 	}
 	const bool acidActive = SplitAcidAmmo(owner);
@@ -450,7 +450,7 @@ int hhInventory::MaxAmmoForAmmoClass( idPlayer *owner, const char *ammo_classnam
 			return 16; // Stable total cap, including the eight loaded shells.
 		}
 		if (!idStr::Icmp(ammo_classname, "ammo_d3bullets")) { return 180; }
-		if (!idStr::Icmp(ammo_classname, "ammo_d3belt")) { return 300; }
+		if (!idStr::Icmp(ammo_classname, "ammo_d3belt")) { return 180; }
 		if (!idStr::Icmp(ammo_classname, "ammo_d3cells")) { return 150; }
 		if (!idStr::Icmp(ammo_classname, "ammo_d3rockets")) { return 12; }
 		if (!idStr::Icmp(ammo_classname, "ammo_acid") && SplitAcidAmmo(owner)) {
@@ -771,7 +771,7 @@ float hhInventory::AmmoPercentage(idPlayer *player, ammo_t type) {
 	if (SplitAutocannonAmmo(player) && type == AmmoIndexForAmmoClass("ammo_autocannon")) {
 		const float autoMax = Max(1, MaxAmmoForAmmoClass(player, "ammo_autocannon"));
 		const float autoPct = ammo[type] < 0 ? 1.0f : idMath::ClampFloat(0, 1, ammo[type] / autoMax);
-		const float beltPct = ammo[12] < 0 ? 1.0f : idMath::ClampFloat(0, 1, ammo[12] / 300.0f);
+		const float beltPct = ammo[12] < 0 ? 1.0f : idMath::ClampFloat(0, 1, ammo[12] / 180.0f);
 		return 0.5f * (autoPct + beltPct);
 	}
 	if (SplitAcidAmmo(player) && type == AmmoIndexForAmmoClass("ammo_acid")) {

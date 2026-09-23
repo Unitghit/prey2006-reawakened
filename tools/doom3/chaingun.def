@@ -3,7 +3,7 @@ entityDef weaponobj_d3chaingun {
     "rw_saveCompatible" "1"
     "rw_weaponGroup" "5"
     "rw_weaponVariant" "1"
-    "rw_ammoCapacity" "300"
+    "rw_ammoCapacity" "180"
     "rw_addonScript" "script/reawakened/weapon_d3chaingun_v1.script"
     "gui" "guis/reawakened/chaingun_v1.gui"
     "inherit" "weaponobj_default"
