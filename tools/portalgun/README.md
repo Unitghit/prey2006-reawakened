@@ -296,11 +296,10 @@ the player. Geometry in front remains solid. `floor_corner` checks rotated
 static trim spanning the portal plane and a corresponding foreground obstacle.
 
 
-Partial ground entry can resolve a shallow world overlap of at most two units
-plus a quarter-unit clearance margin. The correction must point toward the
+Partial ground entry resolves floor overlaps within the smaller of normal step height and half the player hull width, plus a quarter-unit clearance margin. Other world contacts keep the two-unit skin allowance. The correction must point toward the
 opening center and lie along its plane. Both the swept source hull and the
 emerged destination hull must be clear. Only velocity pushing into the contact
-is removed; falling and other tangential motion are preserved. Larger overlaps
+is removed; falling and other tangential motion are preserved. Overlaps beyond those limits
 and movable obstacles retain ordinary blocking behavior. `floor_clearance` tests
 a shallow exit-floor contact and a deeper obstruction.
 
@@ -335,3 +334,9 @@ Head-first exits retain the transformed hull orientation until the feet clear
 the wall. Gravity alignment must not rotate the body upright inside solid wall
 thickness while it is still emerging.
 
+
+Thin floor contacts are probed from above when the contents result selects the
+slab underside. Both source sweep and destination occupancy must still pass.
+`floor_clearance` covers fast entry beyond the old skin threshold and a blocked
+exit. `floor_slab` covers the underside ambiguity in independently authored
+world geometry. Momentum has no added speed cap.

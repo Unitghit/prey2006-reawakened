@@ -2,7 +2,7 @@ param(
     [Parameter(Mandatory=$true)][string]$Engine,
     [Parameter(Mandatory=$true)][string]$RetailBase,
     [Parameter(Mandatory=$true)][string]$Profile,
-    [string[]]$Cases = @('input','regression','floor','ceiling','blocked','replacement','access','floor_edge','guidance','guide_lookaway','guide_steering','guide_fast','floor_exit','placement','objects','floor_escape','floor_partial','floor_continuous','floor_approach','floor_edge_slide','floor_corner','floor_clearance','surface_fit','ceiling_entry','reverse','static_exit')
+    [string[]]$Cases = @('input','regression','floor','ceiling','blocked','replacement','access','floor_edge','guidance','guide_lookaway','guide_steering','guide_fast','floor_exit','placement','objects','floor_escape','floor_partial','floor_continuous','floor_approach','floor_edge_slide','floor_corner','floor_clearance','surface_fit','ceiling_entry','floor_slab','reverse','static_exit')
 )
 $ErrorActionPreference='Stop'
 $Engine=(Resolve-Path -LiteralPath $Engine).Path
@@ -13,6 +13,7 @@ $base=Join-Path $Profile 'base'
 New-Item -ItemType Directory -Path "$base/maps","$base/materials","$base/models" -Force | Out-Null
 Copy-Item "$PSScriptRoot/tests/rw_portal_lab.map" "$base/maps/"
 Copy-Item "$PSScriptRoot/tests/rw_portal_surface.map" "$base/maps/"
+Copy-Item "$PSScriptRoot/tests/rw_portal_slab.map" "$base/maps/"
 Copy-Item "$PSScriptRoot/tests/portal_lab.mtr" "$base/materials/"
 Copy-Item "$PSScriptRoot/tests/portal_obstacle.ase" "$base/models/"
 foreach($name in $Cases) {
@@ -128,10 +129,16 @@ foreach($name in $Cases) {
         if($obstacle -notmatch 'rejected: no nearby supported opening' -or $obstacle -match 'placed blue'){throw 'Portal window intersected solid geometry'}
         if($low -notmatch 'placed orange at 511 -200 71'){throw 'Lower wall placement failed'}
     }
+    if($name -eq 'floor_slab') {
+        $entry=[regex]::Match($log,'(?s)SLAB_ENTRY_BEGIN(.*?)SLAB_ENTRY_END').Groups[1].Value
+        if($entry -notmatch 'PORTAL_ENTRY_CLEARANCE' -or ([regex]::Matches($entry,'PORTAL_EXIT ')).Count -ne 1){throw 'Thin floor underside trapped partial portal entry'}
+    }
     if($name -eq 'floor_clearance') {
         $shallow=[regex]::Match($log,'(?s)CLEARANCE_SHALLOW_BEGIN(.*?)CLEARANCE_SHALLOW_END').Groups[1].Value
         $deep=[regex]::Match($log,'(?s)CLEARANCE_DEEP_BEGIN(.*?)CLEARANCE_DEEP_END').Groups[1].Value
+        $fast=[regex]::Match($log,'(?s)CLEARANCE_FAST_BEGIN(.*?)CLEARANCE_FAST_END').Groups[1].Value
         if($shallow -notmatch 'PORTAL_ENTRY_CLEARANCE' -or ([regex]::Matches($shallow,'PORTAL_EXIT ')).Count -ne 1){throw 'Shallow exit-floor overlap trapped the player'}
+        if($fast -notmatch 'PORTAL_ENTRY_CLEARANCE' -or ([regex]::Matches($fast,'PORTAL_EXIT ')).Count -ne 1){throw 'Fast exit-floor overlap trapped the player'}
         if($deep -notmatch 'PORTAL_PARTIAL_BLOCK' -or $deep -match 'PORTAL_EXIT |PORTAL_ENTRY_CLEARANCE'){throw 'Deep obstruction incorrectly received clearance assistance'}
     }
     if($name -eq 'floor_corner') {

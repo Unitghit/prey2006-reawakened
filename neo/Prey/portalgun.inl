@@ -133,20 +133,36 @@ static bool RW_GroundPortalPartialBlocked(hhPortal *portal, idEntity *entity, co
     idClipModel clip(shape);
     trace_t trace;
     const bool blocked = gameLocal.clip.Translation(trace, remote, remote, &clip, remoteAxis, entity->GetPhysics()->GetClipMask(), entity);
-    // A rotated square hull can graze the exit floor by a sub-unit amount at
-    // the oval's edge. Resolve only shallow world overlaps toward the opening
+    // A rotated square hull can overlap the exit floor at the oval's edge.
+    // Use ordinary step clearance for floor contacts, including fast approaches
+    // that overshoot the skin margin. Resolve world overlaps toward the opening
     // center, with a swept source check and a fresh destination occupancy test.
-    // Larger obstructions and movable objects remain blocking.
+    // Other contacts retain the small skin allowance; movable objects block.
     if (blocked && clearOrigin && trace.c.entityNum == ENTITYNUM_WORLD) {
+        idVec3 destinationUp = -portal->cameraTarget->GetGravity();
+        destinationUp.Normalize();
+        // Contents tests report the closest brush face. Inside a thin floor
+        // slab that may be its underside, even though entry came from above.
+        // Find the supporting top face rather than pushing toward the void.
+        if (trace.c.normal*destinationUp < -0.99f) {
+            trace_t floor;
+            gameLocal.clip.TracePoint(floor, remote, remote-destinationUp*(pm_bboxwidth.GetFloat()*2),
+                entity->GetPhysics()->GetClipMask(), entity);
+            if (floor.fraction > 0 && floor.fraction < 1 && floor.c.entityNum == ENTITYNUM_WORLD &&
+                floor.c.normal*destinationUp > 0.99f) trace.c = floor.c;
+        }
         float minimum = idMath::INFINITY;
         for (int k = 0; k < 8; ++k) {
             const idVec3 corner(emerged[(k&1)!=0].x, emerged[(k&2)!=0].y, emerged[(k&4)!=0].z);
             minimum = Min(minimum, (remote + corner*remoteAxis)*trace.c.normal);
         }
         const float penetration = trace.c.dist - minimum;
+        const bool floorContact = trace.c.normal*destinationUp > 0.99f;
+        const float stepClearance = Min(pm_stepsize.GetFloat(), pm_bboxwidth.GetFloat()*0.5f);
+        const float maxClearance = floorContact ? Max(2.0f, stepClearance) : 2.0f;
         idVec3 direction = trace.c.normal;
         PortalRotate(direction, destination.Transpose(), portal->GetAxis(), true);
-        if (penetration >= 0 && penetration <= 2.0f &&
+        if (penetration >= 0 && penetration <= maxClearance &&
             idMath::Fabs(direction*normal) < 0.01f && direction*(origin-portal->GetOrigin()) < 0) {
             const idVec3 candidate = origin + direction*(penetration+0.25f);
             trace_t source;
