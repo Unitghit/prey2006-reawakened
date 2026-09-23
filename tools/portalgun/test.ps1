@@ -28,6 +28,13 @@ foreach($name in $Cases) {
         }
         if($log -notmatch 'Saved viewmodel' -or $log -notmatch 'PORTALGUN_VIEW selected weaponobj_wrench' -or $log -notmatch 'PORTALGUN_VIEW selected weaponobj_portalgun'){throw 'Viewmodel save/toggle failed'}
     }
+    if($name -eq 'materials') {
+        foreach($color in @('blue','orange')) {
+            if(([regex]::Matches($log,"PORTALGUN_VIEW fire $color")).Count -ne 1){throw "Material $color firing failed"}
+        }
+        if($log -notmatch 'Saved material_orange' -or $log -notmatch 'PORTAL_EXIT'){throw 'Material save/crossing failed'}
+        if($log -match 'GL_INVALID|error at|R_AutospriteDeform:|unknown token|Couldn.t load.*portalgun'){throw 'Material shader/asset failure'}
+    }
     if($name -in @('regression','floor','ceiling') -and $log -notmatch 'PORTAL_EXIT[\s\S]{0,100}collision_adjustment 0\.000000'){throw "$name failed continuous traversal"}
     if($name -eq 'regression' -and $log -notmatch 'origin=495\.75 100'){throw 'Solid-wall control failed'}
     if($name -in @('floor','ceiling') -and $log -notmatch 'PORTAL_EXIT[^\r\n]*speed 596\.960'){throw "$name lost fall velocity"}

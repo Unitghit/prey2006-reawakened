@@ -56,6 +56,8 @@ def main():
     print('Converted joints/triangles:',convert(decompiled, models))
     textures=output/'textures/reawakened/portalgun'
     textures.mkdir(parents=True,exist_ok=True)
+    for name in ('bluelight','orangelight','portalgun_effects'):
+        vtf_image(vpk.read('materials/sprites/'+name+'.vtf')).save(textures/(name+'.tga'))
     base='materials/models/weapons/v_models/v_portalgun/'
     for name in ('v_portalgun','v_portalgun_glass','v_portalgun_normal','v_portalgun_exponent'):
         vtf_image(vpk.read(base+name+'.vtf')).save(textures/(name+'.tga'))
@@ -66,6 +68,11 @@ def main():
     normal=vtf_image(vpk.read(base+'v_portalgun_normal.vtf'))
     alpha=normal.getchannel('A')
     Image.merge('RGB',(alpha,alpha,alpha)).save(textures/'specular.tga')
+    # A separate RGB map keeps the mask/exponent intact even when the engine
+    # compresses specular maps without alpha. The dedicated interaction shader
+    # reads strength from R and the Source exponent texture from G.
+    exponent=vtf_image(vpk.read(base+'v_portalgun_exponent.vtf')).getchannel('R')
+    Image.merge('RGB',(alpha,exponent,alpha)).save(textures/'phong.tga')
     for relative in ('def/portalgun_view.def','script/reawakened/weapon_portalgun_v1.script','materials/portalgun_view.mtr'):
         dest=output/relative;dest.parent.mkdir(parents=True,exist_ok=True)
         shutil.copyfile(Path(__file__).with_name(Path(relative).name),dest)

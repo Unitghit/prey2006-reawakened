@@ -1,0 +1,102 @@
+!!ARBvp1.0
+OPTION ARB_position_invariant;
+# Reawakened portal-tool material. Independently implemented Phong lighting.
+# Standard Prey interaction inputs; texcoord 7 carries local aperture position.
+TEMP lightVector, eyeVector;
+PARAM uvDefault = {0, 0.5, 0, 1};
+SUB lightVector, program.env[4], vertex.position;
+SUB eyeVector, program.env[5], vertex.position;
+DP3 result.texcoord[0].x, lightVector, vertex.attrib[9];
+DP3 result.texcoord[0].y, lightVector, vertex.attrib[10];
+DP3 result.texcoord[0].z, lightVector, vertex.attrib[11];
+DP3 result.texcoord[6].x, eyeVector, vertex.attrib[9];
+DP3 result.texcoord[6].y, eyeVector, vertex.attrib[10];
+DP3 result.texcoord[6].z, eyeVector, vertex.attrib[11];
+MOV result.texcoord[1], uvDefault;
+DP4 result.texcoord[1].x, vertex.attrib[8], program.env[10];
+DP4 result.texcoord[1].y, vertex.attrib[8], program.env[11];
+MOV result.texcoord[2], uvDefault;
+DP4 result.texcoord[2].x, vertex.position, program.env[9];
+MOV result.texcoord[3], uvDefault;
+DP4 result.texcoord[3].x, vertex.position, program.env[6];
+DP4 result.texcoord[3].y, vertex.position, program.env[7];
+DP4 result.texcoord[3].w, vertex.position, program.env[8];
+MOV result.texcoord[4], uvDefault;
+DP4 result.texcoord[4].x, vertex.attrib[8], program.env[12];
+DP4 result.texcoord[4].y, vertex.attrib[8], program.env[13];
+MOV result.texcoord[5], uvDefault;
+DP4 result.texcoord[5].x, vertex.attrib[8], program.env[14];
+DP4 result.texcoord[5].y, vertex.attrib[8], program.env[15];
+MOV result.texcoord[7], vertex.position;
+MAD result.color, vertex.color, program.env[16].x, program.env[16].y;
+END
+
+!!ARBfp1.0
+OPTION ARB_precision_hint_nicest;
+# env3 = boost, facing/middle/grazing Fresnel; env4.x = ambient light.
+# Specular RGB stores mask, normalized exponent, mask (no alpha dependency).
+TEMP n, l, v, reflection, dots, fresnel, spec, light, color, scratch;
+PARAM zero = {0, 0, 0, 0};
+PARAM one = {1, 1, 1, 1};
+PARAM two = {2, 2, 2, 2};
+PARAM ambientDirection = {0, 0, 1, 0};
+PARAM exponentScale = {149, 1, 0.000001, 0};
+DP4 scratch, fragment.texcoord[7], program.env[22];
+KIL scratch;
+DP4 scratch, fragment.texcoord[7], program.env[23];
+KIL scratch;
+DP4 scratch, fragment.texcoord[7], program.env[24];
+KIL scratch;
+DP4 scratch, fragment.texcoord[7], program.env[25];
+KIL scratch;
+DP4 scratch, fragment.texcoord[7], program.env[26];
+KIL scratch;
+# Prey's normal upload uses RXGB in both compressed and uncompressed modes.
+TEX n, fragment.texcoord[1], texture[1], 2D;
+MOV n.x, n.w;
+MAD n.xyz, n, two, -one;
+DP3 scratch.x, n, n;
+MAX scratch.x, scratch.x, exponentScale.z;
+RSQ scratch.x, scratch.x;
+MUL n.xyz, n, scratch.x;
+DP3 scratch.x, fragment.texcoord[0], fragment.texcoord[0];
+MAX scratch.x, scratch.x, exponentScale.z;
+RSQ scratch.x, scratch.x;
+MUL l.xyz, fragment.texcoord[0], scratch.x;
+LRP l.xyz, program.env[4].x, ambientDirection, l;
+DP3 scratch.x, fragment.texcoord[6], fragment.texcoord[6];
+MAX scratch.x, scratch.x, exponentScale.z;
+RSQ scratch.x, scratch.x;
+MUL v.xyz, fragment.texcoord[6], scratch.x;
+DP3_SAT dots.x, n, l;
+DP3_SAT dots.y, n, v;
+# Reflection-vector Phong with a texture-varying exponent from 1 to 150.
+MUL scratch.x, dots.x, two.x;
+MAD reflection.xyz, n, scratch.x, -l;
+DP3_SAT dots.z, reflection, v;
+TEX spec, fragment.texcoord[5], texture[5], 2D;
+MAD scratch.x, spec.y, exponentScale.x, exponentScale.y;
+POW dots.z, dots.z, scratch.x;
+# Piecewise artist-controlled Fresnel on squared grazing angle.
+SUB fresnel.x, one.x, dots.y;
+MUL fresnel.x, fresnel.x, fresnel.x;
+MUL_SAT fresnel.y, fresnel.x, two.x;
+MAD_SAT fresnel.z, fresnel.x, two.x, -one.x;
+LRP fresnel.y, fresnel.y, program.env[3].z, program.env[3].y;
+LRP fresnel.y, fresnel.z, program.env[3].w, fresnel.y;
+MUL spec.x, spec.x, dots.z;
+MUL spec.x, spec.x, fresnel.y;
+MUL spec.x, spec.x, program.env[3].x;
+SUB scratch.x, one.x, program.env[4].x;
+MUL spec.x, spec.x, scratch.x;
+TEX color, fragment.texcoord[4], texture[4], 2D;
+MUL color, color, program.env[0];
+MAD color.xyz, spec.x, program.env[1], color;
+TXP light, fragment.texcoord[3], texture[3], 2D;
+TXP scratch, fragment.texcoord[2], texture[2], 2D;
+MUL light, light, scratch;
+MUL light, light, dots.x;
+MUL color.xyz, color, light;
+MUL result.color.xyz, color, fragment.color;
+MOV result.color.w, one.w;
+END

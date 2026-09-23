@@ -2,7 +2,11 @@ reawakened/portalgun/view/v_portalgun {
     noSelfShadow
     bumpmap textures/reawakened/portalgun/v_portalgun_normal.tga
     diffusemap textures/reawakened/portalgun/v_portalgun.tga
-    specularmap textures/reawakened/portalgun/specular.tga
+    {
+        blend specularmap
+        forceHighQuality
+        map textures/reawakened/portalgun/phong.tga
+    }
 }
 reawakened/portalgun/view/v_hands {
     noSelfShadow
@@ -11,11 +15,51 @@ reawakened/portalgun/view/v_hands {
 reawakened/portalgun/view/v_portalgun_glass {
     noShadows
     translucent
+    bumpmap textures/reawakened/portalgun/v_portalgun_normal.tga
+    {
+        blend specularmap
+        forceHighQuality
+        map textures/reawakened/portalgun/phong.tga
+    }
     {
         blend add
         map textures/reawakened/portalgun/v_portalgun_glass.tga
-        red parm5
-        green 0.35
-        blue 1-parm5
+        rgb 0.3
+    }
+}
+table rw_portalgun_pulse { { 0, 1 } }
+reawakened/portalgun/view/indicator_blue {
+    noShadows
+    twoSided
+    deform sprite
+    {
+        blend add
+        map textures/reawakened/portalgun/bluelight.tga
+        glowStage
+        rgb (0.5+0.5*parm6) * (1-parm5)
+    }
+}
+reawakened/portalgun/view/indicator_orange {
+    noShadows
+    twoSided
+    deform sprite
+    {
+        blend add
+        map textures/reawakened/portalgun/orangelight.tga
+        glowStage
+        rgb (0.5+0.5*parm6) * parm5
+    }
+}
+reawakened/portalgun/view/core_glow {
+    noShadows
+    twoSided
+    deform sprite
+    {
+        blend add
+        map textures/reawakened/portalgun/portalgun_effects.tga
+        glowStage
+        red (0.25+0.75*parm5) * (0.376+0.126*rw_portalgun_pulse[time*0.5]+0.5*parm6)
+        green (0.55-0.2*parm5) * (0.376+0.126*rw_portalgun_pulse[time*0.5]+0.5*parm6)
+        blue (1-0.95*parm5) * (0.376+0.126*rw_portalgun_pulse[time*0.5]+0.5*parm6)
     }
 }

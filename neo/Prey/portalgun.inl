@@ -399,7 +399,8 @@ void hhPlayer::UpdatePortalGunView() {
         const int anim = animator->GetAnim("fire");
         animator->PlayAnim(ANIMCHANNEL_ALL, anim, gameLocal.time, 0);
         spawnArgs.SetInt("rw_portal_view_anim_end", gameLocal.time + animator->AnimLength(anim));
-        weapon->SetShaderParm(5, shot == 2 ? 1.0f : 0.0f);
+        spawnArgs.SetInt("rw_portal_view_last_color", shot == 2 ? 1 : 0);
+        spawnArgs.SetInt("rw_portal_view_flash_end", gameLocal.time + 200);
         weapon->StartSound(shot == 2 ? "snd_altfire" : "snd_fire", SND_CHANNEL_WEAPON, 0, false, NULL);
         if (cvarSystem->GetCVarBool("developer")) gameLocal.Printf("PORTALGUN_VIEW fire %s\n", shot == 2 ? "orange" : "blue");
     } else if (spawnArgs.GetInt("rw_portal_view_anim_end") > 0 &&
@@ -407,4 +408,12 @@ void hhPlayer::UpdatePortalGunView() {
         animator->CycleAnim(ANIMCHANNEL_ALL, animator->GetAnim("idle"), gameLocal.time, 80);
         spawnArgs.SetInt("rw_portal_view_anim_end", 0);
     }
+    // Keep the color through weapon switching and old/new saves, without
+    // changing the save layout. Effects use elapsed time, not rendered frames.
+    if (!spawnArgs.FindKey("rw_portal_view_last_color")) {
+        spawnArgs.SetInt("rw_portal_view_last_color", weapon->GetRenderEntity()->shaderParms[5] >= 0.5f ? 1 : 0);
+    }
+    weapon->SetShaderParm(5, spawnArgs.GetInt("rw_portal_view_last_color") ? 1.0f : 0.0f);
+    weapon->SetShaderParm(6, idMath::ClampFloat(0, 1,
+        (spawnArgs.GetInt("rw_portal_view_flash_end") - gameLocal.time) / 200.0f));
 }

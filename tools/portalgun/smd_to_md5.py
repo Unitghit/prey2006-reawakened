@@ -87,7 +87,7 @@ def convert(source, output):
     bind = global_pose(nodes, frames[0])
     joints = global_pose(nodes, frames[0], True)
     lines = ['MD5Version 10', 'commandline "local Portal asset conversion"',
-             f'numJoints {len(nodes)}', f'numMeshes {len(surfaces)}', 'joints {']
+             f'numJoints {len(nodes)}', f'numMeshes {len(surfaces)+3}', 'joints {']
     lines += [f' "{name}" {parent} ( {fmt(p)} ) ( {fmt(quaternion(r)[:3])} )'
               for (name,parent),(p,r) in zip(nodes,joints)]
     lines += ['}']
@@ -115,6 +115,33 @@ def convert(source, output):
         lines += [f' numweights {len(weights)}']
         lines += [f' weight {i} {joint} {weight:.8f} ( {fmt(p)} )' for i,(joint,weight,p) in enumerate(weights)]
         lines += ['}']
+        all_weights.extend(weights)
+    # Recover attachment positions from the user's decompiled QC. Skin the
+    # glow quads to those same joints, then let Prey's sprite deform face them
+    # toward the camera. They share the weapon's visibility and depth rules.
+    qc = (source/'v_portalgun.qc').read_text()
+    attachments = {m[1]:(m[2],np.array(list(map(float,m[3].split())))) for m in
+                   re.finditer(r'\$attachment "([^"]+)" "([^"]+)" ([\d.\- ]+) rotate',qc)}
+    for material, sprites in (
+        ('indicator_blue',[('Body_light',2.304)]),
+        ('indicator_orange',[('Body_light',2.304)]),
+        ('core_glow',[('Inside_effects',3.5)]+[(f'Beam_point{i}',5.12) for i in range(1,6)])):
+        weights = []
+        for attachment,size in sprites:
+            bone, pos = attachments[attachment]
+            # Keep the soft sprite center just above the housing when viewed
+            # with Prey's weapon projection; depth testing still clips the rim.
+            pos = pos + np.array([0, 0.35, 0])
+            joint = next(i for i,(n,p) in enumerate(nodes) if n == bone)
+            for y,z in ((-1,1),(1,1),(1,-1),(-1,-1)):
+                weights.append((joint,1.,pos+np.array([0,y*size/2,z*size/2])))
+        lines += ['mesh {', f' shader "reawakened/portalgun/view/{material}"', f' numverts {len(weights)}']
+        lines += [f' vert {i} ( {((0,0),(1,0),(1,1),(0,1))[i%4][0]} {((0,0),(1,0),(1,1),(0,1))[i%4][1]} ) {i} 1' for i in range(len(weights))]
+        lines += [f' numtris {len(sprites)*2}']
+        for i in range(len(sprites)):
+            lines += [f' tri {i*2} {i*4} {i*4+1} {i*4+2}',f' tri {i*2+1} {i*4} {i*4+2} {i*4+3}']
+        lines += [f' numweights {len(weights)}']
+        lines += [f' weight {i} {joint} 1 ( {fmt(p)} )' for i,(joint,w,p) in enumerate(weights)]+['}']
         all_weights.extend(weights)
     (output/'view.md5mesh').write_text('\n'.join(lines)+'\n')
     for name in ('idle','draw','fire1','holster','fizzle','pickup','release','lowidle','idletolow','lowtoidle'):

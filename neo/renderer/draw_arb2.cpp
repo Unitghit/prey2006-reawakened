@@ -54,10 +54,28 @@ static void GL_SelectTextureNoClient( int unit ) {
 RB_ARB2_DrawInteraction
 ==================
 */
+static program_t interactionVP, interactionFP;
+
 void	RB_ARB2_DrawInteraction( const drawInteraction_t *din ) {
+    const char *materialName = din->surf->material->GetName();
+    const bool portalGunBody = !idStr::Icmp(materialName, "reawakened/portalgun/view/v_portalgun");
+    const bool portalGunGlass = !idStr::Icmp(materialName, "reawakened/portalgun/view/v_portalgun_glass");
+    // Older local imports still have a conventional grayscale specular map.
+    // Opt in only with the new packed map; disabled specular keeps its fallback.
+    const bool portalGunPhong = (portalGunBody || portalGunGlass) &&
+        din->specularImage->imgName.Find("textures/reawakened/portalgun/phong", false) == 0;
+    if (portalGunPhong) {
+        qglBindProgramARB(GL_VERTEX_PROGRAM_ARB, VPROG_PORTALGUN_PHONG);
+        qglBindProgramARB(GL_FRAGMENT_PROGRAM_ARB, FPROG_PORTALGUN_PHONG);
+        // Boost and the three artist-authored Fresnel values from the VMT.
+        const float body[4] = { 3, 5, 1, 2 }, glass[4] = { 1, 1, 1.5f, 2 };
+        qglProgramEnvParameter4fvARB(GL_FRAGMENT_PROGRAM_ARB, 3, portalGunGlass ? glass : body);
+        const float ambient[4] = { backEnd.vLight->lightShader->IsAmbientLight() ? 1.0f : 0.0f, 0, 0, 0 };
+        qglProgramEnvParameter4fvARB(GL_FRAGMENT_PROGRAM_ARB, 4, ambient);
+    }
     // Evaluate aperture planes per fragment, preserving the exact triangles
     // and depth values used by the depth prepass. Positive half-spaces survive.
-    for (int i = 0; i < backEnd.vLight->portalLightClipCount; ++i) {
+    for (int i = 0; i < (portalGunPhong ? 5 : backEnd.vLight->portalLightClipCount); ++i) {
         idPlane localPlane(0, 0, 0, 1);
         if (i < backEnd.vLight->portalLightClipCount)
             R_GlobalPlaneToLocal(din->surf->space->modelMatrix,
@@ -151,6 +169,10 @@ void	RB_ARB2_DrawInteraction( const drawInteraction_t *din ) {
 
 	// draw it
 	RB_DrawElementsWithCounters( din->surf->geo );
+    if (portalGunPhong) {
+        qglBindProgramARB(GL_VERTEX_PROGRAM_ARB, interactionVP);
+        qglBindProgramARB(GL_FRAGMENT_PROGRAM_ARB, interactionFP);
+    }
 }
 
 
@@ -193,6 +215,8 @@ void RB_ARB2_CreateDrawInteractions( const drawSurf_t *surf ) {
         default: break;
         }
     }
+    interactionVP = vp;
+    interactionFP = fp;
     qglBindProgramARB( GL_VERTEX_PROGRAM_ARB, vp );
     qglBindProgramARB( GL_FRAGMENT_PROGRAM_ARB, fp );
 
@@ -401,6 +425,8 @@ static progDef_t	progs[MAX_GLPROGS] = {
 	{ GL_FRAGMENT_PROGRAM_ARB, FPROG_PORTAL_NORMALIZED_H, "interactionNormBumpH.vfp" },
 	{ GL_VERTEX_PROGRAM_ARB, VPROG_PORTAL_ALL, "interactionAll.vfp" },
 	{ GL_FRAGMENT_PROGRAM_ARB, FPROG_PORTAL_ALL, "interactionAll.vfp" },
+	{ GL_VERTEX_PROGRAM_ARB, VPROG_PORTALGUN_PHONG, "portalgunPhong.vfp" },
+	{ GL_FRAGMENT_PROGRAM_ARB, FPROG_PORTALGUN_PHONG, "portalgunPhong.vfp" },
 
 	// additional programs can be dynamically specified in materials
 };

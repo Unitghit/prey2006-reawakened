@@ -27,10 +27,15 @@ holster and lowered animations use the imported sequences; both shots use Portal
 fire animation and their corresponding sounds. Placement is still controlled by
 our existing portal mechanics, not by weapon projectiles or animation events.
 
-Prey's native weapon renderer handles lighting and portal presentation. Source's
-Phong shader and particle system are not reproduced exactly; the materials use
-Prey diffuse/normal/specular stages and a tinted additive glass stage. No dropped
-or third-person world model is imported in this first pass. Keep imported files
+Prey's native weapon renderer handles lighting and portal presentation. The shell
+and glass now use a dedicated, independently written Phong interaction shader:
+the normal-map alpha supplies specular strength, and the exponent texture varies
+highlight sharpness from 1 to 150. The shell uses the original material's boost
+and three Fresnel controls; the glass has its own controls and a subtle neutral
+additive layer over the illuminated chamber. This approximates Source shading
+under Prey's lights; it does not reproduce Source's ambient probes, lightwarp,
+HDR pipeline, or complete particle system. No dropped
+or third-person world model is imported. Keep imported files
 installed when loading saves that contain the model; disabling the launcher option
 is supported and restores the wrench without changing weapon inventory slots.
 
@@ -38,6 +43,22 @@ The converter inserts a stationary root so Prey's removal of root motion does no
 erase Source's camera-relative offsets. The recovered bind pose was checked to
 within 0.001 game units. The optional `viewmodel` regression case requires imported
 assets and checks both fire inputs, save/reload, disabling and re-enabling.
+
+The importer also reads the original QC attachment locations and adds skinned,
+camera-facing glow quads for the body indicator and chamber. A 0.35-unit local
+offset keeps their centers clear of the housing under Prey's weapon projection.
+The original blue/orange sprite textures and chamber sprite are extracted locally.
+Both illuminated parts follow the last shot: primary blue, secondary orange.
+The color persists through switching and saves, with a short time-based firing
+pulse and gentle idle pulse. These are emissive effects, not extra world lights;
+normal depth testing, weapon visibility and portal handling remain active.
+
+Re-run the importer and update the engine/game DLL together. The engine requires
+`base/glprogs/portalgunPhong.vfp` (included in source builds). Existing imports
+with the old grayscale specular map retain their original shading until imported
+again. No new launcher switch is needed; the existing Portal gun option controls
+the complete feature. The optional `materials` test case checks both colors,
+lit/dark screenshots, save/reload, switching and traversal with the imported gun.
 
 The renderer uses the player's retail Prey oval mesh, original UVs and animated
 orange/blue portal materials. The importer flattens the free-standing funnel
