@@ -2,7 +2,7 @@ param(
     [Parameter(Mandatory=$true)][string]$Engine,
     [Parameter(Mandatory=$true)][string]$RetailBase,
     [Parameter(Mandatory=$true)][string]$Profile,
-    [string[]]$Cases = @('input','regression','floor','ceiling','blocked','replacement','access','floor_edge','guidance','guide_lookaway','guide_steering','guide_fast','floor_exit','placement','objects','floor_escape','floor_partial','floor_continuous','floor_approach','floor_edge_slide','floor_corner','floor_clearance','surface_fit','ceiling_entry','floor_slab','wall_step','wall_approach','tapered_shell','sloped_ceiling','clip_column','reverse','static_exit')
+    [string[]]$Cases = @('input','regression','floor','ceiling','blocked','replacement','access','floor_edge','guidance','guide_lookaway','guide_steering','guide_fast','floor_exit','placement','objects','floor_escape','floor_partial','floor_continuous','floor_approach','floor_edge_slide','floor_corner','floor_clearance','surface_fit','ceiling_entry','floor_slab','wall_step','wall_approach','tapered_shell','sloped_ceiling','clip_column','oblique','reverse','static_exit')
 )
 $ErrorActionPreference='Stop'
 $Engine=(Resolve-Path -LiteralPath $Engine).Path
@@ -50,7 +50,7 @@ foreach($name in $Cases) {
         if($flight -notmatch 'PORTALGUN_ENDPOINT rw_gun_blue origin=511 0 71' -or
             $flight -notmatch 'PORTALGUN placed blue at 511 180 71'){throw 'Portal replacement moved before arrival or lost the captured target'}
         $look=[regex]::Match($log,'(?s)SHOT_LOOK_BEGIN(.*?)SHOT_LOOK_END').Groups[1].Value
-        if($look -notmatch 'PORTALGUN placed orange at 0 511 71'){throw 'Looking away changed a shot already in flight'}
+        if($look -notmatch 'PORTALGUN placed orange at -?0 511 71'){throw 'Looking away changed a shot already in flight'}
         $supersede=[regex]::Match($log,'(?s)SHOT_SUPERSEDE_BEGIN(.*?)SHOT_SUPERSEDE_END').Groups[1].Value
         if(([regex]::Matches($supersede,'PORTALGUN_SHOT launch blue')).Count -ne 2 -or
             ([regex]::Matches($supersede,'PORTALGUN_SHOT impact blue success=1')).Count -ne 1){throw 'Superseded shot placed an old portal'}
@@ -117,6 +117,12 @@ foreach($name in $Cases) {
         $positions=[regex]::Matches($part,'selected=\d+ current=\d+ origin=(-?[0-9.]+)\s+(-?[0-9.]+)\s+(-?[0-9.]+)')
         if(([regex]::Matches($part,'PORTAL_EXIT ')).Count -ne 1 -or !$positions.Count -or
             [double]$positions[$positions.Count-1].Groups[3].Value -ge 80){throw 'Player failed to fully emerge from sloped ceiling'}
+    }
+    if($name -eq 'oblique') {
+        foreach($marker in @('ANGLE_0','ANGLE_60','ANGLE_80','ANGLE_85','ANGLE_88','FLOOR_85')) {
+            $part=[regex]::Match($log,"(?s)${marker}_BEGIN(.*?)${marker}_END").Groups[1].Value
+            if($part -notmatch 'PORTALGUN_SHOT impact blue success=1 blocked=0' -or $part -match 'PORTALGUN rejected:'){throw "$marker camera-aimed shot failed"}
+        }
     }
     if($name -eq 'clip_column') {
         $clearance=[regex]::Match($log,'PORTAL_EXIT_CLEARANCE distance=([0-9.]+)')

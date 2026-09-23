@@ -400,3 +400,10 @@ trim than the old step-sized search could reach, without disabling the column.
 `clip_column` checks a sloped-ceiling exit next to a tall invisible column;
 `static_exit` retains blocking coverage for solid obstacles. Campaign saves
 `portalstuck8` and `portalstuck9` cover the two different sloped-ceiling cases.
+
+Portal flight vectors use nine significant decimal digits so each float survives
+a dictionary/save round trip. The default idDict vector writer keeps only two
+fractional digits, which changed shallow-angle aim enough to falsely reject the
+original surface as newly obstructed. Obstruction and surface-fit tolerances are
+unchanged. `oblique` fires using actual camera aim (not the rounded developer
+`aim` override), covering wall angles through 88 degrees and a grazing floor shot.

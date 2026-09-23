@@ -665,6 +665,11 @@ void hhPortalShot::Think() {
     Present();
 }
 
+// idDict::SetVector rounds to two decimal places. Flight validation re-traces
+// the original aim, so grazing directions must survive a float round trip.
+static void RW_SetPortalShotVector(idDict &args, const char *key, const idVec3 &value) {
+    args.Set(key, va("%.9g %.9g %.9g", value.x, value.y, value.z));
+}
 void hhPlayer::FireGunPortal(int color) {
     if (color < 0 || color > 1 || !g_portalGun.GetBool() || gameLocal.isMultiplayer ||
         *cvarSystem->GetCVarString("fs_game") || health <= 0 || InVehicle() || IsSpiritOrDeathwalking() || gameLocal.inCinematic) return;
@@ -698,11 +703,11 @@ void hhPlayer::FireGunPortal(int color) {
     args.SetInt("shot_color", color); args.SetInt("shot_serial", serial);
     args.SetInt("shot_start", gameLocal.time);
     args.SetInt("shot_end", gameLocal.time + Max(16, int((hit.endpos-muzzle).Length()*1000.0f/4000.0f)));
-    args.SetVector("shot_muzzle", muzzle); args.SetVector("shot_eye", eye);
-    args.SetVector("shot_direction", direction); args.SetVector("shot_target", hit.endpos);
-    args.SetVector("shot_up", -GetPhysics()->GetGravityNormal());
-    args.SetVector("shot_left", firstPersonViewAxis[1]);
-    args.SetVector("shot_normal", hit.fraction < 1 ? hit.c.normal : -direction);
+    RW_SetPortalShotVector(args, "shot_muzzle", muzzle); RW_SetPortalShotVector(args, "shot_eye", eye);
+    RW_SetPortalShotVector(args, "shot_direction", direction); RW_SetPortalShotVector(args, "shot_target", hit.endpos);
+    RW_SetPortalShotVector(args, "shot_up", -GetPhysics()->GetGravityNormal());
+    RW_SetPortalShotVector(args, "shot_left", firstPersonViewAxis[1]);
+    RW_SetPortalShotVector(args, "shot_normal", hit.fraction < 1 ? hit.c.normal : -direction);
     args.SetBool("shot_hit", hit.fraction < 1);
     idEntity *shot = NULL;
     if (gameLocal.SpawnEntityDef(args, &shot) && shot) {
