@@ -389,6 +389,7 @@ void hhPortal::CheckPlayerDistances(void) {
 
 static void RW_UpdateGunPortalFloor(hhPortal *portal);
 static bool RW_GunPortalEntity(const idEntity *ent);
+static void RW_AssistFloorExit(idEntity *, idEntity *, const idVec3 &, const idMat3 &, idVec3 &);
 static bool RW_PortalFits(const hhPortal *, const idTraceModel *, const idMat3 &, const idVec3 &, bool);
 
 void hhPortal::ResetGunPortalCrossings() {
@@ -1035,6 +1036,8 @@ bool hhPortal::PortalTeleport( idEntity *ent, const idVec3 &origin, const idMat3
 		}
 	}
 
+    if (gunPortal) RW_AssistFloorExit(ent, cameraTarget, useOrigin, axis, vel);
+
 	// Keep only continuous portal crossings in the presentation history. Exit
 	// collision recovery is a real repositioning and must retain the snap.
 	idMat3 presentationRotation = mat3_identity;
@@ -1103,7 +1106,7 @@ bool hhPortal::PortalTeleport( idEntity *ent, const idVec3 &origin, const idMat3
 	}
 
     if (gunPortal && cvarSystem->GetCVarBool("com_fpsTrace"))
-        gameLocal.Printf("PORTAL_ENTITY_EXIT %s\n", ent->GetClassname());
+        gameLocal.Printf("PORTAL_ENTITY_EXIT %s name=%s\n", ent->GetClassname(), ent->GetName());
     if (ent->IsType(hhPlayer::Type) && cvarSystem->GetCVarBool("com_fpsTrace"))
         gameLocal.Printf("PORTAL_EXIT %d speed %.6f collision_adjustment %.6f\n", gameLocal.time,
             ent->GetPhysics()->GetLinearVelocity().Length(), (useOrigin-origin).Length());

@@ -2663,6 +2663,10 @@ static void Cmd_PlasmaInfo_f(const idCmdArgs &args) {
 static void Cmd_PortalGun_f(const idCmdArgs &args) {
     hhPlayer *player = static_cast<hhPlayer *>(gameLocal.GetLocalPlayer());
     if (!player) return;
+    if (cvarSystem->GetCVarBool("developer") && args.Argc() == 4 && !idStr::Icmp(args.Argv(1), "look"))
+        player->SetViewAngles(idAngles(atof(args.Argv(2)), atof(args.Argv(3)), 0));
+    if (cvarSystem->GetCVarBool("developer") && args.Argc() == 5 && !idStr::Icmp(args.Argv(1), "velocity"))
+        player->GetPhysics()->SetLinearVelocity(idVec3(atof(args.Argv(2)), atof(args.Argv(3)), atof(args.Argv(4))));
     if (cvarSystem->GetCVarBool("developer") && args.Argc() == 4 && !idStr::Icmp(args.Argv(1), "aim")) {
         player->spawnArgs.SetVector("rw_portal_test_direction", idAngles(atof(args.Argv(2)), atof(args.Argv(3)), 0).ToForward());
         player->spawnArgs.SetBool("rw_portal_test_aim", true);

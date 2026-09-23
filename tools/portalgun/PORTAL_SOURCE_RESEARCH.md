@@ -217,6 +217,11 @@ near-plane crossings, narrow side angles, moving portals, skyboxes and bloom. Ch
 that clipping, depth/stencil state and visibility from one child do not leak into
 its siblings. Treat rendering depth and physics traversal limits separately.
 
-Implementation remains staged: floor guidance and exit clearance first, then
-placement and ownership. The cross-cutting tests above should accompany each step;
-partial-body physics and constrained groups require their own larger changes.
+Implemented the first refinement pass independently in Prey's existing portal
+path: gravity-relative floor guidance with steering/speed controls, headroom-tested
+minimum floor-exit speed, bounded nearest-first placement fitting, and replacement
+protection for eligible entities straddling either endpoint. Added regression cases
+for these behaviors and three touching/stacked props crossing exactly once each.
+This does not implement Source's physics simulator or clone system. Moving-frame
+velocity inheritance, partial-body physics, constrained groups, and the broader
+rendering test matrix remain separate work.

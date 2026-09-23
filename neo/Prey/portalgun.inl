@@ -8,7 +8,7 @@ static hhPortal *RW_GunPortal(int color) {
     idEntity *ent = gameLocal.FindEntity(RW_PortalName(color));
     return ent && ent->IsType(hhPortal::Type) ? static_cast<hhPortal *>(ent) : NULL;
 }
-// Only defer replacement while the player's hull actually straddles an opening.
+// Defer replacement while an eligible hull straddles either opening.
 static bool RW_PortalOccupied(const hhPortal *portal, const idPhysics *physics) {
     if (!portal) return false;
     idBounds local;
@@ -24,6 +24,77 @@ static bool RW_GunPortalEntity(const idEntity *ent) {
     return ent && !ent->fl.noPortal && !ent->IsBound() &&
         (ent->IsType(hhPlayer::Type) || ent->IsType(hhProjectile::Type) || ent->IsType(idMoveable::Type));
 }
+static bool RW_PortalHasOccupants(const hhPortal *portal) {
+    if (!portal) return false;
+    idEntity *entities[MAX_GENTITIES];
+    const int count = gameLocal.clip.EntitiesTouchingBounds(portal->GetPhysics()->GetAbsBounds().Expand(16), -1, entities, MAX_GENTITIES);
+    for (int i = 0; i < count; ++i)
+        if (RW_GunPortalEntity(entities[i]) && RW_PortalOccupied(portal, entities[i]->GetPhysics())) return true;
+    return false;
+}
+
+// Simulation-time approach assistance, independent of render rate and camera
+// interpolation. Strong player input and fast lateral travel always take priority.
+void RW_AssistPortalFall(const idEntity *entity, const idVec3 &origin, const idVec3 &look,
+    int forwardInput, int sideInput, float dt, idVec3 &velocity) {
+    if (!g_portalGun.GetBool() || gameLocal.isMultiplayer || *cvarSystem->GetCVarString("fs_game") ||
+        !entity || !entity->IsType(hhPlayer::Type) || abs(forwardInput) > 32 || abs(sideInput) > 32 || dt <= 0) return;
+    const hhPlayer *player = static_cast<const hhPlayer *>(entity);
+    if (player->health <= 0 || player->IsSpiritOrDeathwalking() || player->InVehicle()) return;
+    const idVec3 down = entity->GetPhysics()->GetGravityNormal();
+    const float falling = velocity * down;
+    idVec3 lateral = velocity - down * falling;
+    if (falling < 80 || look * down < 0.15f || lateral.LengthSqr() > Square(240.0f)) return;
+    hhPortal *target = NULL;
+    float nearest = 1e30f;
+    idVec3 offset;
+    float height = 0;
+    for (int color = 0; color < 2; ++color) {
+        hhPortal *portal = RW_GunPortal(color);
+        if (!portal || !portal->cameraTarget || portal->GetAxis()[0] * -down < 0.95f) continue;
+        const idVec3 relative = origin - portal->GetOrigin();
+        const float h = relative * -down;
+        if (h < 8 || h > 384 || idMath::Fabs(relative * portal->GetAxis()[1]) > 67 ||
+            idMath::Fabs(relative * portal->GetAxis()[2]) > 96) continue;
+        const idVec3 sideways = relative + down * h;
+        if (sideways.LengthSqr() < nearest) { target = portal; nearest = sideways.LengthSqr(); offset = -sideways; height = h; }
+    }
+    if (!target) return;
+    const float gravity = entity->GetPhysics()->GetGravity().Length();
+    const float arrival = gravity > 0.01f ? (idMath::Sqrt(falling*falling + 2*gravity*height)-falling)/gravity : height/falling;
+    idVec3 desired = offset / Max(0.12f, arrival);
+    desired.Truncate(96);
+    idVec3 correction = desired - lateral;
+    correction.Truncate(400 * dt);
+    velocity += correction;
+    if (cvarSystem->GetCVarBool("com_fpsTrace") && correction.LengthSqr() > 0.001f)
+        gameLocal.Printf("PORTAL_GUIDANCE time=%d distance=%.3f correction=%.3f\n", gameLocal.time, idMath::Sqrt(nearest), correction.Length());
+}
+
+static void RW_AssistFloorExit(idEntity *entity, idEntity *destination, const idVec3 &origin,
+    const idMat3 &axis, idVec3 &velocity) {
+    if (!entity->IsType(hhPlayer::Type)) return;
+    idVec3 up = -destination->GetGravity();
+    const float gravity = up.Normalize();
+    const idVec3 normal = destination->GetAxis()[0];
+    if (gravity < 0.01f || normal * up < 0.95f) return;
+    const float acceleration = gravity * (normal * up);
+    const float maxMinimum = idMath::Sqrt(2 * acceleration * 24);
+    const float outgoing = velocity * normal;
+    if (outgoing >= maxMinimum) return;
+    trace_t clearance;
+    gameLocal.clip.Translation(clearance, origin, origin + normal*26, entity->GetPhysics()->GetClipModel(),
+        axis, entity->GetPhysics()->GetClipMask(), entity);
+    const float space = Min(24.0f, (clearance.endpos-origin)*normal - 2);
+    if (space < 4) return;
+    const float minimum = idMath::Sqrt(2 * acceleration * space);
+    if (outgoing >= minimum) return;
+    velocity += normal * (minimum - outgoing);
+    entity->GetPhysics()->SetLinearVelocity(velocity);
+    if (cvarSystem->GetCVarBool("com_fpsTrace"))
+        gameLocal.Printf("PORTAL_FLOOR_EXIT before=%.3f after=%.3f clearance=%.3f\n", outgoing, minimum, space);
+}
+
 static bool RW_PortalFits(const hhPortal *portal, const idTraceModel *trm, const idMat3 &axis, const idVec3 &origin, bool playerHull) {
     if (!trm) return false;
     // Upright wall portals must not turn the oval's narrowing lower edge into
@@ -226,19 +297,23 @@ bool hhPlayer::PlaceGunPortal(int color) {
     idVec3 center = hit.endpos - normal * (hit.endpos * normal - hit.c.dist);
     bool supported = false;
     RW_PortalFloorCenter(center, axis, -GetPhysics()->GetGravityNormal(), this);
+    center += up * (floorf(center * up + 0.5f) - center * up);
     const idVec3 aimedCenter = center;
-    for (int adjustment = 0; adjustment <= 4 && !supported; ++adjustment) {
-        center = aimedCenter + up * (adjustment * 8.0f);
-        center += up * (floorf(center * up + 0.5f) - center * up);
-        supported = RW_PortalSurfaceSupports(center, axis, this);
-    }
-    if (!supported) { gameLocal.Printf("PORTALGUN rejected: opening does not fit flat surface\n"); return false; }
     hhPortal *other = RW_GunPortal(1-color), *portal = RW_GunPortal(color);
-    if (other && (other->GetOrigin()-center).Length() < 160) {
-        gameLocal.Printf("PORTALGUN rejected: too close to other endpoint\n"); return false;
+    // Search nearest first on a bounded surface-plane grid. A failed shot
+    // leaves the existing endpoints and their link untouched.
+    for (int radiusSquared = 0; radiusSquared <= 36 && !supported; ++radiusSquared) {
+        for (int z = -6; z <= 6 && !supported; ++z) for (int y = -6; y <= 6 && !supported; ++y) {
+            if (y*y + z*z != radiusSquared) continue;
+            const idVec3 candidate = aimedCenter + axis[1]*(y*8.0f) + up*(z*8.0f);
+            if (other && (other->GetOrigin()-candidate).LengthSqr() < Square(160.0f)) continue;
+            if (RW_PortalSurfaceSupports(candidate, axis, this)) { center = candidate; supported = true; }
+        }
     }
-    if (portal && (RW_PortalOccupied(portal, GetPhysics()) || RW_PortalOccupied(other, GetPhysics()))) {
-        gameLocal.Printf("PORTALGUN rejected: leave the opening before replacing it\n"); return false;
+    if (!supported) { gameLocal.Printf("PORTALGUN rejected: no nearby supported opening\n"); return false; }
+    if (portal && (RW_PortalOccupied(portal, GetPhysics()) || RW_PortalOccupied(other, GetPhysics()) ||
+        RW_PortalHasOccupants(portal) || RW_PortalHasOccupants(other))) {
+        gameLocal.Printf("PORTALGUN rejected: leave the opening clear before replacing it\n"); return false;
     }
     if (!portal) {
         idDict args;

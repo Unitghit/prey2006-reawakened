@@ -632,7 +632,10 @@ void idPhysics_Player::FlyMove( void ) {
 idPhysics_Player::AirMove
 ===================
 */
+extern void RW_AssistPortalFall(const idEntity *, const idVec3 &, const idVec3 &, int, int, float, idVec3 &);
+
 void idPhysics_Player::AirMove( void ) {
+    const idVec3 portalLook = viewForward;
 	idVec3		wishvel;
 	//HUMANHEAD: Removed wishdir
 	float		wishspeed;
@@ -677,6 +680,9 @@ void idPhysics_Player::AirMove( void ) {
 	} else {
 		idPhysics_Player::Accelerate( wishdir, wishspeed, PM_AIRACCELERATE );
 	}
+
+    if (current.movementType == PM_NORMAL && waterLevel == WATERLEVEL_NONE && !groundPlane)
+        RW_AssistPortalFall(self, current.origin, portalLook, command.forwardmove, command.rightmove, frametime, current.velocity);
 
 	// we may have a ground plane that is very steep, even
 	// though we don't have a groundentity

@@ -1,7 +1,8 @@
 param(
     [Parameter(Mandatory=$true)][string]$Engine,
     [Parameter(Mandatory=$true)][string]$RetailBase,
-    [Parameter(Mandatory=$true)][string]$Profile
+    [Parameter(Mandatory=$true)][string]$Profile,
+    [string[]]$Cases = @('input','regression','floor','ceiling','blocked','replacement','access','floor_edge','guidance','guide_lookaway','guide_steering','guide_fast','floor_exit','placement','objects')
 )
 $ErrorActionPreference='Stop'
 $Engine=(Resolve-Path -LiteralPath $Engine).Path
@@ -12,7 +13,7 @@ $base=Join-Path $Profile 'base'
 New-Item -ItemType Directory -Path "$base/maps","$base/materials" -Force | Out-Null
 Copy-Item "$PSScriptRoot/tests/rw_portal_lab.map" "$base/maps/"
 Copy-Item "$PSScriptRoot/tests/portal_lab.mtr" "$base/materials/"
-foreach($name in @('input','regression','floor','ceiling','blocked','replacement','access','floor_edge')) {
+foreach($name in $Cases) {
     Copy-Item "$PSScriptRoot/tests/$name.cfg" "$base/test.cfg" -Force
     $arguments='+set fs_basepath "'+$Engine+'" +set fs_cdpath "'+(Split-Path $RetailBase -Parent)+'" +set fs_devpath "'+$Profile+'" +set fs_savepath "'+$Profile+'" +set fs_configpath "'+$Profile+'" +set fs_game "" +set r_fullscreen 0 +set r_fullscreenDesktop 0 +set r_mode -1 +set r_customWidth 960 +set r_customHeight 540 +set r_multiSamples 0 +set s_volume_dB -60 +set com_unlockedFPS 0 +set com_fixedTic 1 +set r_gammaInShader 1 +set developer 1 +set ai_disable 1 +set logfile 2 +exec test.cfg'
     $process=Start-Process (Join-Path $Engine 'prey06.exe') -WorkingDirectory $Engine -ArgumentList $arguments -WindowStyle Hidden -PassThru
@@ -40,5 +41,17 @@ foreach($name in @('input','regression','floor','ceiling','blocked','replacement
         if($log -notmatch 'PORTAL_ENTITY_EXIT hhMoveable'){throw 'Movable prop traversal failed'}
     }
     if($name -eq 'floor_edge' -and $log -notmatch 'PORTAL_EXIT'){throw 'Floor edge clearance failed'}
+    if($name -eq 'guidance' -and ($log -notmatch 'PORTAL_GUIDANCE' -or $log -notmatch 'PORTAL_EXIT')){throw 'Floor guidance failed'}
+    if($name -in @('guide_lookaway','guide_steering','guide_fast') -and $log -match 'PORTAL_GUIDANCE'){throw "$name incorrectly applied guidance"}
+    if($name -eq 'floor_exit' -and ($log -notmatch 'PORTAL_FLOOR_EXIT' -or $log -notmatch 'PORTAL_EXIT')){throw 'Low-speed floor exit failed'}
+    if($name -eq 'placement') {
+        if(([regex]::Matches($log,'PORTALGUN placed blue')).Count -ne 2 -or $log -notmatch 'PORTALGUN rejected: no nearby supported opening'){throw 'Bounded placement fitting failed'}
+    }
+    if($name -eq 'objects') {
+        foreach($prop in @('polish_a','polish_b','polish_c')) {
+            if(([regex]::Matches($log,'PORTAL_ENTITY_EXIT hhMoveable name='+$prop)).Count -ne 1){throw "Prop $prop did not cross exactly once"}
+        }
+        if($log -notmatch 'PORTALGUN rejected: leave the opening clear'){throw 'Occupied replacement guard failed'}
+    }
     Write-Output "PASS $name"
 }

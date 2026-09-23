@@ -114,3 +114,25 @@ rotate angular velocity as well as linear velocity. The access fixture checks
 rifle/plasma shots, a movable prop, and entering a floor portal within ten ticks
 of placing it directly underfoot. The main fixture includes an invisible clip
 shell ahead of one wall, with an outside-aperture solid-wall control.
+
+## Portal-tool traversal refinements
+
+While falling toward an upward-facing linked portal, looking down with little
+steering input gently guides the player toward its center. This uses simulation
+time and local gravity. Strong steering and fast lateral movement disable it;
+it never snaps the player's position or changes ordinary jump height.
+
+Slow upward floor exits receive enough outward speed for up to 24 units of
+clearance, reduced when a hull sweep finds limited headroom. Faster exits retain
+their transformed velocity. These adjustments apply only to player-created portals.
+
+Placement searches the surrounding surface plane on an eight-unit grid, nearest
+first, up to 48 units away. Every candidate must pass the original surface-support
+checks. Failed shots leave the previous linked pair intact. Replacing an opening
+is deferred while a player, eligible projectile, or movable prop straddles either
+endpoint. Props continue to use Prey's native per-entity portal handling; bound
+entities and joint-connected groups are not newly supported.
+
+The added fixtures cover guidance and its steering/look/speed controls, low-speed
+floor exits, horizontal and downward placement fitting, rejected out-of-range
+placement, touching/stacked props, and replacement with an occupied opening.
