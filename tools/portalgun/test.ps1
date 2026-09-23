@@ -2,7 +2,7 @@ param(
     [Parameter(Mandatory=$true)][string]$Engine,
     [Parameter(Mandatory=$true)][string]$RetailBase,
     [Parameter(Mandatory=$true)][string]$Profile,
-    [string[]]$Cases = @('input','regression','floor','ceiling','blocked','replacement','access','floor_edge','guidance','guide_lookaway','guide_steering','guide_fast','floor_exit','placement','objects','floor_escape','floor_partial','floor_continuous','floor_approach','floor_edge_slide','floor_corner','floor_clearance','reverse','static_exit')
+    [string[]]$Cases = @('input','regression','floor','ceiling','blocked','replacement','access','floor_edge','guidance','guide_lookaway','guide_steering','guide_fast','floor_exit','placement','objects','floor_escape','floor_partial','floor_continuous','floor_approach','floor_edge_slide','floor_corner','floor_clearance','surface_fit','reverse','static_exit')
 )
 $ErrorActionPreference='Stop'
 $Engine=(Resolve-Path -LiteralPath $Engine).Path
@@ -12,6 +12,7 @@ if(Test-Path -LiteralPath $Profile){throw 'Use a new isolated profile directory.
 $base=Join-Path $Profile 'base'
 New-Item -ItemType Directory -Path "$base/maps","$base/materials","$base/models" -Force | Out-Null
 Copy-Item "$PSScriptRoot/tests/rw_portal_lab.map" "$base/maps/"
+Copy-Item "$PSScriptRoot/tests/rw_portal_surface.map" "$base/maps/"
 Copy-Item "$PSScriptRoot/tests/portal_lab.mtr" "$base/materials/"
 Copy-Item "$PSScriptRoot/tests/portal_obstacle.ase" "$base/models/"
 foreach($name in $Cases) {
@@ -42,10 +43,10 @@ foreach($name in $Cases) {
         if($flight -notmatch 'Saved shot_flight' -or $flight -notmatch 'Saved shot_opening' -or
             ([regex]::Matches($flight,'PORTALGUN_SHOT impact blue success=1')).Count -ne 1 -or
             $flight -notmatch 'PORTALGUN_OPENING rw_gun_blue remaining=0'){throw 'In-flight/opening save failed'}
-        if($flight -notmatch 'PORTALGUN_ENDPOINT rw_gun_blue origin=511 0 73' -or
-            $flight -notmatch 'PORTALGUN placed blue at 511 180 73'){throw 'Portal replacement moved before arrival or lost the captured target'}
+        if($flight -notmatch 'PORTALGUN_ENDPOINT rw_gun_blue origin=511 0 71' -or
+            $flight -notmatch 'PORTALGUN placed blue at 511 180 71'){throw 'Portal replacement moved before arrival or lost the captured target'}
         $look=[regex]::Match($log,'(?s)SHOT_LOOK_BEGIN(.*?)SHOT_LOOK_END').Groups[1].Value
-        if($look -notmatch 'PORTALGUN placed orange at 0 511 73'){throw 'Looking away changed a shot already in flight'}
+        if($look -notmatch 'PORTALGUN placed orange at 0 511 71'){throw 'Looking away changed a shot already in flight'}
         $supersede=[regex]::Match($log,'(?s)SHOT_SUPERSEDE_BEGIN(.*?)SHOT_SUPERSEDE_END').Groups[1].Value
         if(([regex]::Matches($supersede,'PORTALGUN_SHOT launch blue')).Count -ne 2 -or
             ([regex]::Matches($supersede,'PORTALGUN_SHOT impact blue success=1')).Count -ne 1){throw 'Superseded shot placed an old portal'}
@@ -112,6 +113,14 @@ foreach($name in $Cases) {
         $front=[regex]::Match($log,'(?s)STATIC_FRONT_BEGIN(.*?)STATIC_FRONT_END').Groups[1].Value
         if($behind -notmatch 'PORTAL_EXIT ' -or $behind -match 'PORTALGUN blocked exit'){throw 'Static geometry behind exit blocked crossing'}
         if($front -notmatch 'PORTALGUN blocked exit|PORTAL_PARTIAL_BLOCK' -or $front -match 'PORTAL_EXIT '){throw 'Static geometry in front of exit failed to block crossing'}
+    }
+    if($name -eq 'surface_fit') {
+        $recess=[regex]::Match($log,'(?s)SURFACE_RECESS_BEGIN(.*?)SURFACE_RECESS_END').Groups[1].Value
+        $obstacle=[regex]::Match($log,'(?s)SURFACE_OBSTACLE_BEGIN(.*?)SURFACE_OBSTACLE_END').Groups[1].Value
+        $low=[regex]::Match($log,'(?s)SURFACE_LOW_BEGIN(.*?)SURFACE_LOW_END').Groups[1].Value
+        if($recess -notmatch 'placed blue at 507 0 160'){throw 'Quarter-area flat patch with recessed surround was rejected'}
+        if($obstacle -notmatch 'rejected: no nearby supported opening' -or $obstacle -match 'placed blue'){throw 'Portal window intersected solid geometry'}
+        if($low -notmatch 'placed orange at 511 -200 71'){throw 'Lower wall placement failed'}
     }
     if($name -eq 'floor_clearance') {
         $shallow=[regex]::Match($log,'(?s)CLEARANCE_SHALLOW_BEGIN(.*?)CLEARANCE_SHALLOW_END').Groups[1].Value

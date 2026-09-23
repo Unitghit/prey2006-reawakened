@@ -284,25 +284,38 @@ bool RW_PortalCoverPlane(const idPlane &wall, const idVec3 &query, idPlane &cove
 // A wall portal close to a floor should be walk-through, not a raised hoop.
 // This adjusts portal placement, never the player's origin or teleport velocity.
 static bool RW_PortalSurfaceSupports(const idVec3 &center, const idMat3 &axis, const idEntity *ignore) {
-    // Validate the artwork's footprint, not the larger traversal envelope.
-    // Include perimeter samples so thin unsupported edges cannot slip between
-    // the interior grid probes. Keep tolerances within the collision cutout.
-    for (int sampleIndex = 0; sampleIndex < 16 + 11*15; ++sampleIndex) {
+    // The central ellipse has half the original radii (one quarter the area).
+    // It anchors the flat cutout. The full artwork still needs backing, but
+    // shallow recesses outside that core are safely behind the cutout plane.
+    for (int sampleIndex = 0; sampleIndex < 32 + 11*15; ++sampleIndex) {
         float py, pz;
-        if (sampleIndex < 16) {
-            const float angle = sampleIndex * idMath::TWO_PI / 16.0f;
-            py = 39.0f * idMath::Cos(angle); pz = 49.0f * idMath::Sin(angle);
+        if (sampleIndex < 32) {
+            const float angle = (sampleIndex % 16) * idMath::TWO_PI / 16.0f;
+            const float scale = sampleIndex < 16 ? 1.0f : 0.5f;
+            py = scale * 39.0f * idMath::Cos(angle); pz = scale * 49.0f * idMath::Sin(angle);
         } else {
-            const int grid = sampleIndex - 16;
+            const int grid = sampleIndex - 32;
             py = (grid % 11 - 5) * 8.0f; pz = (grid / 11 - 7) * 8.0f;
             if (Square(py / 39.0f) + Square(pz / 49.0f) > 1.0f) continue;
         }
         const idVec3 sample = center + axis[1] * py + axis[2] * pz;
         trace_t support;
-        gameLocal.clip.TracePoint(support, sample + axis[0]*2, sample - axis[0]*2, MASK_SOLID, ignore);
-        if (support.fraction >= 1 || support.c.entityNum != ENTITYNUM_WORLD ||
-            support.c.normal * axis[0] < 0.9999f || idMath::Fabs(center * support.c.normal - support.c.dist) > 0.14f) return false;
+        gameLocal.clip.TracePoint(support, sample + axis[0]*2, sample - axis[0]*8.25f, MASK_SOLID, ignore);
+        const float facing = support.c.normal * axis[0];
+        if (support.fraction >= 1 || support.c.entityNum != ENTITYNUM_WORLD || facing < 0.5f) return false;
+        const float depth = (sample * support.c.normal - support.c.dist) / facing;
+        const bool flatCore = (sampleIndex >= 16 && sampleIndex < 32) || Square(py / 19.5f) + Square(pz / 24.5f) <= 1.0f;
+        if (depth < -0.14f || depth > 8.0f ||
+            (flatCore && (facing < 0.9999f || idMath::Fabs(depth) > 0.14f))) return false;
     }
+    // A conservative oval prism checks the whole window against protruding
+    // corners and solid entities, including objects between the sample rays.
+    const float rimScale = 1.0f / idMath::Cos(idMath::PI / 8.0f);
+    idTraceModel window;
+    window.SetupCylinder(idBounds(idVec3(-39*rimScale, -49*rimScale, 0.25f),
+        idVec3(39*rimScale, 49*rimScale, 4.0f)), 8);
+    idClipModel clearance(window);
+    if (gameLocal.clip.Contents(center, &clearance, idMat3(axis[1], axis[2], axis[0]), MASK_SOLID, ignore)) return false;
     return true;
 }
 static bool RW_PortalFloorCenter(idVec3 &center, const idMat3 &axis, const idVec3 &gravityUp, const idEntity *ignore) {
@@ -316,7 +329,7 @@ static bool RW_PortalFloorCenter(idVec3 &center, const idMat3 &axis, const idVec
     // The floor trace stops a clip epsilon above the actual plane. Use the
     // plane itself so two endpoints over the same floor align exactly.
     const float planeHeight = (center * floor.c.normal - floor.c.dist) / (axis[2] * floor.c.normal);
-    const idVec3 candidate = center + axis[2] * (73.0f - planeHeight);
+    const idVec3 candidate = center + axis[2] * (71.0f - planeHeight);
     if (!RW_PortalSurfaceSupports(candidate, axis, ignore)) return false;
     center = candidate;
     return true;

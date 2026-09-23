@@ -304,3 +304,17 @@ is removed; falling and other tangential motion are preserved. Larger overlaps
 and movable obstacles retain ordinary blocking behavior. `floor_clearance` tests
 a shallow exit-floor contact and a deeper obstruction.
 
+
+## Surface fitting
+
+Placement requires a flat central ellipse with radii 19.5 by 24.5 units, one
+quarter of the former 39 by 49 area. The full footprint still needs world
+backing, but its outer portion may recess up to eight units behind the cutout
+plane. Protrusions and unsupported openings are rejected. A conservative oval
+prism checks solid clearance across the full window, including static objects.
+Near-floor wall centers use 71 units instead of 73; existing saved endpoints
+keep their placement. Nearby fitting remains bounded to the original search.
+`surface_fit` verifies a small raised patch with recessed surround, a solid
+window obstruction, and lower wall placement. Clearance fixture offsets follow
+the new wall height so they retain the same shallow/deep penetration amounts.
+
