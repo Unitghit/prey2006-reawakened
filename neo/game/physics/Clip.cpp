@@ -34,6 +34,22 @@ If you have questions concerning this license or the applicable additional terms
 // The game validates the entire swept hull before allowing a wall-face exclusion.
 extern bool RW_PortalCoverPlane(const idPlane &, const idVec3 &, idPlane &);
 extern bool RW_PortalClipPlane(const idEntity *, const idTraceModel *, const idMat3 &, const idVec3 &, const idVec3 &, idPlane &, float &);
+// Map decoration uses separate static collision models. Apply the same portal
+// half-space as world geometry, transformed into each model's local space.
+// Movable objects and other dynamic entities retain their ordinary collision.
+static bool RW_StaticPortalPlane(const idEntity *entity, const idTraceModel *trm,
+    const idMat3 &axis, const idVec3 &start, const idVec3 &end,
+    const idClipModel *touch, idPlane &local) {
+    if (touch->IsTraceModel() || !touch->GetEntity() ||
+        !touch->GetEntity()->GetPhysics()->IsType(idPhysics_Static::Type)) return false;
+    idPlane world; float limit;
+    if (!RW_PortalClipPlane(entity, trm, axis, start, end, world, limit)) return false;
+    local.SetNormal(world.Normal() * touch->GetAxis().Transpose());
+    local.SetDist(world.Dist() - world.Normal() * touch->GetOrigin());
+    return true;
+}
+
+
 #define	MAX_SECTOR_DEPTH				12
 #define MAX_SECTORS						((1<<(MAX_SECTOR_DEPTH+1))-1)
 
@@ -1278,8 +1294,12 @@ void idClip::TranslationEntities( trace_t &results, const idVec3 &start, const i
 			TraceRenderModel( trace, start, end, radius, trmAxis, touch );
 		} else {
 			idClip::numTranslations++;
+            idPlane localOpening;
+            const bool staticOpening = RW_StaticPortalPlane(passEntity, trm, trmAxis, start, end, touch, localOpening);
+            collisionModelManager->SetPortalClipPlane(staticOpening ? &localOpening : NULL);
 			collisionModelManager->Translation( &trace, start, end, trm, trmAxis, contentMask,
 									touch->Handle(), touch->origin, touch->axis );
+            collisionModelManager->SetPortalClipPlane(NULL);
 		}
 
 		if ( trace.fraction < results.fraction ) {
@@ -1383,8 +1403,12 @@ bool idClip::Translation( trace_t &results, const idVec3 &start, const idVec3 &e
 			TraceRenderModel( trace, start, end, radius, trmAxis, touch );
 		} else {
 			idClip::numTranslations++;
+            idPlane localOpening;
+            const bool staticOpening = RW_StaticPortalPlane(passEntity, trm, trmAxis, start, end, touch, localOpening);
+            collisionModelManager->SetPortalClipPlane(staticOpening ? &localOpening : NULL);
 			collisionModelManager->Translation( &trace, start, end, trm, trmAxis, contentMask,
 									touch->Handle(), touch->origin, touch->axis );
+            collisionModelManager->SetPortalClipPlane(NULL);
 		}
 
 		if ( trace.fraction < results.fraction ) {
@@ -1497,8 +1521,12 @@ bool idClip::TranslationWithExceptions( trace_t &results, const idVec3 &start, c
 			TraceRenderModel( trace, start, end, radius, trmAxis, touch );
 		} else {
 			idClip::numTranslations++;
+            idPlane localOpening;
+            const bool staticOpening = RW_StaticPortalPlane(passEntity, trm, trmAxis, start, end, touch, localOpening);
+            collisionModelManager->SetPortalClipPlane(staticOpening ? &localOpening : NULL);
 			collisionModelManager->Translation( &trace, start, end, trm, trmAxis, contentMask,
 									touch->Handle(), touch->origin, touch->axis );
+            collisionModelManager->SetPortalClipPlane(NULL);
 		}
 
 		if ( trace.fraction < results.fraction ) {
@@ -1893,9 +1921,13 @@ int idClip::Contacts( contactInfo_t *contacts, const int maxContacts, const idVe
 		} // HUMANHEAD END
 
 		idClip::numContacts++;
+        idPlane localOpening;
+        const bool staticOpening = RW_StaticPortalPlane(passEntity, trm, trmAxis, start, start, touch, localOpening);
+        collisionModelManager->SetPortalClipPlane(staticOpening ? &localOpening : NULL);
 		n = collisionModelManager->Contacts( contacts + numContacts, maxContacts - numContacts,
 								start, dir, depth, trm, trmAxis, contentMask,
 									touch->Handle(), touch->origin, touch->axis );
+        collisionModelManager->SetPortalClipPlane(NULL);
 
 		for ( j = 0; j < n; j++ ) {
 			contacts[numContacts].entityNum = touch->entity->entityNumber;
@@ -1979,9 +2011,13 @@ int idClip::Contents( const idVec3 &start, const idClipModel *mdl, const idMat3 
 		} // HUMANHEAD END
 
 		idClip::numContents++;
+        idPlane localOpening;
+        const bool staticOpening = RW_StaticPortalPlane(passEntity, trm, trmAxis, start, start, touch, localOpening);
+        collisionModelManager->SetPortalClipPlane(staticOpening ? &localOpening : NULL);
 		if ( collisionModelManager->Contents( start, trm, trmAxis, contentMask, touch->Handle(), touch->origin, touch->axis ) ) {
 			contents |= ( touch->contents & contentMask );
 		}
+        collisionModelManager->SetPortalClipPlane(NULL);
 	}
 
 	return contents;

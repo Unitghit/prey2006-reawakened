@@ -10,9 +10,10 @@ $RetailBase=(Resolve-Path -LiteralPath $RetailBase).Path
 $Profile=[IO.Path]::GetFullPath($Profile)
 if(Test-Path -LiteralPath $Profile){throw 'Use a new isolated profile directory.'}
 $base=Join-Path $Profile 'base'
-New-Item -ItemType Directory -Path "$base/maps","$base/materials" -Force | Out-Null
+New-Item -ItemType Directory -Path "$base/maps","$base/materials","$base/models" -Force | Out-Null
 Copy-Item "$PSScriptRoot/tests/rw_portal_lab.map" "$base/maps/"
 Copy-Item "$PSScriptRoot/tests/portal_lab.mtr" "$base/materials/"
+Copy-Item "$PSScriptRoot/tests/portal_obstacle.ase" "$base/models/"
 foreach($name in $Cases) {
     Copy-Item "$PSScriptRoot/tests/$name.cfg" "$base/test.cfg" -Force
     $arguments='+set fs_basepath "'+$Engine+'" +set fs_cdpath "'+(Split-Path $RetailBase -Parent)+'" +set fs_devpath "'+$Profile+'" +set fs_savepath "'+$Profile+'" +set fs_configpath "'+$Profile+'" +set fs_game "" +set r_fullscreen 0 +set r_fullscreenDesktop 0 +set r_mode -1 +set r_customWidth 960 +set r_customHeight 540 +set r_multiSamples 0 +set s_volume_dB -60 +set com_unlockedFPS 0 +set com_fixedTic 1 +set r_gammaInShader 1 +set developer 1 +set ai_disable 1 +set logfile 2 +exec test.cfg'
@@ -90,6 +91,12 @@ foreach($name in $Cases) {
         $backside=[regex]::Match($log,'(?s)FLOOR_BACKSIDE_BEGIN(.*?)FLOOR_BACKSIDE_END').Groups[1].Value
         if(([regex]::Matches($partial,'PORTAL_EXIT ')).Count -ne 1){throw 'Partial floor crossing did not recover exactly once'}
         if($backside -match 'PORTAL_EXIT '){throw 'Backside floor entry incorrectly recovered'}
+    }
+    if($name -eq 'static_exit') {
+        $behind=[regex]::Match($log,'(?s)STATIC_BEHIND_BEGIN(.*?)STATIC_BEHIND_END').Groups[1].Value
+        $front=[regex]::Match($log,'(?s)STATIC_FRONT_BEGIN(.*?)STATIC_FRONT_END').Groups[1].Value
+        if($behind -notmatch 'PORTAL_EXIT ' -or $behind -match 'PORTALGUN blocked exit'){throw 'Static geometry behind exit blocked crossing'}
+        if($front -notmatch 'PORTALGUN blocked exit' -or $front -match 'PORTAL_EXIT '){throw 'Static geometry in front of exit failed to block crossing'}
     }
     if($name -eq 'objects') {
         foreach($prop in @('polish_a','polish_b','polish_c')) {

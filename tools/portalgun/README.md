@@ -248,3 +248,10 @@ Recovery requires the player hull to still cross the plane, fit the aperture, an
 not be moving outward. Fully backside players are excluded. `floor_partial`
 checks both partial recovery and backside rejection; destination obstruction
 checks still apply before teleporting.
+
+Static map decoration meshes now receive the same portal collision half-space as
+world brushes, transformed into each mesh's local coordinates. Translation,
+contact gathering, and contents checks use the same boundary. Movable entities
+and trace-model props retain normal collision. `static_exit` checks that geometry
+behind an exit does not block the emerging hull, while geometry in front does.
+The small test obstacle mesh is independently authored test geometry.

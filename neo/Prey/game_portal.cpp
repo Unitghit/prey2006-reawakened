@@ -998,7 +998,7 @@ bool hhPortal::PortalTeleport( idEntity *ent, const idVec3 &origin, const idMat3
     const bool gunPortal = spawnArgs.GetBool("rw_portalGun");
     const bool blocked = gunPortal ? gameLocal.clip.Translation(transCheck, useOrigin, useOrigin, clip, axis, ent->GetPhysics()->GetClipMask(), ent) :
         gameLocal.clip.TranslationWithExceptions(transCheck, useOrigin, useOrigin, NULL, clip, axis, ent->GetPhysics()->GetClipMask(), ent);
-    if (blocked && gunPortal) { ent->GetPhysics()->SetLinearVelocity(originalVelocity); gameLocal.Printf("PORTALGUN blocked exit\n"); if (cvarSystem->GetCVarBool("developer")) gameLocal.Printf("PORTAL_BLOCK material=%s contents=%d normal=%s\n", transCheck.c.material ? transCheck.c.material->GetName() : "none", transCheck.c.contents, transCheck.c.normal.ToString()); return false; }
+    if (blocked && gunPortal) { ent->GetPhysics()->SetLinearVelocity(originalVelocity); gameLocal.Printf("PORTALGUN blocked exit\n"); if (cvarSystem->GetCVarBool("developer")) gameLocal.Printf("PORTAL_BLOCK entity=%d name=%s type=%d material=%s normal=%s\n", transCheck.c.entityNum, gameLocal.entities[transCheck.c.entityNum] ? gameLocal.entities[transCheck.c.entityNum]->GetName() : "none", transCheck.c.type, transCheck.c.material ? transCheck.c.material->GetName() : "none", transCheck.c.normal.ToString()); return false; }
 	if (blocked) {
 		if (cameraTarget) {
 			bool safeSpot = true;
