@@ -182,6 +182,8 @@ def main():
         import_chaingun(index, read, text, block, files)
         from import_plasmagun import import_plasmagun
         import_plasmagun(index, read, text, block, files)
+        from import_rocketlauncher import import_rocketlauncher
+        import_rocketlauncher(index, read, text, block, files)
 
     # Validate everything before writing; no path may escape the output folder.
     for name in files:

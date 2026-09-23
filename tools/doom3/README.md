@@ -296,3 +296,33 @@ for diagnostic bolt traversal/impact logs.
 A standard 30-round rifle ammo pickup now supplies exactly two shotgun shells,
 with smaller/larger pickups scaled proportionally. Fractional shells accumulate.
 Rifle and Machine Gun supply rates are unchanged; the shotgun still holds 16 total.
+
+## Slot-7 Doom Rocket Launcher
+
+Enable the existing Doom 3 weapons option after importing with `--save-compatible`.
+The launcher unlocks alongside Prey's Rocket Launcher, including on existing saves.
+Press 7 again to cycle; the second weapon uses the orange slot highlight.
+The retail model, animations, sounds, rocket mesh, trail/explosion particles, and
+magazine skins are imported locally. No retail assets belong in this repository.
+
+The Doom launcher carries 12 rockets total, including five loaded. It fires once
+per second at 900 units/second, dealing 170 direct damage or up to 150 nearby splash
+damage within a 175-unit radius. Direct targets are excluded from splash damage,
+matching Doom 3. Normal damage modifiers and radius falloff still apply.
+
+Slot-7 pickups supply fixed halves into separate reserves: the four-rocket ammo
+box gives two to each launcher; a five-rocket weapon/drop gives 2.5 each, retaining
+fractions across saves. Full reserves do not donate unused shares. Paired Prey
+capacity is 12, but previously acquired excess rockets remain until spent.
+Newly unlocked Doom launchers receive subsequent pickup supply, without free ammo
+when enabling the option on an existing save. Mode toggles preserve both reserves.
+Disabling is supported; deleting imported assets used by an existing save is not.
+
+Validation: hidden/muted campaign tests covered old-save unlock, orange slot-7
+selection, ammo-only and dropped-weapon pickups, fractions, full reserves, firing,
+reload, equipped/disabled saves, Spirit Walk, and an actual level transition.
+One direct rocket reduced a 10,000-health Hunter to 9,830 while a nearby Hunter
+fell to 9,864 from splash. Two test rockets crossed the portal and impacted on
+its far side. `test_rocket_ammo.ps1` provides the isolated ammunition regression;
+`rocketInfo` displays state (developer mode allows `seed` and `pickup`), and
+`d3_rocketTrace 1` logs direct damage, portal traversal, impacts, and expiry.

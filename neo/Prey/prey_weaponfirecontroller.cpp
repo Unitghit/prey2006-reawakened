@@ -384,7 +384,7 @@ hhWeaponFireController::GetAmmoType
 ================
 */
 ammo_t hhWeaponFireController::GetAmmoType( const char *ammoname ) {
-	if (!idStr::Icmp(ammoname, "ammo_d3shells") || !idStr::Icmp(ammoname, "ammo_d3bullets") || !idStr::Icmp(ammoname, "ammo_d3belt") || !idStr::Icmp(ammoname, "ammo_d3cells")) { return idWeapon::GetAmmoNumForName(ammoname); }
+	if (!idStr::Icmp(ammoname, "ammo_d3shells") || !idStr::Icmp(ammoname, "ammo_d3bullets") || !idStr::Icmp(ammoname, "ammo_d3belt") || !idStr::Icmp(ammoname, "ammo_d3cells") || !idStr::Icmp(ammoname, "ammo_d3rockets")) { return idWeapon::GetAmmoNumForName(ammoname); }
 
 	int num;
 	const idDict *ammoDict;

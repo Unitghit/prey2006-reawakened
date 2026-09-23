@@ -975,6 +975,9 @@ void hhProjectile::DamageEntityHit( const trace_t* collision, const idVec3& velo
                     if (cvarSystem->GetCVarBool("d3_plasmaTrace") && !idStr::Icmp(spawnArgs.GetString("classname"), "projectile_d3plasmagun")) {
                         gameLocal.Printf("PLASMABOLT damaged=%s health=%d\n", entHit->GetName(), entHit->health);
                     }
+                    if (cvarSystem->GetCVarBool("d3_rocketTrace") && !idStr::Icmp(spawnArgs.GetString("classname"), "projectile_d3rocketlauncher")) {
+                        gameLocal.Printf("DOOMROCKET damaged=%s health=%d\n", entHit->GetName(), entHit->health);
+                    }
                 }
 
 				if ( playerHit && def->dict.GetInt( "freeze_duration" ) > 0 ) {
@@ -1123,6 +1126,9 @@ void hhProjectile::Fizzle( void ) {
 	if (cvarSystem->GetCVarBool("d3_plasmaTrace") && !idStr::Icmp(spawnArgs.GetString("classname"), "projectile_d3plasmagun")) {
 		gameLocal.Printf("PLASMABOLT fizzle origin=%s\n", GetOrigin().ToString());
 	}
+	if (cvarSystem->GetCVarBool("d3_rocketTrace") && !idStr::Icmp(spawnArgs.GetString("classname"), "projectile_d3rocketlauncher")) {
+		gameLocal.Printf("DOOMROCKET fizzle origin=%s\n", GetOrigin().ToString());
+	}
 
 	int removeTime = StartSound( "snd_fizzle", SND_CHANNEL_BODY, 0, true );
 
@@ -1170,6 +1176,9 @@ void hhProjectile::Explode( const trace_t* collision, const idVec3& velocity, in
     if (cvarSystem->GetCVarBool("d3_plasmaTrace") && !idStr::Icmp(spawnArgs.GetString("classname"), "projectile_d3plasmagun")) {
         gameLocal.Printf("PLASMABOLT impact origin=%s\n", GetOrigin().ToString());
     }
+    if (cvarSystem->GetCVarBool("d3_rocketTrace") && !idStr::Icmp(spawnArgs.GetString("classname"), "projectile_d3rocketlauncher")) {
+        gameLocal.Printf("DOOMROCKET impact origin=%s\n", GetOrigin().ToString());
+    }
 	const char *fxname = NULL;
 	int length = 0;
 
@@ -1210,7 +1219,13 @@ void hhProjectile::Explode( const trace_t* collision, const idVec3& velocity, in
 		// splash damage
 		if (!gameLocal.isClient) {
 			//SplashDamage( collision->endpos, killer, this, this, spawnArgs.GetString("def_splash_damage") );
-			SplashDamage( GetOrigin(), killer, this, this, spawnArgs.GetString("def_splash_damage") );
+			// Doom-style rockets damage a direct target once, excluding it from splash.
+            idEntity *splashIgnore = this;
+            if (spawnArgs.GetBool("rw_splashExcludeDirect") && collision->c.entityNum >= 0 && collision->c.entityNum < MAX_GENTITIES) {
+                idEntity *hit = gameLocal.entities[collision->c.entityNum];
+                if (hit && hit->fl.takedamage) { splashIgnore = hit; }
+            }
+            SplashDamage( GetOrigin(), killer, splashIgnore, this, spawnArgs.GetString("def_splash_damage") );
 		}
 	}
 	//HUMANHEAD END
@@ -1373,6 +1388,9 @@ bool hhProjectile::ProcessAllowCollisionEvent( const trace_t* collision ) {
 void hhProjectile::Portalled(idEntity *portal) {
 	if (cvarSystem->GetCVarBool("d3_plasmaTrace") && !idStr::Icmp(spawnArgs.GetString("classname"), "projectile_d3plasmagun")) {
 		gameLocal.Printf("PLASMABOLT portalled via=%s origin=%s\n", portal->GetName(), GetOrigin().ToString());
+	}
+	if (cvarSystem->GetCVarBool("d3_rocketTrace") && !idStr::Icmp(spawnArgs.GetString("classname"), "projectile_d3rocketlauncher")) {
+		gameLocal.Printf("DOOMROCKET portalled via=%s origin=%s\n", portal->GetName(), GetOrigin().ToString());
 	}
 	if ( fxFly.IsValid() ) {
 		hhFxInfo fxInfo;

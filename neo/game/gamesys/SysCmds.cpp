@@ -2660,8 +2660,38 @@ static void Cmd_PlasmaInfo_f(const idCmdArgs &args) {
 	}
 }
 
+static void Cmd_RocketInfo_f(const idCmdArgs &args) {
+	hhPlayer *player = static_cast<hhPlayer *>(gameLocal.GetLocalPlayer());
+	if (!player || !player->inventory.UsesIndependentWeaponAmmo(player)) { return; }
+	player->SynchronizeDoom3Shotgun();
+	if (cvarSystem->GetCVarBool("developer")) {
+		if (args.Argc() == 4 && !idStr::Icmp(args.Argv(1), "seed")) {
+			player->inventory.ammo[6] = Max(0, atoi(args.Argv(2)));
+			player->inventory.ammo[14] = Max(0, atoi(args.Argv(3)));
+			player->spawnArgs.Set("rw_weapon_ammo_fraction_6", "0");
+			player->spawnArgs.Set("rw_weapon_ammo_fraction_14", "0");
+		} else if (args.Argc() == 3 && !idStr::Icmp(args.Argv(1), "pickup")) {
+			gameLocal.Printf("ROCKETPICKUP accepted=%d\n", player->Give("ammo_crawler_red", args.Argv(2)));
+		}
+	}
+	gameLocal.Printf("ROCKETAMMO prey=%d rockets=%d preyMax=%d rocketMax=%d preyFraction=%s rocketFraction=%s clip=%d held=%d alt=%d\n",
+		player->inventory.ammo[6], player->inventory.ammo[14],
+		player->inventory.MaxAmmoForAmmoClass(player, "ammo_crawler_red"), player->inventory.MaxAmmoForAmmoClass(player, "ammo_d3rockets"),
+		player->spawnArgs.GetString("rw_weapon_ammo_fraction_6", "0"), player->spawnArgs.GetString("rw_weapon_ammo_fraction_14", "0"),
+		player->inventory.clip[14], (player->inventory.weapons & (1 << 14)) != 0, player->inventory.ammo[4]);
+    if (args.Argc() == 3 && !idStr::Icmp(args.Argv(1), "target")) {
+        idEntity *target = gameLocal.FindEntity(args.Argv(2));
+        if (target) { gameLocal.Printf("ROCKETTARGET name=%s health=%d origin=%s\n", target->GetName(), target->health, target->GetOrigin().ToString()); }
+    }
+	if (player->hud) {
+		gameLocal.Printf("AMMOHUD count=%s percent=%s\n", player->hud->State().GetString("player_ammoamounttext"),
+			player->hud->State().GetString("player_ammopercent"));
+	}
+}
+
 void idGameLocal::InitConsoleCommands( void ) {
 	cmdSystem->AddCommand("plasmaInfo", Cmd_PlasmaInfo_f, CMD_FL_GAME, "show independent slot-6 ammo; developer: seed, pickup");
+	cmdSystem->AddCommand("rocketInfo", Cmd_RocketInfo_f, CMD_FL_GAME, "show independent slot-7 ammo; developer: seed, pickup");
 	cmdSystem->AddCommand("chaingunInfo", Cmd_ChaingunInfo_f, CMD_FL_GAME, "show independent slot-5 ammo; developer: seed, pickup, altpickup");
 	cmdSystem->AddCommand("weaponAmmoInfo", Cmd_WeaponAmmoInfo_f, CMD_FL_GAME, "show independent ammo pools; developer: seed, pickup, useRifle, useShells, reload");
 	cmdSystem->AddCommand( "weaponPackInfo", Cmd_WeaponPackInfo_f, CMD_FL_GAME, "show addon state; developer: slot, key1..7, next, prev, spirit" );

@@ -10,8 +10,10 @@ public:
 	bool SplitRifleAmmo(const idPlayer *owner) const;
 	bool SplitAutocannonAmmo(const idPlayer *owner) const;
 	bool SplitAcidAmmo(const idPlayer *owner) const;
+	bool SplitRocketAmmo(const idPlayer *owner) const;
 	bool GiveAutocannonGroupAmmo(hhPlayer *owner, int amount);
 	bool GiveAcidGroupAmmo(hhPlayer *owner, int amount);
+	bool GiveRocketGroupAmmo(hhPlayer *owner, int amount);
 	bool SynchronizeWeaponAmmo(hhPlayer *owner);
 	bool GiveRifleGroupAmmo(hhPlayer *owner, int amount);
 	virtual void		GetPersistantData( idDict &dict );

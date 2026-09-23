@@ -56,6 +56,9 @@ primary capacity is 200 while paired. Secondary grenades remain unchanged.
 The Plasma Gun unlocks with the Acid Sprayer in slot 6 and receives only acid
 pickup supply. Fixed halves supply separate reserves capped at 12 acid units
 and 150 cells (including a 50-cell magazine). Existing acquired acid is preserved.
+The Doom Rocket Launcher unlocks with the original launcher in slot 7. Fixed
+halves of rocket pickup supply fill independent 12-rocket reserves; the Doom
+launcher holds five loaded rockets. Existing acquired Prey rockets are preserved.
 Preserve fractional pickup credit. Full or locked reserves do not donate their
 unused pickup share to another gun. Once acquired,
 ammunition belongs exclusively to its gun: firing/reloading must never consume

@@ -1,0 +1,78 @@
+// Prey firing-controller adapter for locally imported Doom 3 rocketlauncher assets.
+object weapon_d3rocketlauncher : weapon_base {
+    void init();
+    void Idle();
+    void Fire();
+    void Reload();
+    void UpdateRockets();
+};
+
+void weapon_d3rocketlauncher::init() {
+    nextAttack = 0;
+    WEAPON_ALTMODE = false;
+}
+
+void weapon_d3rocketlauncher::Idle() {
+    UpdateRockets();
+    weaponReady();
+    PlayCycle("idle");
+    while (1) {
+        CheckLower(2);
+        CheckAside(2);
+        if (WEAPON_ATTACK && sys.getTime() >= nextAttack) {
+            if (ammoInClip() > 0) {
+                PerformAction("Fire", 0);
+            } else if (ammoAvailable() > 0) {
+                PerformAction("Reload", 2);
+            } else {
+                StartSound("snd_empty", SND_CHANNEL_WEAPON, false);
+                nextAttack = sys.getTime() + 0.4;
+            }
+        }
+        if (WEAPON_RELOAD && ammoInClip() < clipSize() && ammoAvailable() > ammoInClip()) {
+            PerformAction("Reload", 2);
+        }
+        waitFrame();
+    }
+}
+
+void weapon_d3rocketlauncher::Fire() {
+    nextAttack = sys.getTime() + 1.0;
+    PlayAnim("fire");
+    setShaderParm(SHADERPARM_TIMEOFFSET, -sys.getTime());
+    setShaderParm(SHADERPARM_DIVERSITY, sys.random(1));
+    fireProjectiles();
+    UpdateRockets();
+    if (sys.getcvarFloat("d3_rocketlauncherTrace") == 1) {
+        sys.println("D3SHOT fired clip=" + ammoInClip());
+    }
+    while (!animDone(ANIMCHANNEL_ALL, 0)) {
+        CheckLower(2);
+        CheckAside(2);
+        if (WEAPON_ATTACK && sys.getTime() >= nextAttack && ammoInClip() > 0) {
+            PerformAction("Fire", 0);
+        }
+        waitFrame();
+    }
+    PerformAction("Idle", 0);
+}
+
+void weapon_d3rocketlauncher::Reload() {
+    weaponReloading();
+    PlayAnim("reload");
+    while (!animDone(ANIMCHANNEL_ALL, 0)) {
+        CheckLower(2);
+        CheckAside(2);
+        waitFrame();
+    }
+    addToClip(clipSize());
+    UpdateRockets();
+    PerformAction("Idle", 0);
+}
+
+void weapon_d3rocketlauncher::UpdateRockets() {
+    float count = ammoInClip();
+    if (count < 0) { count = 0; }
+    if (count > 5) { count = 5; }
+    setSkin("d3_rocket_" + count);
+}
