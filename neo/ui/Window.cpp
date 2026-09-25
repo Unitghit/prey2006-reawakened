@@ -974,7 +974,7 @@ const char *idWindow::HandleEvent(const sysEvent_t *event, bool *updateVisuals) 
 		}
 		RunTimeEvents(gui->GetTime());
 		CalcRects(0,0);
-		if ( flags & WIN_DESKTOP ) {
+		if ( flags & WIN_MENUGUI ) {
 			dc->SetCursor( idDeviceContext::CURSOR_MENU );
 		} else {
 			dc->SetCursor( idDeviceContext::CURSOR_ARROW );

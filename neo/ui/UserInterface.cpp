@@ -560,6 +560,9 @@ void idUserInterfaceLocal::DrawCursor() {
 	if ( !desktop || desktop->GetFlags() & WIN_MENUGUI ) {
 		uiManagerLocal.dc.DrawCursor(&cursorX, &cursorY, 15.0f );
 	} else {
+		// In-world screens use one steady pointer. The shared device context's
+		// cursor can otherwise retain a menu/click/hover state from another GUI.
+		uiManagerLocal.dc.SetCursor(idDeviceContext::CURSOR_ARROW);
 		uiManagerLocal.dc.DrawCursor(&cursorX, &cursorY, 64.0f );
 	}
 }
