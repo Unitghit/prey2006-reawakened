@@ -2,7 +2,7 @@ param(
     [Parameter(Mandatory=$true)][string]$Engine,
     [Parameter(Mandatory=$true)][string]$RetailBase,
     [Parameter(Mandatory=$true)][string]$Profile,
-    [string[]]$Cases = @('input','regression','floor','ceiling','blocked','replacement','access','floor_edge','guidance','guide_lookaway','guide_steering','guide_fast','floor_exit','placement','objects','replacement_occupants','through_portals','floor_escape','floor_partial','floor_continuous','floor_approach','floor_edge_slide','floor_corner','floor_clearance','surface_fit','ceiling_entry','floor_slab','wall_step','wall_approach','tapered_shell','sloped_ceiling','clip_column','oblique','terrain_fit','mesh_ground','rough_surfaces','reverse','static_exit')
+    [string[]]$Cases = @('input','regression','floor','ceiling','blocked','replacement','access','floor_edge','guidance','guide_lookaway','guide_steering','guide_fast','floor_exit','placement','objects','fixed_fixture','replacement_occupants','through_portals','floor_escape','floor_partial','floor_continuous','floor_approach','floor_edge_slide','floor_corner','floor_clearance','surface_fit','ceiling_entry','floor_slab','wall_step','wall_approach','tapered_shell','sloped_ceiling','clip_column','oblique','terrain_fit','mesh_ground','rough_surfaces','reverse','static_exit')
 )
 $ErrorActionPreference='Stop'
 $Engine=(Resolve-Path -LiteralPath $Engine).Path
@@ -296,6 +296,14 @@ foreach($name in $Cases) {
         foreach($side in @('FIRST','SECOND')) {
             $part=[regex]::Match($log,"(?s)APPROACH_${side}_BEGIN(.*?)APPROACH_${side}_END").Groups[1].Value
             if(([regex]::Matches($part,'PORTAL_EXIT ')).Count -ne 1 -or $part -match 'PORTAL_PARTIAL_BLOCK'){throw "Floor approach $side hit an invisible barrier"}
+        }
+    }
+    if($name -eq 'fixed_fixture') {
+        $back=[regex]::Match($log,'(?s)FIXTURE_BACK_BEGIN(.*?)FIXTURE_BACK_END').Groups[1].Value
+        if(([regex]::Matches($back,'PORTAL_EXIT ')).Count -ne 1 -or $back -match 'blocked exit|PORTAL_PARTIAL_BLOCK'){throw 'Fixed scenery behind aperture blocked passage'}
+        foreach($case in @('FRONT','LOOSE')) {
+            $part=[regex]::Match($log,"(?s)FIXTURE_${case}_BEGIN(.*?)FIXTURE_${case}_END").Groups[1].Value
+            if($part -notmatch 'blocked exit|PORTAL_PARTIAL_BLOCK' -or $part -match 'PORTAL_EXIT '){throw "Fixture $case bypassed ordinary collision"}
         }
     }
     if($name -eq 'replacement_occupants') {

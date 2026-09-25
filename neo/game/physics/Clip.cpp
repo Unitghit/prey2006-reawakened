@@ -36,12 +36,24 @@ extern bool RW_PortalCoverPlane(const idPlane &, const idVec3 &, idPlane &);
 extern bool RW_PortalClipPlane(const idEntity *, const idTraceModel *, const idMat3 &, const idVec3 &, const idVec3 &, idPlane &, float &);
 // Map decoration uses separate static collision models. Apply the same portal
 // half-space as world geometry, transformed into each model's local space.
-// Movable objects and other dynamic entities retain their ordinary collision.
+// Loose props and other dynamic entities retain their ordinary collision.
 static bool RW_StaticPortalPlane(const idEntity *entity, const idTraceModel *trm,
     const idMat3 &axis, const idVec3 &start, const idVec3 &end,
     const idClipModel *touch, idPlane &local) {
-    if (touch->IsTraceModel() || !touch->GetEntity() ||
-        !touch->GetEntity()->GetPhysics()->IsType(idPhysics_Static::Type)) return false;
+    const idEntity *scenery = touch->GetEntity();
+    if (!scenery) return false;
+    const idPhysics *physics = scenery->GetPhysics();
+    // Scripted breakaway wall fixtures are rigid bodies from the start, even
+    // while fixed to the wall. Cut only their hidden half, and stop treating
+    // them as scenery as soon as they activate, move, or become pushable.
+    const bool fixedMoveable = scenery->IsType(idMoveable::Type) &&
+        !scenery->IsBound() && !scenery->fl.takedamage &&
+        scenery->spawnArgs.GetBool("nodrop") && scenery->spawnArgs.GetBool("noimpact") &&
+        physics->IsAtRest() && !physics->IsPushable() &&
+        physics->GetOrigin().Compare(scenery->spawnArgs.GetVector("origin"), 0.1f) &&
+        physics->GetLinearVelocity().LengthSqr() < 0.0001f &&
+        physics->GetAngularVelocity().LengthSqr() < 0.0001f;
+    if (!fixedMoveable && (touch->IsTraceModel() || !physics->IsType(idPhysics_Static::Type))) return false;
     idPlane world; float limit;
     if (!RW_PortalClipPlane(entity, trm, axis, start, end, world, limit)) return false;
     local.SetNormal(world.Normal() * touch->GetAxis().Transpose());
@@ -1354,7 +1366,8 @@ bool idClip::Translation( trace_t &results, const idVec3 &start, const idVec3 &e
         { idPlane openingPlane; float openingLimit;
         const bool opening = RW_PortalClipPlane(passEntity, trm, trmAxis, start, end, openingPlane, openingLimit);
         idPlane coverPlane;
-        const bool cover = opening && RW_PortalCoverPlane(openingPlane, start, coverPlane);
+        // Probe through the body: feet may be below the exit floor during a step.
+        const bool cover = opening && RW_PortalCoverPlane(openingPlane, start + trm->bounds.GetCenter() * trmAxis, coverPlane);
         collisionModelManager->SetPortalClipPlane(opening ? &openingPlane : NULL, cover ? &coverPlane : NULL);
 		collisionModelManager->Translation( &results, start, end, trm, trmAxis, contentMask, 0, vec3_origin, mat3_default );
         if (opening && openingLimit < results.fraction) {
@@ -1467,7 +1480,8 @@ bool idClip::TranslationWithExceptions( trace_t &results, const idVec3 &start, c
         { idPlane openingPlane; float openingLimit;
         const bool opening = RW_PortalClipPlane(passEntity, trm, trmAxis, start, end, openingPlane, openingLimit);
         idPlane coverPlane;
-        const bool cover = opening && RW_PortalCoverPlane(openingPlane, start, coverPlane);
+        // Probe through the body: feet may be below the exit floor during a step.
+        const bool cover = opening && RW_PortalCoverPlane(openingPlane, start + trm->bounds.GetCenter() * trmAxis, coverPlane);
         collisionModelManager->SetPortalClipPlane(opening ? &openingPlane : NULL, cover ? &coverPlane : NULL);
 		collisionModelManager->Translation( &results, start, end, trm, trmAxis, contentMask, 0, vec3_origin, mat3_default );
         if (opening && openingLimit < results.fraction) {
@@ -1695,7 +1709,8 @@ bool idClip::Motion( trace_t &results, const idVec3 &start, const idVec3 &end, c
         { idPlane openingPlane; float openingLimit;
         const bool opening = RW_PortalClipPlane(passEntity, trm, trmAxis, start, end, openingPlane, openingLimit);
         idPlane coverPlane;
-        const bool cover = opening && RW_PortalCoverPlane(openingPlane, start, coverPlane);
+        // Probe through the body: feet may be below the exit floor during a step.
+        const bool cover = opening && RW_PortalCoverPlane(openingPlane, start + trm->bounds.GetCenter() * trmAxis, coverPlane);
         collisionModelManager->SetPortalClipPlane(opening ? &openingPlane : NULL, cover ? &coverPlane : NULL);
 		collisionModelManager->Translation( &translationalTrace, start, end, trm, trmAxis, contentMask, 0, vec3_origin, mat3_default );
         if (opening && openingLimit < translationalTrace.fraction) {
@@ -1876,7 +1891,8 @@ int idClip::Contacts( contactInfo_t *contacts, const int maxContacts, const idVe
         { idPlane openingPlane; float openingLimit;
         const bool opening = RW_PortalClipPlane(passEntity, trm, trmAxis, start, start, openingPlane, openingLimit);
         idPlane coverPlane;
-        const bool cover = opening && RW_PortalCoverPlane(openingPlane, start, coverPlane);
+        // Probe through the body: feet may be below the exit floor during a step.
+        const bool cover = opening && RW_PortalCoverPlane(openingPlane, start + trm->bounds.GetCenter() * trmAxis, coverPlane);
         collisionModelManager->SetPortalClipPlane(opening ? &openingPlane : NULL, cover ? &coverPlane : NULL);
 		numContacts = collisionModelManager->Contacts( contacts, maxContacts, start, dir, depth, trm, trmAxis, contentMask, 0, vec3_origin, mat3_default );
         collisionModelManager->SetPortalClipPlane(NULL); }
@@ -1962,7 +1978,8 @@ int idClip::Contents( const idVec3 &start, const idClipModel *mdl, const idMat3 
         { idPlane openingPlane; float openingLimit;
         const bool opening = RW_PortalClipPlane(passEntity, trm, trmAxis, start, start, openingPlane, openingLimit);
         idPlane coverPlane;
-        const bool cover = opening && RW_PortalCoverPlane(openingPlane, start, coverPlane);
+        // Probe through the body: feet may be below the exit floor during a step.
+        const bool cover = opening && RW_PortalCoverPlane(openingPlane, start + trm->bounds.GetCenter() * trmAxis, coverPlane);
         collisionModelManager->SetPortalClipPlane(opening ? &openingPlane : NULL, cover ? &coverPlane : NULL);
 		contents = collisionModelManager->Contents( start, trm, trmAxis, contentMask, 0, vec3_origin, mat3_default );
         collisionModelManager->SetPortalClipPlane(NULL); }
