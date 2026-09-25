@@ -45,3 +45,13 @@ Regression coverage again includes real blocked exits, nearby clip columns,
 tapered shells, sloped ceilings, floor edges/corners, static uneven ground,
 floor approach, and reverse travel. No portal repositioning or save migration
 is needed.
+
+## Beveled covers at wall exits
+
+The `portalstuck1` campaign placement encountered an invisible player-clip
+cover angled about 22 degrees from the visible wall. The former 0.95 normal
+dot threshold rejected this cover, blocking the partial exit hull. Covers now
+allow up to 30 degrees. The same bounded ray, world-only player-clip filter,
+exact plane match, aperture checks, and destination occupancy checks remain.
+No scripted portal entity is ignored and no solid geometry exception is added.
+The saved placement crosses with zero teleport clearance adjustment.

@@ -319,7 +319,7 @@ static bool RW_GroundPortalPartialBlocked(hhPortal *portal, idEntity *entity, co
         }
     }
     if (blocked && cvarSystem->GetCVarBool("com_fpsTrace"))
-        gameLocal.Printf("PORTAL_PARTIAL_BLOCK depth=%.3f entity=%d\n", depth, trace.c.entityNum);
+        gameLocal.Printf("PORTAL_PARTIAL_BLOCK depth=%.3f entity=%d material=%s normal=%s remote=%s dist=%.3f contents=%d\n", depth, trace.c.entityNum, trace.c.material ? trace.c.material->GetName() : "none", trace.c.normal.ToString(), remote.ToString(), trace.c.dist, trace.c.contents);
     return blocked;
 }
 
@@ -476,7 +476,10 @@ bool RW_PortalCoverPlane(const idPlane &wall, const idVec3 &query, idPlane &cove
         gameLocal.clip.TracePoint(trace, sample + wall.Normal()*32, sample - wall.Normal()*8,
             CONTENTS_PLAYERCLIP, NULL);
         if (trace.fraction > 0 && trace.fraction < 1 && trace.c.entityNum == ENTITYNUM_WORLD &&
-            trace.c.normal * wall.Normal() > 0.95f) {
+            // Actor-clip covers may bevel away from the visible support wall.
+            // Accept up to 30 degrees while retaining the bounded probe and
+            // exact detected player-clip plane; real solid obstacles stay solid.
+            trace.c.normal * wall.Normal() >= 0.8660254f) {
             cover.SetNormal(trace.c.normal);
             cover.SetDist(trace.c.dist);
             return true;
