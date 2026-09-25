@@ -55,9 +55,11 @@ def import_machinegun(index, read, text, block, files):
         decl = re.sub(r'(?<![\w/])(models/[\w/.-]+)', lambda m: prefix+m[1], decl)
         decl = re.sub(r'\bplayer_machinegun_', 'd3_player_machinegun_', decl)
         if name == 'viewmodel_machinegun':
+            # GUI aside is a held pose, not a looping holster animation.
+            # Tommy's independent GUI hand still handles screen presses.
             aliases = {'initialPickup':'pullup', 'raise_mp':'pullup', 'fire':'fire4',
-                       'down':'putaway', 'putaway_mp':'putaway', 'put_aside':'putaway',
-                       'aside':'putaway', 'upright':'pullup'}
+                       'down':'putaway', 'putaway_mp':'putaway', 'put_aside':'idle',
+                       'aside':'idle', 'upright':'idle'}
             extra = '\n'
             for alias, anim in aliases.items():
                 extra += f' anim {alias} doom3/models/md5/weapons/machinegun_view/{anim}.md5anim'

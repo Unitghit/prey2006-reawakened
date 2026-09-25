@@ -378,3 +378,15 @@ installations. Developer diagnostics: `superShotgunInfo` and
 `d3_supershotgunTrace 1`.
 
 The Super Shotgun also passed Spirit Walk and real level-transition/save tests.
+
+### Screen interaction poses
+
+Imported Doom weapons now keep their idle pose during Prey's `put_aside`,
+`aside`, and `upright` states. Previously the importer aliased the looping
+`aside` state to a one-shot holster animation, repeatedly lowering the weapon.
+Tommy's separate GUI hand, click handling, and weapon-switch holstering are
+unchanged. This is a model-declaration fix, so existing saves and script
+checksums are preserved. Regenerate the imported assets to apply it.
+
+Validated with the `screenbug` campaign save in a hidden, muted test, plus
+validation of all six weapons' generated animation paths.

@@ -93,9 +93,11 @@ def main():
         decl = re.sub(r'(?<![\w/])(models/[\w/.-]+)', lambda m: prefix+m[1], decl)
         decl = re.sub(r'\bplayer_shotgun_', 'd3_player_shotgun_', decl)
         if name == 'viewmodel_shotgun':
+            # GUI aside is a held pose, not a looping holster animation.
+            # Tommy's independent GUI hand still handles screen presses.
             aliases = {'initialPickup':'raise', 'raise_mp':'raise', 'fire':'fire1',
                        'reload_loop':'reload_loop', 'down':'lower', 'putaway_mp':'lower',
-                       'put_aside':'lower', 'aside':'lower', 'upright':'raise'}
+                       'put_aside':'idle', 'aside':'idle', 'upright':'idle'}
             extra = '\n'
             for alias, animation in aliases.items():
                 extra += f' anim {alias} doom3/models/md5/weapons/shotgun_view/{animation}.md5anim'

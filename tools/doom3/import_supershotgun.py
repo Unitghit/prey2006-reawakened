@@ -52,9 +52,11 @@ def import_supershotgun(index, read, text, block, files):
         decl = re.sub(r'(?<![\w/])(models/[\w/.-]+)', lambda m: prefix+m[1], decl)
         decl = re.sub(r'\b(?:player_shotgun_\w+|ssg_\w+)', lambda m: 'd3_'+m[0], decl)
         if name == 'viewmodel_shotgun_double':
+            # GUI aside is a held pose, not a looping holster animation.
+            # Tommy's independent GUI hand still handles screen presses.
             aliases = {'initialPickup':'raise', 'raise_mp':'raise', 'fire':'fire1', 'reload':'reload',
-                       'down':'lower', 'putaway_mp':'lower', 'put_aside':'lower',
-                       'aside':'lower', 'upright':'raise'}
+                       'down':'lower', 'putaway_mp':'lower', 'put_aside':'idle',
+                       'aside':'idle', 'upright':'idle'}
             extra = '\n'
             for alias, anim in aliases.items():
                 extra += f' anim {alias} doom3/models/md5/weapons/doublebarrel_view/new/{anim}.md5anim'
