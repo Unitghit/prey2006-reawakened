@@ -2,7 +2,7 @@ param(
     [Parameter(Mandatory=$true)][string]$Engine,
     [Parameter(Mandatory=$true)][string]$RetailBase,
     [Parameter(Mandatory=$true)][string]$Profile,
-    [string[]]$Cases = @('input','regression','floor','ceiling','blocked','replacement','access','floor_edge','guidance','guide_lookaway','guide_steering','guide_fast','floor_exit','placement','objects','fixed_fixture','replacement_occupants','through_portals','floor_escape','floor_partial','floor_continuous','floor_approach','floor_edge_slide','floor_corner','floor_clearance','surface_fit','ceiling_entry','floor_slab','wall_step','wall_approach','tapered_shell','sloped_ceiling','clip_column','oblique','terrain_fit','mesh_ground','rough_surfaces','reverse','static_exit')
+    [string[]]$Cases = @('input','regression','floor','ceiling','blocked','replacement','access','floor_edge','guidance','guide_lookaway','guide_steering','guide_fast','floor_exit','placement','objects','fixed_fixture','replacement_occupants','through_portals','floor_escape','floor_partial','floor_continuous','floor_approach','floor_edge_slide','floor_corner','floor_clearance','surface_fit','ceiling_entry','floor_slab','wall_step','wall_approach','tapered_shell','cover_static','cover_mover','sloped_ceiling','clip_column','oblique','terrain_fit','mesh_ground','rough_surfaces','reverse','static_exit')
 )
 $ErrorActionPreference='Stop'
 $Engine=(Resolve-Path -LiteralPath $Engine).Path
@@ -15,6 +15,8 @@ Copy-Item "$PSScriptRoot/tests/rw_portal_lab.map" "$base/maps/"
 Copy-Item "$PSScriptRoot/tests/rw_portal_surface.map" "$base/maps/"
 Copy-Item "$PSScriptRoot/tests/rw_portal_slab.map" "$base/maps/"
 Copy-Item "$PSScriptRoot/tests/rw_portal_taper.map" "$base/maps/"
+Copy-Item "$PSScriptRoot/tests/rw_portal_cover_static.map" "$base/maps/"
+Copy-Item "$PSScriptRoot/tests/rw_portal_cover_mover.map" "$base/maps/"
 Copy-Item "$PSScriptRoot/tests/rw_portal_slope.map" "$base/maps/"
 Copy-Item "$PSScriptRoot/tests/rw_portal_column.map" "$base/maps/"
 Copy-Item "$PSScriptRoot/tests/rw_portal_terrain.map" "$base/maps/"
@@ -223,7 +225,7 @@ foreach($name in $Cases) {
         $clearance=[regex]::Match($log,'PORTAL_EXIT_CLEARANCE distance=([0-9.]+)')
         if(!$clearance.Success -or [double]$clearance.Groups[1].Value -le 16){throw 'Column fixture did not exercise extended clearance'}
     }
-    if($name -eq 'tapered_shell') {
+    if($name -in @('tapered_shell','cover_static','cover_mover')) {
         $part=[regex]::Match($log,'(?s)TAPER_EXIT_BEGIN(.*?)TAPER_EXIT_END').Groups[1].Value
         $positions=[regex]::Matches($part,'selected=\d+ current=\d+ origin=(-?[0-9.]+)\s+(-?[0-9.]+)\s+(-?[0-9.]+)')
         if(([regex]::Matches($part,'PORTAL_EXIT ')).Count -ne 1 -or !$positions.Count -or

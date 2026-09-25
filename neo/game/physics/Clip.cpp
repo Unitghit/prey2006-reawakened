@@ -39,7 +39,8 @@ extern bool RW_PortalClipPlane(const idEntity *, const idTraceModel *, const idM
 // Loose props and other dynamic entities retain their ordinary collision.
 static bool RW_StaticPortalPlane(const idEntity *entity, const idTraceModel *trm,
     const idMat3 &axis, const idVec3 &start, const idVec3 &end,
-    const idClipModel *touch, idPlane &local) {
+    const idClipModel *touch, idPlane &local, idPlane &localCover, bool &hasCover) {
+    hasCover = false;
     const idEntity *scenery = touch->GetEntity();
     if (!scenery) return false;
     const idPhysics *physics = scenery->GetPhysics();
@@ -53,11 +54,35 @@ static bool RW_StaticPortalPlane(const idEntity *entity, const idTraceModel *trm
         physics->GetOrigin().Compare(scenery->spawnArgs.GetVector("origin"), 0.1f) &&
         physics->GetLinearVelocity().LengthSqr() < 0.0001f &&
         physics->GetAngularVelocity().LengthSqr() < 0.0001f;
-    if (!fixedMoveable && (touch->IsTraceModel() || !physics->IsType(idPhysics_Static::Type))) return false;
+    int modelContents = 0;
+    const bool stationaryClip = !scenery->IsBound() && !touch->IsTraceModel() &&
+        (physics->IsType(idPhysics_Static::Type) ||
+         (scenery->IsType(idMover::Type) && physics->IsAtRest() &&
+          physics->GetLinearVelocity().LengthSqr() < 0.0001f &&
+          physics->GetAngularVelocity().LengthSqr() < 0.0001f));
+    if (stationaryClip) collisionModelManager->GetModelContents(touch->Handle(), modelContents);
+    const bool playerCover = stationaryClip && (modelContents & CONTENTS_PLAYERCLIP) && !(modelContents & CONTENTS_SOLID);
+    if (!fixedMoveable && !playerCover && (touch->IsTraceModel() || !physics->IsType(idPhysics_Static::Type))) return false;
     idPlane world; float limit;
     if (!RW_PortalClipPlane(entity, trm, axis, start, end, world, limit)) return false;
     local.SetNormal(world.Normal() * touch->GetAxis().Transpose());
     local.SetDist(world.Dist() - world.Normal() * touch->GetOrigin());
+    // A separate static player-clip brush can cover the supporting wall just
+    // like a world brush. Probe this model only; never exempt unrelated props
+    // or solid scenery. Use the bounded 32-unit probe; allow beveled covers up to 45 degrees.
+    if (playerCover) {
+        const idVec3 query = start + trm->bounds.GetCenter()*axis;
+        const idVec3 sample = query - world.Normal()*world.Distance(query);
+        trace_t probe;
+        collisionModelManager->Translation(&probe, sample + world.Normal()*32,
+            sample - world.Normal()*8, NULL, mat3_identity, CONTENTS_PLAYERCLIP,
+            touch->Handle(), touch->GetOrigin(), touch->GetAxis());
+        if (probe.fraction > 0 && probe.fraction < 1 && probe.c.normal*world.Normal() >= 0.7070f) {
+            localCover.SetNormal(probe.c.normal*touch->GetAxis().Transpose());
+            localCover.SetDist(probe.c.dist-probe.c.normal*touch->GetOrigin());
+            hasCover = true;
+        }
+    }
     return true;
 }
 
@@ -1306,9 +1331,9 @@ void idClip::TranslationEntities( trace_t &results, const idVec3 &start, const i
 			TraceRenderModel( trace, start, end, radius, trmAxis, touch );
 		} else {
 			idClip::numTranslations++;
-            idPlane localOpening;
-            const bool staticOpening = RW_StaticPortalPlane(passEntity, trm, trmAxis, start, end, touch, localOpening);
-            collisionModelManager->SetPortalClipPlane(staticOpening ? &localOpening : NULL);
+            idPlane localOpening, localCover; bool hasCover;
+            const bool staticOpening = RW_StaticPortalPlane(passEntity, trm, trmAxis, start, end, touch, localOpening, localCover, hasCover);
+            collisionModelManager->SetPortalClipPlane(staticOpening ? &localOpening : NULL, hasCover ? &localCover : NULL);
 			collisionModelManager->Translation( &trace, start, end, trm, trmAxis, contentMask,
 									touch->Handle(), touch->origin, touch->axis );
             collisionModelManager->SetPortalClipPlane(NULL);
@@ -1416,9 +1441,9 @@ bool idClip::Translation( trace_t &results, const idVec3 &start, const idVec3 &e
 			TraceRenderModel( trace, start, end, radius, trmAxis, touch );
 		} else {
 			idClip::numTranslations++;
-            idPlane localOpening;
-            const bool staticOpening = RW_StaticPortalPlane(passEntity, trm, trmAxis, start, end, touch, localOpening);
-            collisionModelManager->SetPortalClipPlane(staticOpening ? &localOpening : NULL);
+            idPlane localOpening, localCover; bool hasCover;
+            const bool staticOpening = RW_StaticPortalPlane(passEntity, trm, trmAxis, start, end, touch, localOpening, localCover, hasCover);
+            collisionModelManager->SetPortalClipPlane(staticOpening ? &localOpening : NULL, hasCover ? &localCover : NULL);
 			collisionModelManager->Translation( &trace, start, end, trm, trmAxis, contentMask,
 									touch->Handle(), touch->origin, touch->axis );
             collisionModelManager->SetPortalClipPlane(NULL);
@@ -1535,9 +1560,9 @@ bool idClip::TranslationWithExceptions( trace_t &results, const idVec3 &start, c
 			TraceRenderModel( trace, start, end, radius, trmAxis, touch );
 		} else {
 			idClip::numTranslations++;
-            idPlane localOpening;
-            const bool staticOpening = RW_StaticPortalPlane(passEntity, trm, trmAxis, start, end, touch, localOpening);
-            collisionModelManager->SetPortalClipPlane(staticOpening ? &localOpening : NULL);
+            idPlane localOpening, localCover; bool hasCover;
+            const bool staticOpening = RW_StaticPortalPlane(passEntity, trm, trmAxis, start, end, touch, localOpening, localCover, hasCover);
+            collisionModelManager->SetPortalClipPlane(staticOpening ? &localOpening : NULL, hasCover ? &localCover : NULL);
 			collisionModelManager->Translation( &trace, start, end, trm, trmAxis, contentMask,
 									touch->Handle(), touch->origin, touch->axis );
             collisionModelManager->SetPortalClipPlane(NULL);
@@ -1937,9 +1962,9 @@ int idClip::Contacts( contactInfo_t *contacts, const int maxContacts, const idVe
 		} // HUMANHEAD END
 
 		idClip::numContacts++;
-        idPlane localOpening;
-        const bool staticOpening = RW_StaticPortalPlane(passEntity, trm, trmAxis, start, start, touch, localOpening);
-        collisionModelManager->SetPortalClipPlane(staticOpening ? &localOpening : NULL);
+        idPlane localOpening, localCover; bool hasCover;
+        const bool staticOpening = RW_StaticPortalPlane(passEntity, trm, trmAxis, start, start, touch, localOpening, localCover, hasCover);
+        collisionModelManager->SetPortalClipPlane(staticOpening ? &localOpening : NULL, hasCover ? &localCover : NULL);
 		n = collisionModelManager->Contacts( contacts + numContacts, maxContacts - numContacts,
 								start, dir, depth, trm, trmAxis, contentMask,
 									touch->Handle(), touch->origin, touch->axis );
@@ -2028,9 +2053,9 @@ int idClip::Contents( const idVec3 &start, const idClipModel *mdl, const idMat3 
 		} // HUMANHEAD END
 
 		idClip::numContents++;
-        idPlane localOpening;
-        const bool staticOpening = RW_StaticPortalPlane(passEntity, trm, trmAxis, start, start, touch, localOpening);
-        collisionModelManager->SetPortalClipPlane(staticOpening ? &localOpening : NULL);
+        idPlane localOpening, localCover; bool hasCover;
+        const bool staticOpening = RW_StaticPortalPlane(passEntity, trm, trmAxis, start, start, touch, localOpening, localCover, hasCover);
+        collisionModelManager->SetPortalClipPlane(staticOpening ? &localOpening : NULL, hasCover ? &localCover : NULL);
 		if ( collisionModelManager->Contents( start, trm, trmAxis, contentMask, touch->Handle(), touch->origin, touch->axis ) ) {
 			contents |= ( touch->contents & contentMask );
 		}

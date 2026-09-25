@@ -451,6 +451,8 @@ void idCollisionModelManagerLocal::ParseBrushes( idLexer *src, cm_model_t *model
 		// parse brush
 		numPlanes = src->ParseInt();
 		b = AllocBrush( model, numPlanes );
+        // The .cm brush format stores contents but no material reference.
+        b->material = NULL;
 		b->numPlanes = numPlanes;
 		src->ExpectTokenString( "{" );
 		for ( i = 0; i < b->numPlanes; i++ ) {

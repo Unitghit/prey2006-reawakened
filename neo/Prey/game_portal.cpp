@@ -1159,9 +1159,10 @@ bool hhPortal::PortalEntity( idEntity *ent, const idVec3 &point, const idVec3 *c
                         exitUp.Normalize();
                         // A raised/sloping exit floor needs ordinary step-up
                         // clearance, not the two-unit allowance for wall skins.
-                        // Only a pure upward correction ending on a walkable
+                        // A near-upright wall may tilt the portal-plane up vector.
+                        // Only its upward sample ending on a walkable
                         // supporting face qualifies; ceilings and walls do not.
-                        const bool floorStep = offset*exitUp > distance*0.999f &&
+                        const bool floorStep = sample == 0 && offset*exitUp > distance*0.95f &&
                             test.fraction > 0.0f && test.fraction < 1.0f &&
                             test.c.normal*exitUp > 0.7f && unresolved <= stepLimit;
                         // Some maps use tall invisible collision columns near
