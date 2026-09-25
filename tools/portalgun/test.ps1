@@ -299,9 +299,11 @@ foreach($name in $Cases) {
         }
     }
     if($name -eq 'replacement_occupants') {
+        $player=[regex]::Match($log,'(?s)OCCUPANT_PLAYER_BEGIN(.*?)OCCUPANT_PLAYER_END').Groups[1].Value
+        if($player -notmatch 'PORTAL_REPLACEMENT_CLEAR name=player1 origin=484 0 5.25' -or $player -notmatch 'placed blue' -or $player -match 'rejected:'){throw 'Player was not safely cleared before replacement'}
         $release=[regex]::Match($log,'(?s)OCCUPANT_RELEASE_BEGIN(.*?)OCCUPANT_RELEASE_END').Groups[1].Value
         if($release -notmatch 'PORTAL_REPLACEMENT_CLEAR name=release_prop' -or $release -notmatch 'placed blue' -or $release -match 'rejected:'){throw 'Movable object locked replacement'}
-        foreach($case in @('BLOCKED','PLAYER')) {
+        foreach($case in @('BLOCKED')) {
             $part=[regex]::Match($log,"(?s)OCCUPANT_${case}_BEGIN(.*?)OCCUPANT_${case}_END").Groups[1].Value
             if($part -notmatch 'rejected: leave the opening clear' -or $part -match 'PORTAL_REPLACEMENT_CLEAR|placed blue'){throw "Unsafe $case replacement allowed"}
         }

@@ -8,7 +8,7 @@ static hhPortal *RW_GunPortal(int color) {
     idEntity *ent = gameLocal.FindEntity(RW_PortalName(color));
     return ent && ent->IsType(hhPortal::Type) ? static_cast<hhPortal *>(ent) : NULL;
 }
-// Defer replacement while an eligible hull straddles either opening.
+// Broad-phase overlap only: touching the rim does not imply being in the wall.
 static bool RW_PortalOccupied(const hhPortal *portal, const idPhysics *physics) {
     if (!portal) return false;
     idBounds local;
@@ -42,7 +42,6 @@ static bool RW_ClearPortalOccupants(hhPortal *first, hhPortal *second) {
             idEntity *entity = entities[i];
             idPhysics *physics = entity->GetPhysics();
             if (!RW_GunPortalEntity(entity) || !RW_PortalOccupied(portal, physics)) continue;
-            if (!entity->IsType(idMoveable::Type)) return false;
             if (occupants.FindIndex(entity) >= 0) continue;
             const idVec3 normal = portal->GetAxis()[0];
             const idBounds &bounds = physics->GetBounds();
@@ -51,6 +50,21 @@ static bool RW_ClearPortalOccupants(hhPortal *first, hhPortal *second) {
                 const idVec3 corner(bounds[(k&1)!=0].x, bounds[(k&2)!=0].y, bounds[(k&4)!=0].z);
                 back = Min(back, (physics->GetOrigin()+corner*physics->GetAxis()-portal->GetOrigin())*normal);
             }
+            // The visual plane is elevated. A stool/actor resting on the
+            // original floor can overlap it without using the wall cutout.
+            // Exact-contact traces may report solid for that existing contact.
+            if (back >= -portal->spawnArgs.GetFloat("rw_portal_surface_offset") - 0.1f) continue;
+            // The rectangular aperture bounds include harmless rim contact,
+            // and a floor portal sits above the actual supporting floor. Test
+            // the hull against the restored wall before deciding to move it.
+            trace_t closingTrace;
+            const bool previousClosingQuery = rw_portalClosingQuery;
+            rw_portalClosingQuery = true;
+            const bool needsClearance = gameLocal.clip.Translation(closingTrace,
+                physics->GetOrigin(), physics->GetOrigin(), physics->GetClipModel(),
+                physics->GetAxis(), physics->GetClipMask(), entity);
+            rw_portalClosingQuery = previousClosingQuery;
+            if (!needsClearance) continue;
             const idVec3 outward = physics->GetOrigin()+normal*Max(0.0f, 3.0f-back);
             idVec3 end;
             bool clear = false;
@@ -85,7 +99,10 @@ static bool RW_ClearPortalOccupants(hhPortal *first, hhPortal *second) {
                     clear = !blocked;
                 }
             }
-            if (!clear) return false;
+            if (!clear) {
+                if (cvarSystem->GetCVarBool("developer")) gameLocal.Printf("PORTAL_REPLACEMENT_BLOCK clearance name=%s class=%s back=%f origin=%s\n", entity->GetName(), entity->spawnArgs.GetString("classname"), back, physics->GetOrigin().ToString());
+                return false;
+            }
             occupants.Append(entity); positions.Append(end); normals.Append(normal);
         }
     }
@@ -760,8 +777,7 @@ bool hhPlayer::PlaceGunPortal(int color, const idDict *shot) {
         }
     }
     if (!supported) { gameLocal.Printf("PORTALGUN rejected: no nearby supported opening\n"); return false; }
-    if (portal && (RW_PortalOccupied(portal, GetPhysics()) || RW_PortalOccupied(other, GetPhysics()) ||
-        !RW_ClearPortalOccupants(portal, other))) {
+    if (portal && !RW_ClearPortalOccupants(portal, other)) {
         gameLocal.Printf("PORTALGUN rejected: leave the opening clear before replacing it\n"); return false;
     }
     if (!portal) {
