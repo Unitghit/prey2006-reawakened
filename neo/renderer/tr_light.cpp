@@ -1402,6 +1402,25 @@ void R_AddModelSurfaces( void ) {
 	// go through each entity that is either visible to the view, or to
 	// any light that intersects the view (for shadows)
 	for ( vEntity = tr.viewDef->viewEntitys; vEntity; vEntity = vEntity->next ) {
+        // The exit rim is the back of the opening this subview looks through,
+        // not another portal in the destination scene. Its offset glow layers
+        // can survive the clip plane and overlap the entrance rim as the eye
+        // rotates. Omit only this paired, surface-mounted portal entity in this
+        // subview; retain it in the main view and in unrelated recursive views.
+        const drawSurf_t *entrance = tr.viewDef->subviewSurface;
+        if (tr.viewDef->isSubview && entrance &&
+            entrance->material->GetSubviewClass() == SC_PORTAL &&
+            entrance->material->TestMaterialFlag(MF_POLYGONOFFSET)) {
+            const renderView_t *exit = entrance->space->entityDef->parms.remoteRenderView;
+            const renderEntity_t &candidate = vEntity->entityDef->parms;
+            if (exit && candidate.remoteRenderView &&
+                candidate.origin.Compare(exit->vieworg, 0.01f) &&
+                candidate.axis[0]*exit->viewaxis[0] > 0.9999f) {
+                if (cvarSystem->GetCVarBool("r_portalTrace"))
+                    common->Printf("PORTAL_EXIT_RIM_SKIP entity %d\n", candidate.entityNum);
+                continue;
+            }
+        }
 
 		if ( r_useEntityScissors.GetBool() ) {
 			// calculate the screen area covered by the entity

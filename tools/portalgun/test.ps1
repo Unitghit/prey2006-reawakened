@@ -2,7 +2,7 @@ param(
     [Parameter(Mandatory=$true)][string]$Engine,
     [Parameter(Mandatory=$true)][string]$RetailBase,
     [Parameter(Mandatory=$true)][string]$Profile,
-    [string[]]$Cases = @('input','regression','floor','ceiling','blocked','replacement','access','floor_edge','guidance','guide_lookaway','guide_steering','guide_fast','floor_exit','placement','objects','fixed_fixture','replacement_occupants','through_portals','floor_escape','floor_partial','floor_continuous','floor_approach','floor_edge_slide','floor_corner','floor_clearance','surface_fit','ceiling_entry','floor_slab','wall_step','wall_approach','tapered_shell','cover_static','cover_mover','cover_limit','cover_far','sloped_ceiling','clip_column','oblique','terrain_fit','mesh_ground','rough_surfaces','reverse','static_exit')
+    [string[]]$Cases = @('input','regression','floor','ceiling','blocked','replacement','access','floor_edge','guidance','guide_lookaway','guide_steering','guide_fast','floor_exit','placement','objects','fixed_fixture','exit_rim','replacement_occupants','through_portals','floor_escape','floor_partial','floor_continuous','floor_approach','floor_edge_slide','floor_corner','floor_clearance','surface_fit','ceiling_entry','floor_slab','wall_step','wall_approach','tapered_shell','cover_static','cover_mover','cover_limit','cover_far','sloped_ceiling','clip_column','oblique','terrain_fit','mesh_ground','rough_surfaces','reverse','static_exit')
 )
 $ErrorActionPreference='Stop'
 $Engine=(Resolve-Path -LiteralPath $Engine).Path
@@ -305,6 +305,16 @@ foreach($name in $Cases) {
     if($name -eq 'cover_far') {
         $part=[regex]::Match($log,'(?s)TAPER_EXIT_BEGIN(.*?)TAPER_EXIT_END').Groups[1].Value
         if($part -match 'PORTAL_EXIT ' -or $part -notmatch 'blocked exit|PORTAL_PARTIAL_BLOCK'){throw 'Cover beyond the depth limit was bypassed'}
+    }
+    if($name -eq 'exit_rim') {
+        $blue=[regex]::Match($log,'(?s)RIM_BLUE_BEGIN(.*?)RIM_BLUE_END').Groups[1].Value
+        $orange=[regex]::Match($log,'(?s)RIM_ORANGE_BEGIN(.*?)RIM_ORANGE_END').Groups[1].Value
+        $blueExit=[regex]::Match($blue,'PORTAL_EXIT_RIM_SKIP entity (\d+)').Groups[1].Value
+        $orangeExit=[regex]::Match($orange,'PORTAL_EXIT_RIM_SKIP entity (\d+)').Groups[1].Value
+        if(!$blueExit -or !$orangeExit -or $blueExit -eq $orangeExit){throw 'Exit rim suppression did not track the paired endpoint'}
+        if($blue -notmatch "PORTAL_TRACE entity $orangeExit depth 0 remote 1 gate 1" -or
+           $orange -notmatch "PORTAL_TRACE entity $blueExit depth 0 remote 1 gate 1"){throw 'Entrance portal disappeared from the main view'}
+        if($log -match 'GL_INVALID|program error'){throw 'Exit rim rendering error'}
     }
     if($name -eq 'fixed_fixture') {
         $back=[regex]::Match($log,'(?s)FIXTURE_BACK_BEGIN(.*?)FIXTURE_BACK_END').Groups[1].Value
