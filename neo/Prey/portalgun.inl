@@ -1003,7 +1003,12 @@ void hhPlayer::UpdatePortalGun() {
     const int previous = spawnArgs.GetInt("rw_weapon_portal_buttons");
     spawnArgs.SetInt("rw_weapon_portal_buttons", buttons);
     if (!selected) return;
-    if (!ActiveGui() && !gameLocal.inCinematic && !bFrozen && health > 0) {
+    // UpdateWeapon calls Weapon_GUI after this function. Preserve the real
+    // press/release edges for the screen and Tommy's separate GUI hand.
+    // Still track raw buttons above so leaving a screen while holding fire
+    // cannot turn that same click into an unintended portal shot.
+    if (ActiveGui()) return;
+    if (!gameLocal.inCinematic && !bFrozen && health > 0) {
         if ((buttons & BUTTON_ATTACK) && !(previous & BUTTON_ATTACK)) {
             FireGunPortal(0);
             spawnArgs.SetInt("rw_portal_view_fire", 1);
