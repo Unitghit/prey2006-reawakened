@@ -44,3 +44,12 @@ cuts operate on the updated geometry consistently.
 
 Validated with hidden, muted `lightbug` static and turning captures, plus the
 portal decal-mask and deep-view regression fixtures.
+
+## Fully masked lighting interactions
+
+A portal may remove every triangle of a lit surface. Such a surface has no
+vertex buffer, so its lighting draw must be unlinked from the current view's
+interaction chain. Passing an empty draw to ARB2 still accessed its vertex
+buffer before issuing triangles and could trigger `bad vertCache_t`.
+The `lit_decal_mask` fixture places a small lit quad wholly behind a portal,
+with a second foreground quad retained as a control.

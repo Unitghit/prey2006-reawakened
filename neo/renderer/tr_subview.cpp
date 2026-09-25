@@ -690,6 +690,16 @@ static void R_ClipPortalDecalInteractions(const viewDef_t *view, const drawSurf_
                         break;
                     }
                 }
+                if (!indexes.Num()) {
+                    // A fully masked interaction has no ambient vertex buffer.
+                    // Remove its draw instead of sending an empty surface to the backend.
+                    const drawSurf_t **link = chain == 0 ? &light->localInteractions :
+                        chain == 1 ? &light->globalInteractions : &light->translucentInteractions;
+                    while (*link && *link != interaction) link = &const_cast<drawSurf_t *>(*link)->nextOnLight;
+                    if (*link) *link = interaction->nextOnLight;
+                    if (r_portalTrace.GetBool()) common->Printf("PORTAL_MASK_EMPTY_LIGHT %s\n", surface->material->GetName());
+                    continue;
+                }
                 srfTriangles_t *replacement = (srfTriangles_t *)R_FrameAlloc(sizeof(*replacement));
                 *replacement = *clipped;
                 replacement->ambientSurface = clipped;

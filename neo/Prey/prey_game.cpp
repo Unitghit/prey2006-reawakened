@@ -37,6 +37,8 @@ static idCVar g_presentationTestRight("g_presentationTestRight", "0", CVAR_GAME 
     "isolated com_fpsTrace strafe input", -127, 127);
 static idCVar g_presentationTestForward("g_presentationTestForward", "0", CVAR_GAME | CVAR_INTEGER,
     "isolated single-player movement test; requires com_fpsTrace", -127, 127);
+static idCVar g_presentationTestUp("g_presentationTestUp", "0", CVAR_GAME | CVAR_INTEGER,
+    "isolated single-player jump input; requires com_fpsTrace", -127, 127);
 static idFile *portalPresentationTrace = NULL;
 static idCVar g_presentationCapturePortals("g_presentationCapturePortals", "0", CVAR_GAME | CVAR_BOOL,
     "capture up to 128 near-portal render frames in isolated com_fpsTrace tests");
@@ -286,6 +288,7 @@ void hhGameLocal::MapShutdown( void ) {
     if (portalPresentationTrace) { fileSystem->CloseFile(portalPresentationTrace); portalPresentationTrace = NULL; }
     g_presentationTestRight.SetInteger(0);
     g_presentationTestForward.SetInteger(0);
+    g_presentationTestUp.SetInteger(0);
     g_presentationTestAttack.SetBool(false);
     presentationPortalCaptureCount = 0;
 	if ( presentationTrace ) {
@@ -985,6 +988,8 @@ gameReturn_t hhGameLocal::RunFrame( const usercmd_t *clientCmds, int activeEdito
             usercmds[localClientNum].forwardmove = g_presentationTestForward.GetInteger();
         if (!isMultiplayer && cvarSystem->GetCVarBool("com_fpsTrace") && g_presentationTestRight.GetInteger())
             usercmds[localClientNum].rightmove = g_presentationTestRight.GetInteger();
+        if (!isMultiplayer && cvarSystem->GetCVarBool("com_fpsTrace") && g_presentationTestUp.GetInteger())
+            usercmds[localClientNum].upmove = g_presentationTestUp.GetInteger();
 
 		// free old smoke particles
 		smokeParticles->FreeSmokes();

@@ -1,0 +1,14 @@
+reawakened/portalgun/test_lit_decal_back
+{
+ twoSided
+ noShadows
+ polygonOffset 100
+ diffusemap _white
+}
+reawakened/portalgun/test_lit_decal_front
+{
+ twoSided
+ noShadows
+ polygonOffset 100
+ diffusemap _white
+}

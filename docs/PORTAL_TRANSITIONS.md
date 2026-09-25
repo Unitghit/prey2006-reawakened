@@ -107,3 +107,13 @@ of every portal, gravity arrangement, or multiplayer mode.
 The subsequent [alignment correction](PORTAL_ALIGNMENT.md) removes a separate
 four-unit bias between the rendered portal and the physical destination. The
 current launchers use `validation/portal-alignment-build`.
+
+## Floor exit momentum
+
+`lightbug2` exposed the floor exit helper forcing 103.8 units/sec of outgoing
+normal speed to 226.2. Normal movement (48 units/sec or more along the exit
+normal) now retains its transformed momentum. Near-stalled exits retain bounded
+assistance, limited by the hull clearance actually needed and a swept obstacle
+check. Already-clear hulls need no assistance. Player hull reorientation must
+not count as re-entering a stationary gun portal while velocity points outward.
+The isolated jump test uses developer input gated by single-player/com_fpsTrace.

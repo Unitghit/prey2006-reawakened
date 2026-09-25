@@ -196,14 +196,26 @@ static void RW_AssistFloorExit(idEntity *entity, idEntity *destination, const id
     const idVec3 normal = destination->GetAxis()[0];
     if (gravity < 0.01f || normal * up < 0.95f) return;
     const float acceleration = gravity * (normal * up);
-    const float maxMinimum = idMath::Sqrt(2 * acceleration * 24);
+    // Supply only enough lift to clear the remaining hull, not a fixed jump.
+    // Already-clear exits and existing sufficient momentum need no assistance.
+    float back = idMath::INFINITY;
+    const idBounds &bounds = entity->GetPhysics()->GetBounds();
+    for (int k = 0; k < 8; ++k) {
+        const idVec3 corner(bounds[(k&1)!=0].x, bounds[(k&2)!=0].y, bounds[(k&4)!=0].z);
+        back = Min(back, (origin + corner*axis - destination->GetOrigin())*normal);
+    }
+    const float needed = idMath::ClampFloat(0.0f, 24.0f, 1.0f-back);
+    if (needed <= 0) return;
+    const float maxMinimum = idMath::Sqrt(2 * acceleration * needed);
     const float outgoing = velocity * normal;
-    if (outgoing >= maxMinimum) return;
+    // Keep normal jump/fall momentum intact. Assistance is only for a
+    // near-stalled exit, not a minimum launch speed for every crossing.
+    if (outgoing >= 48.0f || outgoing >= maxMinimum) return;
     trace_t clearance;
     gameLocal.clip.Translation(clearance, origin, origin + normal*26, entity->GetPhysics()->GetClipModel(),
         axis, entity->GetPhysics()->GetClipMask(), entity);
-    const float space = Min(24.0f, (clearance.endpos-origin)*normal - 2);
-    if (space < 4) return;
+    const float space = Min(needed, (clearance.endpos-origin)*normal - 2);
+    if (space <= 0) return;
     const float minimum = idMath::Sqrt(2 * acceleration * space);
     if (outgoing >= minimum) return;
     velocity += normal * (minimum - outgoing);

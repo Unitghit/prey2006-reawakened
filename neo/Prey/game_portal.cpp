@@ -627,6 +627,12 @@ bool hhPortal::AttemptPortal( idPlane &plane, idEntity *hit, idVec3 location, id
     const float eyeOffset = RW_PortalEyeOffset(this, hit);
     const bool sweptEyeCrossing = eyeOffset != 0 &&
         plane.Distance(location) + eyeOffset > 0 && plane.Distance(nextLocation) + eyeOffset <= 0;
+    // Reorienting the player hull after a floor exit can move the tracked
+    // portal point backwards even while the player is travelling outwards.
+    // Gun portals are stationary: this is not a physical return crossing.
+    if (spawnArgs.GetBool("rw_portalGun") && hit->IsType(hhPlayer::Type) && eyeOffset != 0 &&
+        hit->GetPhysics()->GetLinearVelocity()*plane.Normal() > 0.1f) return false;
+
 	if (hit->IsType(hhPlayer::Type)) { //rww - don't portal dead players
 		hhPlayer *pl = static_cast<hhPlayer *>(hit);
 		if (pl->health <= 0) {

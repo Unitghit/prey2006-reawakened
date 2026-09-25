@@ -24,6 +24,8 @@ Copy-Item "$PSScriptRoot/tests/portal_terrain_cap.ase" "$base/models/"
 Copy-Item "$PSScriptRoot/tests/portal_rough_ground.ase" "$base/models/"
 Copy-Item "$PSScriptRoot/tests/portal_decal_test.ase" "$base/models/"
 Copy-Item "$PSScriptRoot/tests/portal_decal_test.mtr" "$base/materials/"
+Copy-Item "$PSScriptRoot/tests/portal_lit_decal_test.ase" "$base/models/"
+Copy-Item "$PSScriptRoot/tests/portal_lit_decal_test.mtr" "$base/materials/"
 foreach($name in $Cases) {
     Copy-Item "$PSScriptRoot/tests/$name.cfg" "$base/test.cfg" -Force
     $arguments='+set fs_basepath "'+$Engine+'" +set fs_cdpath "'+(Split-Path $RetailBase -Parent)+'" +set fs_devpath "'+$Profile+'" +set fs_savepath "'+$Profile+'" +set fs_configpath "'+$Profile+'" +set fs_game "" +set r_fullscreen 0 +set r_fullscreenDesktop 0 +set r_mode -1 +set r_customWidth 960 +set r_customHeight 540 +set r_multiSamples 0 +set s_volume_dB -60 +set com_unlockedFPS 0 +set com_fixedTic 1 +set r_gammaInShader 1 +set developer 1 +set ai_disable 1 +set logfile 2 +exec test.cfg'
@@ -150,7 +152,9 @@ foreach($name in $Cases) {
     if($name -eq 'floor_edge' -and $log -notmatch 'PORTAL_EXIT'){throw 'Floor edge clearance failed'}
     if($name -eq 'guidance' -and ($log -notmatch 'PORTAL_GUIDANCE' -or $log -notmatch 'PORTAL_EXIT')){throw 'Floor guidance failed'}
     if($name -in @('guide_lookaway','guide_steering','guide_fast') -and $log -match 'PORTAL_GUIDANCE'){throw "$name incorrectly applied guidance"}
-    if($name -eq 'floor_exit' -and ($log -notmatch 'PORTAL_FLOOR_EXIT' -or $log -notmatch 'PORTAL_EXIT')){throw 'Low-speed floor exit failed'}
+    if($name -eq 'floor_exit' -and $log -notmatch 'PORTAL_EXIT'){throw 'Floor exit failed'}
+    if($name -eq 'floor_exit' -and $log -match 'PORTAL_FLOOR_EXIT'){throw 'Ordinary walking floor exit gained an artificial launch boost'}
+    if($name -eq 'lit_decal_mask' -and (!(Test-Path "$base/lit_decal_mask.tga") -or $log -match 'bad vertCache|ERROR:' -or $log -notmatch 'PORTAL_MASK_EMPTY_LIGHT')){throw 'Fully masked lit decal regression'}
     if($name -eq 'placement') {
         if(([regex]::Matches($log,'PORTALGUN placed blue')).Count -ne 3 -or $log -match 'PORTALGUN rejected:'){throw 'Bounded placement fitting failed'}
     }
