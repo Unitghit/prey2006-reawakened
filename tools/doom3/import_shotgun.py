@@ -25,6 +25,32 @@ def block(text, name):
     return text[match.start():end].strip()
 
 
+def fix_gui_transitions(files):
+    """Keep GUI transitions short without altering the weapon script/save layout."""
+    for name in list(files):
+        if not re.fullmatch(r'def/doom3_\w+_models.def', name):
+            continue
+        text = files[name].decode()
+        idle = re.search(r'anim\s+aside\s+(\S+)', text)
+        if not idle:
+            continue
+        source = files[idle[1]].decode()
+        # Two identical frames make a finite, stationary transition. Full idle
+        # cycles can last seconds, blocking weaponReady on leaving a GUI.
+        bounds = re.search(r'bounds\s*\{(.*?)\}', source, re.S)
+        first_bound = re.search(r'\([^)]*\)\s*\([^)]*\)', bounds[1])[0]
+        frame = re.search(r'frame\s+0\s*\{(.*?)\}', source, re.S)[1]
+        pose = re.sub(r'numFrames\s+\d+', 'numFrames 2', source)
+        pose = re.sub(r'frameRate\s+\d+', 'frameRate 24', pose)
+        pose = re.sub(r'bounds\s*\{.*?\}', 'bounds {\n'+first_bound+'\n'+first_bound+'\n}', pose, flags=re.S)
+        pose = re.sub(r'frame\s+\d+\s*\{.*?\}', '', pose, flags=re.S)
+        pose += '\nframe 0 {'+frame+'}\nframe 1 {'+frame+'}\n'
+        target = idle[1].rsplit('/', 1)[0]+'/gui_transition.md5anim'
+        files[target] = pose.encode()
+        text = re.sub(r'(anim\s+(?:put_aside|upright)\s+)\S+', lambda m: m[1]+target, text)
+        files[name] = text.encode()
+
+
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('install', type=Path)
@@ -203,6 +229,8 @@ def main():
             from import_supershotgun import import_supershotgun
             import_supershotgun(expansion, xp_read, xp_text, block, files)
 
+
+    fix_gui_transitions(files)
 
     # Validate everything before writing; no path may escape the output folder.
     for name in files:

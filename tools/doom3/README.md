@@ -390,3 +390,9 @@ checksums are preserved. Regenerate the imported assets to apply it.
 
 Validated with the `screenbug` campaign save in a hidden, muted test, plus
 validation of all six weapons' generated animation paths.
+
+GUI entry/exit use generated two-frame stationary poses (about 42 ms), while
+only the held-aside state cycles the original idle. Using the full idle for
+`upright` delayed weapon readiness for several seconds and could block firing
+or switching after leaving a screen. Animation generation retains the original
+skeleton, first-frame pose, and bounds; existing weapon scripts remain unchanged.
