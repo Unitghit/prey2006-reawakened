@@ -400,8 +400,8 @@ skeleton, first-frame pose, and bounds; existing weapon scripts remain unchanged
 ### Magazine HUD
 
 The six imported Doom weapons use the left ammo gauge for the loaded magazine
-(normalized by clip size). The right gauge shows total available ammo, including
-the current magazine. Shared shotguns retain their existing
-reserve-plus-current-clip total. Retail weapons keep their original secondary
+(normalized by clip size). The right gauge shows unloaded reserve ammo only. Shared shotguns exclude
+both loaded clips and show their common 16-shell reserve. Other reserve gauges
+use total capacity minus magazine capacity. Retail weapons keep their original secondary
 ammo display. No GUI window hierarchy, save layout, or ammo accounting changes.
 Validated with an existing shotgun save and hidden, muted firing captures.

@@ -1116,14 +1116,18 @@ void hhPlayer::UpdateHudAmmo(idUserInterface *_hud) {
 			altPct = altAmmo / altWeaponInfo[currentWeapon].ammoMax;
 			ammoLow = ammo > 0 && ammo <= weaponInfo[currentWeapon].ammoLow;
 			altAmmoLow = altAmmo > 0 && altAmmo <= altWeaponInfo[currentWeapon].ammoLow;
-            // Put imported magazines in the left gauge and total ammo in the right.
+            // Put imported magazines in the left gauge and unloaded reserves in the right.
             const char *weaponDef = spawnArgs.GetString(va("def_weapon%d", currentWeapon));
             magazineBar = !idStr::Icmpn(weaponDef, "weaponobj_d3", 12) && weapon->ClipSize() > 0;
             if (magazineBar) {
-                altAmmo = ammo;
-                altPct = idMath::ClampFloat(0.0f, 1.0f, ammoPct);
-                altAmmoLow = ammoLow;
-                ammo = Max(0, weapon->AmmoInClip());
+                const int loaded = Max(0, weapon->AmmoInClip());
+                const bool sharedShells = (currentWeapon == 8 || currentWeapon == 15) && inventory.SharedShotgunAmmo(this);
+                // ShotgunAmmoAvailable already excludes the other shotgun's clip.
+                altAmmo = Max(0.0f, ammo - loaded);
+                const float reserveMax = sharedShells ? 16.0f : float(Max(1, weaponInfo[currentWeapon].ammoMax - weapon->ClipSize()));
+                altPct = idMath::ClampFloat(0.0f, 1.0f, altAmmo / reserveMax);
+                altAmmoLow = altAmmo <= weaponInfo[currentWeapon].ammoLow;
+                ammo = loaded;
                 ammoPct = idMath::ClampFloat(0.0f, 1.0f, ammo / float(weapon->ClipSize()));
                 ammoLow = ammo <= weapon->LowAmmo();
             }
