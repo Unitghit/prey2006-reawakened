@@ -396,3 +396,12 @@ only the held-aside state cycles the original idle. Using the full idle for
 `upright` delayed weapon readiness for several seconds and could block firing
 or switching after leaving a screen. Animation generation retains the original
 skeleton, first-frame pose, and bounds; existing weapon scripts remain unchanged.
+
+### Magazine HUD
+
+The six imported Doom weapons reuse Prey's secondary ammo gauge for the loaded
+magazine (normalized by clip size). The primary gauge retains total available
+ammo, including the current magazine. Shared shotguns retain their existing
+reserve-plus-current-clip total. Retail weapons keep their original secondary
+ammo display. No GUI window hierarchy, save layout, or ammo accounting changes.
+Validated with an existing shotgun save and hidden, muted firing captures.

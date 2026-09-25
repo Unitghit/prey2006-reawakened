@@ -1088,6 +1088,7 @@ void hhPlayer::UpdateHudAmmo(idUserInterface *_hud) {
 
 	// Update the current weapon's ammo status
 	bool bDisallowAmmoBars = false;
+	bool magazineBar = false;
 	ammoPct = 0.0f;
 	altPct = 0.0f;
 	ammoLow = false;
@@ -1115,6 +1116,16 @@ void hhPlayer::UpdateHudAmmo(idUserInterface *_hud) {
 			altPct = altAmmo / altWeaponInfo[currentWeapon].ammoMax;
 			ammoLow = ammo > 0 && ammo <= weaponInfo[currentWeapon].ammoLow;
 			altAmmoLow = altAmmo > 0 && altAmmo <= altWeaponInfo[currentWeapon].ammoLow;
+            // Reuse the retail secondary ammo gauge for imported magazines.
+            // The primary gauge remains total available ammo (including loaded).
+            const char *weaponDef = spawnArgs.GetString(va("def_weapon%d", currentWeapon));
+            magazineBar = !idStr::Icmpn(weaponDef, "weaponobj_d3", 12) && weapon->ClipSize() > 0;
+            if (magazineBar) {
+                altAmmo = Max(0, weapon->AmmoInClip());
+                altPct = idMath::ClampFloat(0.0f, 1.0f, altAmmo / float(weapon->ClipSize()));
+                altAmmoLow = altAmmo <= weapon->LowAmmo();
+            }
+
 		}
 
 		if (ammoType == 1) {
@@ -1128,12 +1139,12 @@ void hhPlayer::UpdateHudAmmo(idUserInterface *_hud) {
 	}
 	else {
 		_hud->SetStateBool( "player_ammobar", ammoType != 0);
-		_hud->SetStateBool( "player_altammobar", altAmmoType != 0 && altAmmoType != ammoType );
+		_hud->SetStateBool( "player_altammobar", magazineBar || (altAmmoType != 0 && altAmmoType != ammoType) );
 
 		_hud->SetStateFloat( "player_ammopercent", splitAmmo ? Min(1.0f, ammoPct) : ammoPct );
 		_hud->SetStateFloat( "player_altammopercent", altPct );
-		_hud->SetStateString( "player_ammoamounttext", ammo<0 ? "" : va("%d", ammo) );
-		_hud->SetStateString( "player_altammoamounttext", altAmmo<0 ? "" : va("%d", altAmmo) );
+		_hud->SetStateString( "player_ammoamounttext", ammo<0 ? "" : va("%d", int(ammo)) );
+		_hud->SetStateString( "player_altammoamounttext", altAmmo<0 ? "" : va("%d", int(altAmmo)) );
 		_hud->SetStateBool( "player_ammolow", ammoLow );
 		_hud->SetStateBool( "player_altammolow", altAmmoLow );
 	}
