@@ -666,6 +666,42 @@ void R_XrayRender( drawSurf_t *surf, textureStage_t *stage, idScreenRect scissor
 // Subtract the portal's projected opening from biased decal geometry. A depth
 // bias may pull a decal in front of the portal in screen space despite the
 // actual decal being on its backing surface. Preserve real foreground pieces.
+// Keep depth/ambient and lighting on identical clipped triangles. Mutate only
+// this view's draw surfaces, never cached interactions shared with other views.
+static void R_ClipPortalDecalInteractions(const viewDef_t *view, const drawSurf_t *surface,
+    const srfTriangles_t *source, srfTriangles_t *clipped, const idList<int> &parents) {
+    for (viewLight_t *light = view->viewLights; light; light = light->next) {
+        const drawSurf_t *chains[] = { light->localInteractions, light->globalInteractions, light->translucentInteractions };
+        for (int chain = 0; chain < 3; ++chain) {
+            for (const drawSurf_t *interaction = chains[chain]; interaction; interaction = interaction->nextOnLight) {
+                const srfTriangles_t *old = interaction->geo;
+                if (interaction->space != surface->space || interaction->material != surface->material ||
+                    !old || old->ambientSurface != source) continue;
+                idHashIndex hash;
+                for (int i = 0; i < old->numIndexes; i += 3)
+                    hash.Add(hash.GenerateKey(old->indexes[i], old->indexes[i+1]), i/3);
+                idList<glIndex_t> indexes;
+                for (int t = 0; t < parents.Num(); ++t) {
+                    const glIndex_t *original = source->indexes + parents[t];
+                    for (int candidate = hash.First(hash.GenerateKey(original[0], original[1])); candidate != -1; candidate = hash.Next(candidate)) {
+                        const glIndex_t *lit = old->indexes + candidate*3;
+                        if (lit[0] != original[0] || lit[1] != original[1] || lit[2] != original[2]) continue;
+                        for (int k = 0; k < 3; ++k) indexes.Append(clipped->indexes[t*3+k]);
+                        break;
+                    }
+                }
+                srfTriangles_t *replacement = (srfTriangles_t *)R_FrameAlloc(sizeof(*replacement));
+                *replacement = *clipped;
+                replacement->ambientSurface = clipped;
+                replacement->numIndexes = indexes.Num();
+                replacement->indexes = (glIndex_t *)R_FrameAlloc(indexes.Num()*sizeof(glIndex_t));
+                if (indexes.Num()) memcpy(replacement->indexes, indexes.Ptr(), indexes.Num()*sizeof(glIndex_t));
+                replacement->indexCache = replacement->lightingCache = NULL;
+                const_cast<drawSurf_t *>(interaction)->geo = replacement;
+            }
+        }
+    }
+}
 static void R_ClipDecalsBehindPortal(const viewDef_t *view, const drawSurf_t *portal) {
     const srfTriangles_t *aperture = portal->geo;
     if (!aperture || !aperture->verts || aperture->numVerts < 3) return;
@@ -713,8 +749,10 @@ static void R_ClipDecalsBehindPortal(const viewDef_t *view, const drawSurf_t *po
             if (source->bounds.PlaneDistance(planes[i]) > 0.001f) { disjoint = true; break; }
         if (disjoint) continue;
         idList<idDrawVert> result;
+        idList<int> parents;
         bool changed = false;
         for (int index = 0; index < source->numIndexes; index += 3) {
+            const int firstResult = result.Num();
             idList<idDrawVert> remaining, fragments;
             for (int k = 0; k < 3; ++k) remaining.Append(source->verts[source->indexes[index+k]]);
             for (int planeIndex = 0; planeIndex < planes.Num() && remaining.Num() >= 3; ++planeIndex) {
@@ -740,6 +778,7 @@ static void R_ClipDecalsBehindPortal(const viewDef_t *view, const drawSurf_t *po
                 changed = true;
                 result.Append(fragments);
             }
+            for (int t = firstResult; t < result.Num(); t += 3) parents.Append(index);
         }
         if (!changed) continue;
         srfTriangles_t *tri = (srfTriangles_t *)R_FrameAlloc(sizeof(*tri));
@@ -753,7 +792,10 @@ static void R_ClipDecalsBehindPortal(const viewDef_t *view, const drawSurf_t *po
         }
         tri->indexCache = NULL;
         tri->ambientCache = result.Num() ? vertexCache.AllocFrameTemp(tri->verts, result.Num()*sizeof(idDrawVert)) : NULL;
-        if (!result.Num() || tri->ambientCache) surf->geo = tri;
+        if (!result.Num() || tri->ambientCache) {
+            R_ClipPortalDecalInteractions(view, surf, source, tri, parents);
+            surf->geo = tri;
+        }
     }
 }
 

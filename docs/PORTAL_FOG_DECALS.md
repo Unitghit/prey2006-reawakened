@@ -27,3 +27,20 @@ Validation:
 
 The user did not have a saved decal example, so campaign decal variants beyond
 these material/geometry paths still need normal playtesting.
+
+## Lit polygon-offset surfaces
+
+`lightbug` exposed dark, view-dependent speckling on the airplane wall beside a
+portal. Aperture subtraction had rebuilt its ambient/depth triangles while its
+light interactions still used the original geometry. The resulting depth-equal
+lighting test disagreed along the newly triangulated surface.
+
+Track the source triangle of each clipped triangle and rebuild matching light
+interaction draws using precisely the same clipped vertices and indices. Keep
+each light's original triangle subset, shader parameters, scissor, and shadow
+chains. All replacements are frame-owned and limited to the current view;
+cached interaction geometry and other views remain unchanged. Subsequent portal
+cuts operate on the updated geometry consistently.
+
+Validated with hidden, muted `lightbug` static and turning captures, plus the
+portal decal-mask and deep-view regression fixtures.
