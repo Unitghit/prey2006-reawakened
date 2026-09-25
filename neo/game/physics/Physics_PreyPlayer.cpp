@@ -686,6 +686,12 @@ hhPhysics_Player::DetermineJumpVelocity
 */
 idVec3 hhPhysics_Player::DetermineJumpVelocity( void ) {
 	idVec3 addVelocity;
+	const int mode = HalfLifeMovement();
+	if (mode && !IsWallWalking()) {
+		// HL1: 45-unit jump. Old HL2: 160 u/s at gravity 600 (~21.33 units).
+		const float height = mode == 3 ? 45.0f : (160.0f * 160.0f / 1200.0f);
+		return -gravityNormal * idMath::Sqrt(2.0f * height * MovementGravity().Length());
+	}
 
 	addVelocity = (IsWallWalking() ? 0.20f : 2.0f) * maxJumpHeight * -gravityVector;
 	addVelocity *= idMath::Sqrt( addVelocity.Normalize() );

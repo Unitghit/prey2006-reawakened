@@ -229,7 +229,7 @@ void Launch(const fs::path& exe, const std::vector<std::wstring>& args) {
 void VerifyConfiguration(const fs::path& output) {
     fs::create_directories(output);
     auto require = [](bool ok) { if (!ok) throw std::runtime_error("Configuration verification failed"); };
-    auto defaults = Defaults(); require(defaults.size()==20 && defaults.at(L"g_portalGun")==L"0" && defaults.at(L"g_bunnyHop")==L"0" && defaults.at(L"com_maxFPS")==L"-1");
+    auto defaults = Defaults(); require(defaults.size()==21 && defaults.at(L"g_portalGun")==L"0" && defaults.at(L"g_bunnyHop")==L"0" && defaults.at(L"g_halfLifeAutoHop")==L"0" && defaults.at(L"com_maxFPS")==L"-1");
     Save(output,defaults); require(Load(output)==defaults);
     Atomic(output/L"default-launcher.bat",Launcher(defaults));
     for (const auto& s : Options()) for (const auto& c : s.choices) {
@@ -237,6 +237,7 @@ void VerifyConfiguration(const fs::path& output) {
         auto pairs = Variables(v); Values vars(pairs.begin(),pairs.end());
         require(vars.at(L"fs_game").empty() && vars.at(L"g_doom3Shotgun")==(v[L"weaponPack"]==L"doom3shotgun"?L"1":L"0"));
         require(vars.at(L"g_portalGun")==v[L"g_portalGun"]);
+        require(vars.at(L"g_bunnyHop")==v[L"g_bunnyHop"] && vars.at(L"g_halfLifeAutoHop")==v[L"g_halfLifeAutoHop"]);
         require(vars.at(L"r_portalMaxDepth")== (v[L"r_portalDeepViews"]==L"0"?L"3":L"6") && vars.at(L"r_correctspecular")==L"1");
         require(vars.at(L"r_fullscreen")== (v[L"r_fullscreen"]==L"0"?L"0":L"1"));
         require(vars.at(L"r_fullscreenDesktop")== (v[L"r_fullscreen"]==L"desktop"?L"1":L"0"));

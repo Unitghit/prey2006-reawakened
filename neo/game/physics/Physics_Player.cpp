@@ -40,7 +40,26 @@ END_CLASS
 int c_pmove = 0;
 
 static idCVar g_bunnyHop( "g_bunnyHop", "0", CVAR_GAME | CVAR_INTEGER | CVAR_ARCHIVE,
-    "Single-player bunny hopping: 0 off, 1 Quake, 2 capped Painkiller-inspired" );
+    "Single-player movement: 0 Prey, 1 Quake, 2 Painkiller, 3 classic HL1, 4 old-engine HL2" );
+static idCVar g_halfLifeAutoHop( "g_halfLifeAutoHop", "0", CVAR_GAME | CVAR_BOOL | CVAR_ARCHIVE,
+    "Hold jump to bunny hop in the optional Half-Life movement modes" );
+static idCVar g_movementTrace( "g_movementTrace", "0", CVAR_GAME | CVAR_BOOL,
+    "Developer-only player movement samples for isolated physics tests" );
+
+int idPhysics_Player::HalfLifeMovement() const {
+    const int mode = g_bunnyHop.GetInteger();
+    if (mode < 3 || mode > 4 || gameLocal.isMultiplayer || current.movementType != PM_NORMAL ||
+        !self || !self->IsType(hhPlayer::Type) || waterLevel != WATERLEVEL_NONE || ladder) return 0;
+    const hhPlayer *player = static_cast<const hhPlayer *>(self);
+    return player->IsSpiritWalking() || player->IsDeathWalking() ? 0 : mode;
+}
+
+idVec3 idPhysics_Player::MovementGravity() const {
+    const int mode = HalfLifeMovement();
+    // Scale acceleration, not the stored zone gravity. Repeated zone/portal
+    // updates must not compound the scale or change another entity's gravity.
+    return mode ? gravityVector * ((mode == 3 ? 800.0f : 600.0f) / DEFAULT_GRAVITY) : gravityVector;
+}
 
 /*
 ============
@@ -64,7 +83,7 @@ float idPhysics_Player::CmdScale( const usercmd_t &cmd ) const {
 
 	// since the crouch key doubles as downward movement, ignore downward movement when we're on the ground
 	// otherwise crouch speed will be lower than specified
-	if ( walking ) {
+	if ( walking || HalfLifeMovement() ) {
 		upmove = 0;
 	} else {
 		upmove = cmd.upmove;
@@ -160,7 +179,7 @@ bool idPhysics_Player::SlideMove( bool gravity, bool stepUp, bool stepDown, bool
 	primal_velocity = current.velocity;
 
 	if ( gravity ) {
-		endVelocity = current.velocity + gravityVector * frametime;
+		endVelocity = current.velocity + MovementGravity() * frametime;
 		current.velocity = ( current.velocity + endVelocity ) * 0.5f;
 
 		assert(!FLOAT_IS_NAN(current.velocity[0])); //HUMANHEAD rww
@@ -471,7 +490,8 @@ void idPhysics_Player::Friction( void ) {
 	vel = current.velocity;
 	if ( walking ) {
 		// ignore slope movement, remove all velocity in gravity direction
-		vel += (vel * gravityNormal) * gravityNormal;
+		if (HalfLifeMovement()) vel -= (vel * gravityNormal) * gravityNormal;
+		else vel += (vel * gravityNormal) * gravityNormal;
 	}
 
 	speed = vel.Length();
@@ -502,7 +522,7 @@ void idPhysics_Player::Friction( void ) {
 			// if getting knocked back, no friction
 			if ( !(current.movementFlags & PMF_TIME_KNOCKBACK) ) {
 				control = speed < PM_STOPSPEED ? PM_STOPSPEED : speed;
-				drop += control * PM_FRICTION * frametime;
+				drop += control * (HalfLifeMovement() ? 4.0f : PM_FRICTION) * frametime;
 			}
 		}
 	}
@@ -672,12 +692,15 @@ void idPhysics_Player::AirMove( void ) {
 				current.velocity = direction * speed + gravityNormal * (current.velocity * gravityNormal);
 			}
 		}
-	} else if ( quakeAirMove ) {
+	} else if ( quakeAirMove || HalfLifeMovement() ) {
 		// Quake 1 caps speed projected onto the wish direction at 30, but
 		// computes acceleration from the uncapped wish speed. Tangential
 		// steering can build total speed; opposing input can brake it.
+		const float upward = -(current.velocity * gravityNormal);
+		// Source's airborne surface-friction reduction near the jump apex.
+		const float airScale = HalfLifeMovement() == 4 && !groundPlane && upward > 0.0f && upward <= 140.0f ? 0.25f : 1.0f;
 		current.velocity += wishdir * PreyQuakeAirAcceleration(
-			wishspeed, current.velocity * wishdir, frametime );
+			wishspeed, current.velocity * wishdir, frametime * airScale );
 	} else {
 		idPhysics_Player::Accelerate( wishdir, wishspeed, PM_AIRACCELERATE );
 	}
@@ -770,7 +793,7 @@ void idPhysics_Player::WalkMove( void ) {
 	idPhysics_Player::Accelerate( wishdir, wishspeed, accelerate );
 
 	if ( ( groundMaterial && groundMaterial->GetSurfaceFlags() & SURF_SLICK ) || current.movementFlags & PMF_TIME_KNOCKBACK ) {
-		current.velocity += gravityVector * frametime;
+		current.velocity += MovementGravity() * frametime;
 	}
 
 	oldVelocity = current.velocity;
@@ -1250,6 +1273,7 @@ bool idPhysics_Player::CheckJump( void ) {
 
 	// must wait for jump to be released
 	if ( (current.movementFlags & PMF_JUMP_HELD) &&
+		!(HalfLifeMovement() && g_halfLifeAutoHop.GetBool()) &&
 		!(g_bunnyHop.GetInteger() == 2 && !gameLocal.isMultiplayer && current.movementType == PM_NORMAL && waterLevel == WATERLEVEL_NONE) ) {
 		return false;
 	}
@@ -1281,6 +1305,19 @@ bool idPhysics_Player::CheckJump( void ) {
 	}
 
 	//HUMANHEAD
+	if (HalfLifeMovement()) {
+		// Jump height is independent of a landing's residual vertical speed.
+		current.velocity -= gravityNormal * (current.velocity * gravityNormal);
+		if (HalfLifeMovement() == 4) {
+			// Old SDK (2006): signed forward input boost, with no modern
+			// overspeed subtraction / accelerated-backhop correction.
+			idVec3 forward = viewForward - gravityNormal * (viewForward * gravityNormal);
+			if (forward.Normalize() > 1e-6f) {
+				const float boost = (command.buttons & BUTTON_RUN) ? 0.1f : 0.5f;
+				current.velocity += forward * (command.forwardmove * CmdScale(command) * boost);
+			}
+		}
+	}
 	current.velocity += DetermineJumpVelocity();
 	// HUMANHEAD END
 
@@ -1503,6 +1540,17 @@ void idPhysics_Player::MovePlayer( int msec ) {
 
 	// set clip model size
 	idPhysics_Player::CheckDuck();
+	if (HalfLifeMovement()) {
+		const int mode = HalfLifeMovement();
+		playerSpeed = mode == 3 ? ((command.buttons & BUTTON_RUN) ? 120.0f : 320.0f) :
+			((command.buttons & BUTTON_RUN) ? 320.0f : 190.0f);
+		if (current.movementFlags & PMF_DUCKED) playerSpeed = (mode == 3 ? 320.0f : 190.0f) / 3.0f;
+		// Keep a finite ballistic limit, independent of the current gravity
+		// orientation. Classic hopping is not capped to ordinary running speed.
+		const float limit = mode == 3 ? 2000.0f : 3500.0f;
+		const float speed = current.velocity.Length();
+		if (speed > limit) current.velocity *= limit / speed;
+	}
 
 	// handle timers
 	idPhysics_Player::DropTimers();
@@ -1541,6 +1589,12 @@ void idPhysics_Player::MovePlayer( int msec ) {
 	// move the player velocity back into the world frame
 	current.velocity += current.pushVelocity;
 	current.pushVelocity.Zero();
+	if (g_movementTrace.GetBool() && developer.GetBool() && !gameLocal.isMultiplayer) {
+		gameLocal.Printf("MOVEMENT %d mode=%d dt=%d ground=%d origin=%s velocity=%s gravity=%s jump=%d\n",
+			gameLocal.time, g_bunnyHop.GetInteger(), msec, walking ? 1 : 0,
+			current.origin.ToString(4), current.velocity.ToString(4), MovementGravity().ToString(4),
+			(current.movementFlags & PMF_JUMPED) ? 1 : 0);
+	}
 }
 
 /*

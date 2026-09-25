@@ -215,6 +215,8 @@ protected:	//HUMANHEAD
 	idVec3		wishdir;	//HUMANHEAD
 
 protected://HUMANHEAD
+	int                     HalfLifeMovement() const;
+	idVec3                  MovementGravity() const;
 	// HUMANHEAD 
 	virtual	idVec3			DetermineJumpVelocity();
 	// HUMANHEAD END
