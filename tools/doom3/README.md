@@ -399,9 +399,9 @@ skeleton, first-frame pose, and bounds; existing weapon scripts remain unchanged
 
 ### Magazine HUD
 
-The six imported Doom weapons reuse Prey's secondary ammo gauge for the loaded
-magazine (normalized by clip size). The primary gauge retains total available
-ammo, including the current magazine. Shared shotguns retain their existing
+The six imported Doom weapons use the left ammo gauge for the loaded magazine
+(normalized by clip size). The right gauge shows total available ammo, including
+the current magazine. Shared shotguns retain their existing
 reserve-plus-current-clip total. Retail weapons keep their original secondary
 ammo display. No GUI window hierarchy, save layout, or ammo accounting changes.
 Validated with an existing shotgun save and hidden, muted firing captures.

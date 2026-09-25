@@ -1116,14 +1116,16 @@ void hhPlayer::UpdateHudAmmo(idUserInterface *_hud) {
 			altPct = altAmmo / altWeaponInfo[currentWeapon].ammoMax;
 			ammoLow = ammo > 0 && ammo <= weaponInfo[currentWeapon].ammoLow;
 			altAmmoLow = altAmmo > 0 && altAmmo <= altWeaponInfo[currentWeapon].ammoLow;
-            // Reuse the retail secondary ammo gauge for imported magazines.
-            // The primary gauge remains total available ammo (including loaded).
+            // Put imported magazines in the left gauge and total ammo in the right.
             const char *weaponDef = spawnArgs.GetString(va("def_weapon%d", currentWeapon));
             magazineBar = !idStr::Icmpn(weaponDef, "weaponobj_d3", 12) && weapon->ClipSize() > 0;
             if (magazineBar) {
-                altAmmo = Max(0, weapon->AmmoInClip());
-                altPct = idMath::ClampFloat(0.0f, 1.0f, altAmmo / float(weapon->ClipSize()));
-                altAmmoLow = altAmmo <= weapon->LowAmmo();
+                altAmmo = ammo;
+                altPct = idMath::ClampFloat(0.0f, 1.0f, ammoPct);
+                altAmmoLow = ammoLow;
+                ammo = Max(0, weapon->AmmoInClip());
+                ammoPct = idMath::ClampFloat(0.0f, 1.0f, ammo / float(weapon->ClipSize()));
+                ammoLow = ammo <= weapon->LowAmmo();
             }
 
 		}
