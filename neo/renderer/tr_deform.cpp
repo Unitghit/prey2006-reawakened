@@ -176,10 +176,10 @@ static int edgeVerts[6][2] = {
 	tri = surf->geo;
 
 	if ( tri->numVerts & 3 ) {
-		common->Error( "R_AutospriteDeform: shader had odd vertex count" );
+		common->Error( "R_TubeDeform: material %s model %s has %d vertices and %d indexes", surf->material->GetName(), surf->space->entityDef->parms.hModel->Name(), tri->numVerts, tri->numIndexes );
 	}
 	if ( tri->numIndexes != ( tri->numVerts >> 2 ) * 6 ) {
-		common->Error( "R_AutospriteDeform: autosprite had odd index count" );
+		common->Error( "R_TubeDeform: material %s has invalid quad index count", surf->material->GetName() );
 	}
 
 	// we need the view direction to project the minor axis of the tube
@@ -215,8 +215,8 @@ static int edgeVerts[6][2] = {
 		for ( j = 0 ; j < 6 ; j++ ) {
 			float	l;
 
-			v1 = &tri->verts[tri->indexes[i+edgeVerts[j][0]]];
-			v2 = &tri->verts[tri->indexes[i+edgeVerts[j][1]]];
+			v1 = &tri->verts[tri->indexes[indexes+edgeVerts[j][0]]];
+			v2 = &tri->verts[tri->indexes[indexes+edgeVerts[j][1]]];
 
 			l = ( v1->xyz - v2->xyz ).Length();
 			if ( l < lengths[0] ) {
@@ -233,8 +233,8 @@ static int edgeVerts[6][2] = {
 		// find the midpoints of the two short edges, which
 		// will give us the major axis in object coordinates
 		for ( j = 0 ; j < 2 ; j++ ) {
-			v1 = &tri->verts[tri->indexes[i+edgeVerts[nums[j]][0]]];
-			v2 = &tri->verts[tri->indexes[i+edgeVerts[nums[j]][1]]];
+			v1 = &tri->verts[tri->indexes[indexes+edgeVerts[nums[j]][0]]];
+			v2 = &tri->verts[tri->indexes[indexes+edgeVerts[nums[j]][1]]];
 
 			mid[j][0] = 0.5 * (v1->xyz[0] + v2->xyz[0]);
 			mid[j][1] = 0.5 * (v1->xyz[1] + v2->xyz[1]);
@@ -247,8 +247,8 @@ static int edgeVerts[6][2] = {
 		// re-project the points
 		for ( j = 0 ; j < 2 ; j++ ) {
 			float	l;
-			int	i1 = tri->indexes[i+edgeVerts[nums[j]][0]];
-			int	i2 = tri->indexes[i+edgeVerts[nums[j]][1]];
+			int	i1 = tri->indexes[indexes+edgeVerts[nums[j]][0]];
+			int	i2 = tri->indexes[indexes+edgeVerts[nums[j]][1]];
 
 			idDrawVert *av1 = &ac[i1];
 			idDrawVert *av2 = &ac[i2];

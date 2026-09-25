@@ -80,6 +80,41 @@ static void PortalBodySurface(idRenderModel *model, const modelSurface_t &source
     }
     model->AddSurface(surface);
 }
+// Camera-facing effects require four vertices and six indexes per quad.
+// Transfer complete quads by their center; polygon clipping destroys the
+// topology consumed by the renderer's sprite/tube deformation routines.
+static int PortalBodyEffectQuads(portalBodyPart_t &part, const modelSurface_t &source,
+    const idPlane *planes, int count) {
+    const srfTriangles_t &mesh = *source.geometry;
+    if ((mesh.numVerts & 3) || mesh.numIndexes != mesh.numVerts / 4 * 6) return 0;
+    idList<int> nearQuads, farQuads;
+    for (int q = 0; q < mesh.numVerts / 4; ++q) {
+        idVec3 center = vec3_origin;
+        for (int k = 0; k < 4; ++k) center += mesh.verts[q*4+k].xyz;
+        center *= 0.25f;
+        bool through = true;
+        for (int i = 0; i < count; ++i) if (planes[i].Distance(center) < 0) { through = false; break; }
+        (through ? farQuads : nearQuads).Append(q);
+    }
+    for (int side = 0; side < 2; ++side) {
+        const idList<int> &quads = side ? farQuads : nearQuads;
+        if (!quads.Num()) continue;
+        idRenderModel *model = side ? part.farModel : part.nearModel;
+        modelSurface_t out; out.id = source.id; out.shader = source.shader;
+        out.geometry = model->AllocSurfaceTriangles(quads.Num()*4, quads.Num()*6);
+        srfTriangles_t &tri = *out.geometry;
+        tri.numVerts = quads.Num()*4; tri.numIndexes = quads.Num()*6; tri.bounds.Clear();
+        for (int q = 0; q < quads.Num(); ++q) {
+            for (int k = 0; k < 4; ++k) {
+                tri.verts[q*4+k] = mesh.verts[quads[q]*4+k];
+                tri.bounds.AddPoint(tri.verts[q*4+k].xyz);
+            }
+            for (int k = 0; k < 6; ++k) tri.indexes[q*6+k] = mesh.indexes[quads[q]*6+k]-quads[q]*4+q*4;
+        }
+        model->AddSurface(out);
+    }
+    return farQuads.Num()*2;
+}
 static int SplitPortalBodyModel(portalBodyPart_t &part, const renderEntity_t &pose, const idPlane *planes, int count, bool depthBias) {
     idRenderModel *model = pose.hModel;
     if (model->IsDynamicModel() != DM_STATIC) {
@@ -100,6 +135,10 @@ static int SplitPortalBodyModel(portalBodyPart_t &part, const renderEntity_t &po
     for (int s = 0; s < model->NumBaseSurfaces(); ++s) {
         const modelSurface_t *surface = model->Surface(s);
         if (!surface || !surface->geometry || !surface->shader) continue;
+        if (surface->shader->Deform() == DFRM_SPRITE || surface->shader->Deform() == DFRM_TUBE) {
+            farTriangles += PortalBodyEffectQuads(part, *surface, local, count);
+            continue;
+        }
         srfTriangles_t mesh = *surface->geometry;
         idList<idDrawVert> eyeVertices; idList<glIndex_t> eyeIndexes;
         if (surface->shader->Deform() == DFRM_EYEBALL) {

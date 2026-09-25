@@ -66,3 +66,16 @@ muted 4x-MSAA forward/reverse crossing captures from multiportal3 retain the
 player silhouette through the transition and report no physics-invariant or
 GL errors. The input, body split/save/reload, deep views, decal mask, continuous
 floor crossing, reverse crossing and through-portal shot fixtures pass.
+
+### Quad-based weapon effects during crossings
+
+Sprite and tube surfaces attached to the player preserve their original four
+vertices and six indices per quad. Each effect quad transfers as a whole when
+its center crosses the aperture, instead of being triangulated like the body.
+This avoids invalid sprite/tube topology for muzzle flashes when firing during
+a portal crossing, including gravity-flip falls. Body and eye clipping is unchanged.
+Tube deformation also advances its index offset by six per quad (not four).
+
+Reproduced the fatal tube-deform error with `gravitybug` while firing the Doom
+machine gun. The same hidden, muted sequence completes after the fix without
+sprite topology warnings or fatal errors.
