@@ -74,10 +74,14 @@ static bool RW_StaticPortalPlane(const idEntity *entity, const idTraceModel *trm
         const idVec3 query = start + trm->bounds.GetCenter()*axis;
         const idVec3 sample = query - world.Normal()*world.Distance(query);
         trace_t probe;
-        collisionModelManager->Translation(&probe, sample + world.Normal()*32,
+        // Start beyond the allowed cover depth so a face at the limit
+        // is hit from outside instead of becoming a start-solid trace.
+        collisionModelManager->Translation(&probe, sample + world.Normal()*33,
             sample - world.Normal()*8, NULL, mat3_identity, CONTENTS_PLAYERCLIP,
             touch->Handle(), touch->GetOrigin(), touch->GetAxis());
-        if (probe.fraction > 0 && probe.fraction < 1 && probe.c.normal*world.Normal() >= 0.7070f) {
+        const float facing = probe.c.normal*world.Normal();
+        const float coverDepth = facing > 0 ? (probe.c.dist-probe.c.normal*sample)/facing : 0;
+        if (probe.fraction > 0 && probe.fraction < 1 && facing >= 0.7070f && coverDepth <= 32.15f) {
             localCover.SetNormal(probe.c.normal*touch->GetAxis().Transpose());
             localCover.SetDist(probe.c.dist-probe.c.normal*touch->GetOrigin());
             hasCover = true;

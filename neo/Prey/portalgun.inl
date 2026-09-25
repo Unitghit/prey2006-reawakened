@@ -502,9 +502,12 @@ bool RW_PortalCoverPlane(const idPlane &wall, const idVec3 &query, idPlane &cove
         // plane for every future entry, exit and restored save.
         const idVec3 sample = query - wall.Normal()*wall.Distance(query);
         trace_t trace;
-        gameLocal.clip.TracePoint(trace, sample + wall.Normal()*32, sample - wall.Normal()*8,
+        // Leave a start margin around a cover at the maximum allowed depth.
+        gameLocal.clip.TracePoint(trace, sample + wall.Normal()*33, sample - wall.Normal()*8,
             CONTENTS_PLAYERCLIP, NULL);
-        if (trace.fraction > 0 && trace.fraction < 1 && trace.c.entityNum == ENTITYNUM_WORLD &&
+        const float facing = trace.c.normal*wall.Normal();
+        const float coverDepth = facing > 0 ? (trace.c.dist-trace.c.normal*sample)/facing : 0;
+        if (trace.fraction > 0 && trace.fraction < 1 && coverDepth <= 32.15f && trace.c.entityNum == ENTITYNUM_WORLD &&
             // Actor-clip covers may bevel away from the visible support wall.
             // Accept up to 30 degrees while retaining the bounded probe and
             // exact detected player-clip plane; real solid obstacles stay solid.
