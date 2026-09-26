@@ -326,10 +326,7 @@ void hhPlayer::SynchronizeDoom3Shotgun() {
 			spawnArgs.SetBool( va("rw_weapon_%s_enabled", name), enabled );
 			if ( enabled && owned ) {
 				inventory.weapons |= bit;
-				if (slot == 16 && !spawnArgs.GetBool("rw_weapon_d3bfg_initial_ammo")) {
-					inventory.ammo[16] = Max(inventory.ammo[16], 4);
-					spawnArgs.SetBool("rw_weapon_d3bfg_initial_ammo", true);
-				}
+
 			} else {
 				inventory.weapons &= ~bit;
 			}
@@ -1159,7 +1156,8 @@ void hhPlayer::UpdateHudAmmo(idUserInterface *_hud) {
                 const int loaded = Max(0, weapon->AmmoInClip());
                 const bool sharedShells = (currentWeapon == 8 || currentWeapon == 15) && inventory.SharedShotgunAmmo(this);
                 // ShotgunAmmoAvailable already excludes the other shotgun's clip.
-                altAmmo = Max(0.0f, ammo - loaded);
+                const float loadedUnits = currentWeapon == 16 ? loaded * inventory.BFGCellCost() : float(loaded);
+                altAmmo = Max(0.0f, ammo - loadedUnits);
                 const float reserveMax = sharedShells ? 16.0f : float(Max(1, weaponInfo[currentWeapon].ammoMax - weapon->ClipSize()));
                 altPct = idMath::ClampFloat(0.0f, 1.0f, altAmmo / reserveMax);
                 altAmmoLow = altAmmo <= weaponInfo[currentWeapon].ammoLow;

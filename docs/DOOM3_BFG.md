@@ -2,7 +2,9 @@
 
 The optional Doom weapon pack adds the BFG as the third (purple) weapon in slot 7. Owning the native Rocket Launcher unlocks it, including when loading an existing save. Press 7 repeatedly or cycle weapons to select it. Hold primary fire to charge, release to fire, and use the normal reload binding. Holding past the full charge and grace period overloads the weapon.
 
-Capacity is 12 cells total, including four loaded. Initial unlock grants four cells once. Each rare cell pickup adds one. Dynamic cabinets and automatic ammo spawners become eligible after BFG ownership; their BFG demand weight is multiplied by 0.08. This is a relative weight, not a fixed eight-percent probability. Full ammunition produces no BFG demand. Authored fixed cabinet contents and rocket pickup amounts stay unchanged.
+The BFG and Plasma Gun share one 150-unit plasma pool, including loaded ammunition. Each BFG charge costs 37.5 units: four ordinary shots or one four-charge shot consume exactly 150. Fractional credit is preserved across saves and level transitions. The BFG holds up to four charge levels; firing either gun reduces the common total and clamps the other's usable magazine to the remaining supply. Magazine indicators are not additional ammo pools.
+
+Supply comes from the existing slot-6 acid/plasma pickups at their existing rates. BFG ownership also enables that supply in dynamic lockers if the Acid Sprayer is not owned. No new rare BFG cells are added to the random pool. Previously saved separate BFG ammunition converts into plasma once, capped at 150; already-spawned legacy cells remain usable. Unlocking the BFG does not refill the shared pool.
 
 ## Combat behavior
 
@@ -14,6 +16,6 @@ Tendrils check line of sight; targets refresh after portal traversal. The projec
 
 Existing fixed save arrays remain 16 entries; the additional ammo and clip values live in a tagged inventory dictionary record. Loading an older save initializes the extra entry safely. Level transitions preserve extra ammo, clip and the one-time grant flag. The feature is single-player only; multiplayer snapshot layouts retain the legacy count. Disabling the pack hides the weapon while retaining its saved ammo.
 
-The muted hidden-desktop fixtures in tools/doom3/tests/bfg-combat.cfg and bfg-edges.cfg cover charged damage, obstruction, overcharge, ammo pickups, cabinet eligibility, portal traversal, save/load and pack toggles. They require the existing isolated portal laboratory input save. Additional campaign screenshots check the model and charging display. The existing progression fixture covers the other Doom weapons.
+The original muted hidden-desktop combat fixtures cover charged damage, obstruction, overcharge, portal traversal, save/load and pack toggles. Their independent-cell balance is superseded by bfg-shared.cfg and bfg-shared-migration.cfg, checked with check_bfg_shared.py. The migration fixture additionally needs the legacy bfg_ready save from the original BFG tests. They require the existing isolated portal laboratory input save. Additional campaign screenshots check the model and charging display. The existing progression fixture covers the other Doom weapons.
 
 Reference: https://github.com/id-Software/DOOM-3/blob/master/neo/game/Projectile.cpp

@@ -371,7 +371,8 @@ void hhWeaponFireController::UseAmmo() {
         if (dict->GetBool("rw_bfgCharge")) {
             const int cells=Min(Max(1,self->spawnArgs.GetInt("rw_bfg_power","1")),Max(0,ammoClip));
             self->spawnArgs.SetInt("rw_bfg_power",cells);
-            owner->UseAmmo(GetAmmoType(),cells); ammoClip-=cells; return;
+            owner->inventory.ConsumeBFGCells(owner.GetEntity(),cells); ammoClip-=cells;
+            owner->inventory.clip[16] = ammoClip; return;
         }
 		owner->UseAmmo( GetAmmoType(), AmmoRequired() );
 		if ( ClipSize() && AmmoRequired() ) {
@@ -396,6 +397,7 @@ void hhWeaponFireController::AddToClip( int amount ) {
 		ammoClip = AmmoAvailable();
 	}
     PublishShotgunClip();
+    if (dict->GetBool("rw_bfgCharge") && owner.IsValid() && self->IsPrimaryFireController(this)) owner->inventory.clip[16] = Max(0, ammoClip);
 }
 
 /*
@@ -487,6 +489,9 @@ void hhWeaponFireController::Restore( idRestoreGame *savefile ) {
         const idDict *addon = gameLocal.FindEntityDefDict("weaponobj_d3supershotgun", false);
         if (addon && addon->GetBool("rw_sharedShotgunAmmo")) { ammoType = idWeapon::GetAmmoNumForName("ammo_d3shells"); }
     }
+    if (!gameLocal.isMultiplayer && dict && dict->GetBool("rw_bfgCharge")) {
+        ammoType = idWeapon::GetAmmoNumForName("ammo_d3cells");
+    }
 	savefile->ReadInt( clipSize );
 	savefile->ReadInt( ammoClip );
 	savefile->ReadInt( lowAmmo );
@@ -510,6 +515,7 @@ hhWeaponFireController::AmmoAvailable
 ================
 */
 int hhWeaponFireController::AmmoAvailable() const {
+    if (owner.IsValid() && dict && dict->GetBool("rw_bfgCharge")) return owner->inventory.BFGChargesAvailable(owner.GetEntity());
     const int slot = SharedShotgunSlot();
     if (slot >= 0) { return owner->inventory.ShotgunAmmoAvailable(slot); }
 	if ( owner.IsValid() ) {

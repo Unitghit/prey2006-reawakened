@@ -17,6 +17,9 @@ public:
 	bool GiveAcidGroupAmmo(hhPlayer *owner, int amount);
 	bool GiveRocketGroupAmmo(hhPlayer *owner, int amount);
 	bool SynchronizeWeaponAmmo(hhPlayer *owner);
+	float BFGCellCost() const;
+    int BFGChargesAvailable(const hhPlayer *owner) const;
+    void ConsumeBFGCells(hhPlayer *owner, int charges);
 	bool SharedShotgunAmmo(const idPlayer *owner) const;
 	int ShotgunAmmoAvailable(int slot) const;
 	bool GiveRifleGroupAmmo(hhPlayer *owner, int amount);

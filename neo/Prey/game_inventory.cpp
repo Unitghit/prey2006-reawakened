@@ -249,6 +249,19 @@ bool hhInventory::UsesIndependentWeaponAmmo(const idPlayer *owner) const {
 	const idDict *addon = gameLocal.FindEntityDefDict("weaponobj_d3shotgun", false);
 	return addon && addon->GetBool("rw_saveCompatible") && addon->GetBool("rw_splitAmmo");
 }
+float hhInventory::BFGCellCost() const {
+    const idDict *fire = gameLocal.FindEntityDefDict("fireinfo_d3bfg", false);
+    return fire ? Max(1.0f, fire->GetFloat("rw_bfgCellCost", "37.5")) : 37.5f;
+}
+int hhInventory::BFGChargesAvailable(const hhPlayer *owner) const {
+    if (ammo[13] < 0) return -1;
+    return int((ammo[13] + WeaponAmmoFraction(owner, 13) + 1e-6) / BFGCellCost());
+}
+void hhInventory::ConsumeBFGCells(hhPlayer *owner, int charges) {
+    if (ammo[13] < 0) return;
+    StoreWeaponAmmo(owner, 13, Max(0.0, ammo[13] + WeaponAmmoFraction(owner, 13) - charges * double(BFGCellCost())));
+    ammoPredictTime = gameLocal.time;
+}
 bool hhInventory::SplitRifleAmmo(const idPlayer *owner) const {
 	return UsesIndependentWeaponAmmo(owner) && cvarSystem->GetCVarBool("g_doom3Shotgun") &&
 		owner->spawnArgs.GetBool("rw_weapon_ammo_initialized") &&
@@ -264,12 +277,13 @@ bool hhInventory::SplitAutocannonAmmo(const idPlayer *owner) const {
 // pretend the player owns the AutoCannon just to supply its Doom partner.
 bool hhInventory::AmmoSupplyAvailable(const idPlayer *owner, int weaponIndex, const char *ammoClass) const {
 	if (weaponIndex > 0 && weaponIndex < MAX_WEAPONS && (weapons & (1 << weaponIndex))) { return true; }
+	if (ammoClass && !idStr::Icmp(ammoClass, "ammo_acid") && (weapons & (1 << 16)) && SplitAcidAmmo(owner)) return true;
 	return ammoClass && !idStr::Icmp(ammoClass, "ammo_autocannon") &&
 		(weapons & (1 << 11)) && SplitAutocannonAmmo(owner);
 }
 bool hhInventory::SplitAcidAmmo(const idPlayer *owner) const {
 	if (!UsesIndependentWeaponAmmo(owner) || !cvarSystem->GetCVarBool("g_doom3Shotgun") ||
-		!owner->spawnArgs.GetBool("rw_weapon_d3plasmagun_owned")) { return false; }
+		(!owner->spawnArgs.GetBool("rw_weapon_d3plasmagun_owned") && !owner->spawnArgs.GetBool("rw_weapon_d3bfg_owned"))) { return false; }
 	const idDict *addon = gameLocal.FindEntityDefDict("weaponobj_d3plasmagun", false);
 	return addon && addon->GetBool("rw_saveCompatible");
 }
@@ -294,6 +308,20 @@ bool hhInventory::SplitRocketAmmo(const idPlayer *owner) const {
 bool hhInventory::SynchronizeWeaponAmmo(hhPlayer *owner) {
 	if (!UsesIndependentWeaponAmmo(owner)) { return false; }
 	bool changed = false;
+    const idDict *bfg = gameLocal.FindEntityDefDict("fireinfo_d3bfg", false);
+    if (bfg && !idStr::Icmp(bfg->GetString("ammoType"), "ammo_d3cells")) {
+        // Merge the old independent cells once. Keep the legacy save entry for compatibility.
+        if (!owner->spawnArgs.GetBool("rw_weapon_bfg_shared_plasma") || ammo[16] != 0) {
+            if (ammo[16] < 0) ammo[13] = -1;
+            else if (ammo[13] >= 0) StoreWeaponAmmo(owner, 13, Min(150.0, ammo[13] + WeaponAmmoFraction(owner, 13) + ammo[16] * double(BFGCellCost())));
+            StoreWeaponAmmo(owner, 16, 0);
+            owner->spawnArgs.SetBool("rw_weapon_bfg_shared_plasma", true);
+            changed = true;
+        }
+        const int charges = BFGChargesAvailable(owner);
+        if (charges >= 0 && clip[16] > charges) { clip[16] = charges; changed = true; }
+        if (ammo[13] >= 0 && clip[13] > ammo[13]) { clip[13] = ammo[13]; changed = true; }
+    }
 	if (cvarSystem->GetCVarBool("g_doom3Shotgun") && owner->spawnArgs.GetBool("rw_weapon_d3shotgun_owned") &&
 		!owner->spawnArgs.GetBool("rw_weapon_ammo_initialized")) {
 		const int rifle = AmmoIndexForAmmoClass("ammo_rifle");
@@ -817,6 +845,7 @@ float hhInventory::AmmoPercentage(idPlayer *player, ammo_t type) {
 		const float autoMax = Max(1, MaxAmmoForAmmoClass(player, "ammo_acid"));
 		const float autoPct = ammo[type] < 0 ? 1.0f : idMath::ClampFloat(0, 1, ammo[type] / autoMax);
 		const float beltPct = ammo[13] < 0 ? 1.0f : idMath::ClampFloat(0, 1, ammo[13] / 150.0f);
+        if (!(weapons & (1 << 6))) return beltPct;
 		if (AcidGroupAmmoCount(player) == 3) {
             const float shellPct = ammo[15] < 0 ? 1.0f : idMath::ClampFloat(0, 1, ammo[15] / 16.0f);
             return (autoPct + beltPct + shellPct) / 3.0f;

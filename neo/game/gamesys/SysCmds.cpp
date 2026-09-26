@@ -2547,12 +2547,12 @@ so it can perform tab completion
 static void Cmd_BFGInfo_f(const idCmdArgs &args) {
     hhPlayer *p=static_cast<hhPlayer *>(gameLocal.GetLocalPlayer());
     if(!p || gameLocal.isMultiplayer) return;
-    if(cvarSystem->GetCVarBool("developer") && args.Argc()==3 && !idStr::Icmp(args.Argv(1),"seed")) p->inventory.ammo[16]=idMath::ClampInt(0,12,atoi(args.Argv(2)));
+    if(cvarSystem->GetCVarBool("developer") && args.Argc()==3 && !idStr::Icmp(args.Argv(1),"seed")) { p->inventory.ammo[13]=idMath::ClampInt(0,150,atoi(args.Argv(2))); p->spawnArgs.Set("rw_weapon_ammo_fraction_13", "0"); }
     if(args.Argc()==3 && !idStr::Icmp(args.Argv(1),"target")) {
         idEntity *ent=gameLocal.FindEntity(args.Argv(2));
         if(ent) gameLocal.Printf("BFGTARGET name=%s health=%d\n",ent->GetName(),ent->health);
     }
-    gameLocal.Printf("BFGSTATE held=%d ammo=%d clip=%d health=%d\n",(p->inventory.weapons&(1<<16))!=0,p->inventory.ammo[16],p->inventory.clip[16],p->health);
+    gameLocal.Printf("BFGSTATE held=%d ammo=%d clip=%d health=%d\n",(p->inventory.weapons&(1<<16))!=0,p->inventory.ammo[13],p->inventory.clip[16],p->health);
 }
 
 static void Cmd_WeaponPackInfo_f( const idCmdArgs &args ) {

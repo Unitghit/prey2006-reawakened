@@ -8,7 +8,7 @@ With the Doom weapon pack enabled, campaign ownership determines unlocks on pick
 | Leech Gun | Chaingun | 5 | AutoCannon bullets |
 | AutoCannon | Super Shotgun | 2, third variant (purple) | Shared shotgun shells |
 | Acid Sprayer | Plasma Gun | 6 | Acid pickups |
-| Rocket Launcher | Doom Rocket Launcher; BFG 9000 | 7, second and third variants | Rockets; separate rare BFG cells |
+| Rocket Launcher | Doom Rocket Launcher; BFG 9000 | 7, second and third variants | Rockets; BFG shares the Plasma Gun pool |
 
 Slot 2 cycles Rifle, Shotgun, Super Shotgun. Shared shells remain 16 in reserve plus loaded shells (8 and 2). Pickup rates and capacities are unchanged.
 
