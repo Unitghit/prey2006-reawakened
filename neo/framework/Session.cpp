@@ -45,6 +45,8 @@ idCVar	idSessionLocal::com_fixedTic( "com_fixedTic", "0", CVAR_SYSTEM | CVAR_INT
 idCVar	idSessionLocal::com_showDemo( "com_showDemo", "0", CVAR_SYSTEM | CVAR_BOOL, "" );
 idCVar	idSessionLocal::com_skipGameDraw( "com_skipGameDraw", "0", CVAR_SYSTEM | CVAR_BOOL, "" );
 idCVar	idSessionLocal::com_wipeSeconds( "com_wipeSeconds", "1", CVAR_SYSTEM, "" );
+static idCVar com_loadFadeSeconds( "com_loadFadeSeconds", "0.25", CVAR_SYSTEM | CVAR_FLOAT,
+	"length of the fade-out before a map loads (original: com_wipeSeconds, 1)", 0, 5 );
 static idCVar com_loadingScreenMinMsec( "com_loadingScreenMinMsec", "0", CVAR_SYSTEM | CVAR_INTEGER,
 	"minimum milliseconds the loading screen animates before a map starts loading (original 1000)", 0, 5000 );
 idCVar	idSessionLocal::com_guid( "com_guid", "", CVAR_SYSTEM | CVAR_ARCHIVE | CVAR_ROM, "" );
@@ -1500,6 +1502,9 @@ void idSessionLocal::ExecuteMapChange( bool noFadeWipe ) {
 	if ( !noFadeWipe ) {
 		// capture the current screen and start a wipe
 		StartWipe( "wipeMaterial", true );
+		// The loader waits for this fade-out, so it has its own shorter length;
+		// the fade-in after loading keeps com_wipeSeconds.
+		wipeStopTic = wipeStartTic + 1000.0f / USERCMD_MSEC * com_loadFadeSeconds.GetFloat();
 
 		// immediately complete the wipe to fade out the level transition
 		// run the wipe to completion

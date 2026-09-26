@@ -43,6 +43,10 @@ static idCVar image_threadedDecode( "image_threadedDecode", "1", CVAR_RENDERER |
 	"read and decode plain .tga textures on worker threads during level load" );
 void R_TextureCacheReport();	// Image_load.cpp
 
+static idCVar image_decodeThreads( "image_decodeThreads", "0", CVAR_RENDERER | CVAR_ARCHIVE | CVAR_INTEGER,
+	"texture worker threads during level load; 0 = automatic", 0, 64 );
+static const int DETACHED_AUTO_THREADS = 8;	// cap for automatic mode
+
 static idCVar image_verifyThreadedDecode( "image_verifyThreadedDecode", "0", CVAR_RENDERER | CVAR_BOOL,
 	"also decode threaded textures the original way and report any difference" );
 
@@ -2125,14 +2129,17 @@ public:
 	// workers also build each image's complete upload.
 	bool					buildUploads = false;
 	imageBuildSettings_t	uploadSettings;
+	int						threadLimit = 0;	// image_decodeThreads, read on the main thread
 
 	~detachedDecoder_t() { Stop(); }
 
 	void Start() {
+		// Leave one hardware thread for the main thread's uploads.
 		unsigned int count = std::thread::hardware_concurrency();
 		count = count > 1 ? count - 1 : 1;
-		if ( count > 8 ) {
-			count = 8;
+		const unsigned int limit = threadLimit > 0 ? threadLimit : DETACHED_AUTO_THREADS;
+		if ( count > limit ) {
+			count = limit;
 		}
 		for ( unsigned int i = 0; i < count && i < jobs.size(); i++ ) {
 			try {
@@ -2357,6 +2364,7 @@ void idImageManager::EndLevelLoad() {
 		// Debug TGA dumps happen inside GenerateImage, so keep that path for them.
 		decoder.buildUploads = glConfig.isInitialized && !image_writeTGA.GetBool() && !image_writeNormalTGA.GetBool();
 		decoder.uploadSettings = imageBuildSettings_t::Current();
+		decoder.threadLimit = image_decodeThreads.GetInteger();
 		decoder.Start();
 	}
 	int threadedCount = 0, verifyMismatch = 0, preparedCount = 0, uploadMismatch = 0;
