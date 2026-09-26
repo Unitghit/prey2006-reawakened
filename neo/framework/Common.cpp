@@ -2952,6 +2952,15 @@ static bool checkForHelp(int argc, char **argv)
 idCommonLocal::Init
 =================
 */
+// Startup stage timings, printed as one STARTUP_TIMINGS line by Init.
+static idStr startupTimings;
+static int startupStageStart;
+static void StartupStage( const char *name ) {
+	const int now = Sys_Milliseconds();
+	startupTimings += va( " %s=%d", name, now - startupStageStart );
+	startupStageStart = now;
+}
+
 void idCommonLocal::Init( int argc, char **argv ) {
 
 	// in case UINTPTR_MAX isn't defined (or wrong), do a runtime check at startup
@@ -3094,6 +3103,7 @@ void idCommonLocal::Init( int argc, char **argv ) {
 #endif
 
 		// game specific initialization
+		const int initGameStart = Sys_Milliseconds();
 		InitGame();
 
 		// don't add startup commands if no CD key is present
@@ -3105,6 +3115,8 @@ void idCommonLocal::Init( int argc, char **argv ) {
 			// if the user didn't give any commands, run default action
 			session->StartMenu( true );
 		}
+		StartupStage( "menu_or_commands" );
+		Printf( "STARTUP_TIMINGS total=%d%s\n", Sys_Milliseconds() - initGameStart, startupTimings.c_str() );
 
 		// print all warnings queued during initialization
 		PrintWarnings();
@@ -3194,11 +3206,15 @@ idCommonLocal::InitGame
 =================
 */
 void idCommonLocal::InitGame( void ) {
+	startupStageStart = Sys_Milliseconds();
+
 	// initialize the file system
 	fileSystem->Init();
+	StartupStage( "filesystem" );
 
 	// initialize the declaration manager
 	declManager->Init();
+	StartupStage( "decls" );
 
 	// force r_fullscreen 0 if running a tool
 	CheckToolMode();
@@ -3252,6 +3268,7 @@ void idCommonLocal::InitGame( void ) {
 
 	// re-override anything from the config files with command line args
 	StartupVariable( NULL, false );
+	StartupStage( "config_console" );
 
 	// if any archived cvars are modified after this, we will trigger a writing of the config file
 	cvarSystem->ClearModifiedFlags( CVAR_ARCHIVE );
@@ -3271,13 +3288,17 @@ void idCommonLocal::InitGame( void ) {
 
 	DrawSplashScreen();
 
+	StartupStage( "input" );
+
 	// start the sound system, but don't do any hardware operations yet
 	soundSystem->Init();
 
 	DrawSplashScreen();
+	StartupStage( "sound" );
 
 	// init async network
 	idAsyncNetwork::Init();
+	StartupStage( "network" );
 
 #ifdef	ID_DEDICATED
 	idAsyncNetwork::server.InitPort();
@@ -3292,6 +3313,7 @@ void idCommonLocal::InitGame( void ) {
 		InitRenderSystem();
 	}
 #endif
+	StartupStage( "opengl" );
 
 	DrawSplashScreen();
 
@@ -3299,9 +3321,11 @@ void idCommonLocal::InitGame( void ) {
 	uiManager->Init();
 
 	DrawSplashScreen();
+	StartupStage( "ui" );
 
 	// load the game dll
 	LoadGameDLL();
+	StartupStage( "game_dll" );
 
 	// startup the script debugger
 	if ( com_enableDebuggerServer.GetBool( ) )
@@ -3311,6 +3335,7 @@ void idCommonLocal::InitGame( void ) {
 
 	// init the session
 	session->Init();
+	StartupStage( "session" );
 
 	// have to do this twice.. first one sets the correct r_mode for the renderer init
 	// this time around the backend is all setup correct.. a bit fugly but do not want
