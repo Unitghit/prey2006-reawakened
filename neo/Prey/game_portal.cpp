@@ -1176,8 +1176,13 @@ bool hhPortal::PortalEntity( idEntity *ent, const idVec3 &point, const idVec3 *c
                 const float stepLimit = Min(pm_stepsize.GetFloat(), pm_bboxwidth.GetFloat()*0.5f);
                 const bool actorClip = (occupied.c.contents & CONTENTS_PLAYERCLIP) && !(occupied.c.contents & CONTENTS_SOLID);
                 const float limit = actorClip ? pm_bboxwidth.GetFloat() : stepLimit;
-                for (float distance = 2; distance <= limit && !cleared; distance += 2) {
+                // A lower floor-aligned destination can need more than a normal
+                // step to fit the standing hull. Extra travel is upward only and
+                // must end on a verified walkable floor, with clear source travel.
+                const float floorLimit = Max(stepLimit, Min(32.0f, pm_normalheight.GetFloat()*0.5f));
+                for (float distance = 2; distance <= Max(limit, floorLimit) && !cleared; distance += 2) {
                     for (int sample = 0; sample < 16 && !cleared; ++sample) {
+                        if (distance > limit && sample != 0) continue;
                         const float angle = sample*(idMath::TWO_PI/16.0f);
                         const idVec3 offset = (destAxis[2]*idMath::Cos(angle) + destAxis[1]*idMath::Sin(angle))*distance;
                         const idVec3 candidate = newLocation+offset;
@@ -1196,13 +1201,13 @@ bool hhPortal::PortalEntity( idEntity *ent, const idVec3 &point, const idVec3 *c
                         // supporting face qualifies; ceilings and walls do not.
                         const bool floorStep = sample == 0 && offset*exitUp > distance*0.95f &&
                             test.fraction > 0.0f && test.fraction < 1.0f &&
-                            test.c.normal*exitUp > 0.7f && unresolved <= stepLimit;
+                            test.c.normal*exitUp > 0.7f && unresolved <= floorLimit;
                         // Some maps use tall invisible collision columns near
                         // ceiling trim. Allow a bounded offset within the opening,
                         // without exempting those columns from normal collision.
                         const bool clipClearance = actorClip && (test.c.contents & CONTENTS_PLAYERCLIP) &&
                             !(test.c.contents & CONTENTS_SOLID) && unresolved <= limit;
-                        if (test.fraction <= 0.0f || (unresolved > 2.0f && !floorStep && !clipClearance)) continue;
+                        if (test.fraction <= 0.0f || (distance > limit && !floorStep) || (unresolved > 2.0f && !floorStep && !clipClearance)) continue;
                         idVec3 sourceOffset = offset;
                         PortalRotate(sourceOffset, destAxis.Transpose(), GetAxis(), true);
                         const idVec3 sourceCandidate = point+sourceOffset;

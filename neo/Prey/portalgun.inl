@@ -8,6 +8,7 @@ static const float RW_PORTAL_SURFACE_OFFSET = 1.0f;
 // different. Shrinking traversal to the artwork restores shoulder/foot snags.
 static const float RW_PORTAL_BACKING_HALF_WIDTH = 39.0f;
 static const float RW_PORTAL_BACKING_HALF_HEIGHT = 49.0f;
+static const float RW_PORTAL_WINDOW_RIM_SCALE = 1.0f / idMath::Cos(idMath::PI / 8.0f);
 static const float RW_PORTAL_TRAVERSAL_HALF_WIDTH = 47.0f;
 static const float RW_PORTAL_TRAVERSAL_HALF_HEIGHT = 71.0f;
 static const float RW_PORTAL_PLAYER_CORNER_ALLOWANCE = 8.0f;
@@ -353,7 +354,9 @@ static bool RW_GroundPortalPartialBlocked(hhPortal *portal, idEntity *entity, co
         const float penetration = trace.c.dist - minimum;
         const bool floorContact = trace.c.normal*destinationUp > 0.99f;
         const float stepClearance = Min(pm_stepsize.GetFloat(), pm_bboxwidth.GetFloat()*0.5f);
-        const float maxClearance = floorContact ? Max(2.0f, stepClearance) : 2.0f;
+        // Match the bounded walkable-floor correction used when ownership
+        // changes, including low wall exits during partial floor entry.
+        const float maxClearance = floorContact ? Max(stepClearance, Min(32.0f, pm_normalheight.GetFloat()*0.5f)) : 2.0f;
         idVec3 direction = trace.c.normal;
         PortalRotate(direction, destination.Transpose(), portal->GetAxis(), true);
         if (penetration >= 0 && penetration <= maxClearance &&
@@ -583,7 +586,7 @@ static bool RW_PortalPlacementSurface(const trace_t &hit) {
 }
 // Check the full aperture volume, including solid obstacles between sample rays.
 static bool RW_PortalWindowClear(const idVec3 &center, const idMat3 &axis, const idEntity *ignore, float skin = 0.25f) {
-    const float rimScale = 1.0f / idMath::Cos(idMath::PI / 8.0f);
+    const float rimScale = RW_PORTAL_WINDOW_RIM_SCALE;
     idTraceModel window;
     window.SetupCylinder(idBounds(idVec3(-RW_PORTAL_BACKING_HALF_WIDTH*rimScale, -RW_PORTAL_BACKING_HALF_HEIGHT*rimScale, skin),
         idVec3(RW_PORTAL_BACKING_HALF_WIDTH*rimScale, RW_PORTAL_BACKING_HALF_HEIGHT*rimScale, 4.0f)), 8);
@@ -706,10 +709,20 @@ static bool RW_PortalFloorCenter(idVec3 &center, const idMat3 &axis, const idVec
     // The floor trace stops a clip epsilon above the actual plane. Use the
     // plane itself so two endpoints over the same floor align exactly.
     const float planeHeight = (center * floor.c.normal - floor.c.dist) / (axis[2] * floor.c.normal);
-    const idVec3 candidate = center + axis[2] * (71.0f - planeHeight);
-    if (!RW_PortalSurfaceSupports(candidate, axis, ignore)) return false;
-    center = candidate;
-    return true;
+    // The conservative eight-sided clearance prism extends past the artwork.
+    // Skip heights that necessarily put that prism in the floor, avoiding
+    // repeated full-window support traces for impossible candidates.
+    const float floorHeight = idMath::Ceil(RW_PORTAL_BACKING_HALF_HEIGHT * RW_PORTAL_WINDOW_RIM_SCALE + 0.25f);
+    const idVec3 candidate = center + axis[2] * (floorHeight - planeHeight);
+    // Find the lowest supported rim above small floor trim rather than falling
+    // back immediately to the placement search's eight-unit vertical grid.
+    for (int lift = 0; floorHeight + lift <= RW_PORTAL_BACKING_HALF_HEIGHT + 9.0f; ++lift) {
+        idVec3 fitted = candidate + axis[2]*float(lift);
+        if (!RW_PortalSurfaceSupports(fitted, axis, ignore)) continue;
+        center = fitted;
+        return true;
+    }
+    return false;
 }
 static void RW_UpdateGunPortalFloor(hhPortal *portal) {
     const float previousOffset = portal->spawnArgs.GetFloat("rw_portal_surface_offset");
@@ -908,6 +921,10 @@ static hhPortal *RW_FindShotPortal(const idVec3 &start, const idVec3 &end, float
     for (idEntity *entity = gameLocal.spawnedEntities.Next(); entity; entity = entity->spawnNode.Next()) {
         if (!entity->IsType(hhPortal::Type)) continue;
         hhPortal *portal = static_cast<hhPortal *>(entity);
+        // Gun portals expose their local backing to new shots. This permits
+        // replacing/reorienting the same color without shooting into the exit
+        // room; native campaign portals still carry the projectile and aim.
+        if (portal->spawnArgs.GetBool("rw_portalGun")) continue;
         float f; idVec3 position; idMat3 transform;
         if (portal->TracePortalShot(start, end, f, position, transform) && (!nearest || f < fraction)) {
             nearest = portal; fraction = f; remote = position; rotation = transform;

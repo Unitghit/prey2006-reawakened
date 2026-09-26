@@ -1,9 +1,8 @@
 # Portal-gun shots through linked portals
 
-Portal shots now follow open, teleport-enabled scripted portals and player-made
-portals. A front-facing plane/aperture test chooses the nearest crossing before
-a solid obstacle. Player portals use their visible oval; scripted portals use
-their native portal bounds. Closed and visual-only portals are not traversed.
+Portal shots follow open, teleport-enabled campaign/scripted portals. A front-facing plane/aperture test chooses the nearest crossing before a solid obstacle, using native portal bounds. Closed and visual-only portals are not traversed.
+
+Player-made portals are excluded from shot traversal. Shots target their local backing surface instead: the same color can replace and reorient its own opening; an opposite-color overlapping placement is rejected. The aim preview uses this same rule.
 
 The eye ray targets the first opening so the muzzle offset does not shift the
 aim beyond it. At crossing, the shot uses the native portal transform for its
@@ -19,7 +18,7 @@ portal transforms are checked as the shot travels; moving/replaced/closed portal
 are not blindly followed using an old stored link.
 
 Validation in hidden, muted test profiles:
-- Shooting through an existing player portal places beyond its linked exit.
+- Shooting into an existing player portal replaces the same color locally, with no portal hop. Opposite-color overlap is rejected.
 - Scripted portal traversal, followed by a save/reload after crossing.
 - Two scripted portals in one shot, including orange fire.
 - Shots outside the player portal oval stay in the original room.
@@ -27,7 +26,4 @@ Validation in hidden, muted test profiles:
 - Existing flight/opening saves, aim retention, superseded shots, obstructions,
   replacement, movable-occupant clearance, and blocked-exit checks.
 
-The older aim-retention test fires directly into an existing orange portal. Its
-expected result is now the wall beyond the linked blue exit, not the entrance
-wall. The test still checks that looking away cannot retarget the flying shot.
-No new launcher setting or save format is needed.
+The aim-retention test fires directly into an existing orange portal and expects replacement on its local wall, even after looking away. No new launcher setting or save format is needed.

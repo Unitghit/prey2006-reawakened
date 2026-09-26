@@ -76,10 +76,13 @@ foreach($name in $Cases) {
         foreach($phase in @('PLAYER','SCRIPT','RELOAD','CHAIN')) {
             $part=[regex]::Match($log,"(?s)THROUGH_${phase}_BEGIN(.*?)THROUGH_${phase}_END").Groups[1].Value
             if($part -notmatch 'impact (blue|orange) success=1' -or $part -match 'rejected:'){throw "Portal shot $phase failed"}
-            if($phase -eq 'PLAYER' -and $part -notmatch 'portal=rw_gun_blue'){throw 'Player portal was not traversed'}
+            if($phase -eq 'PLAYER' -and $part -match 'PORTALGUN_SHOT portal='){throw 'Shot incorrectly traversed a gun portal'}
+            if($phase -eq 'PLAYER' -and $part -notmatch 'placed blue at 511 0 54'){throw 'Same-color replacement did not remain on its local wall'}
             if($phase -eq 'SCRIPT' -and $part -notmatch 'portal=script_in'){throw 'Scripted portal was not traversed'}
             if($phase -eq 'CHAIN' -and $part -notmatch 'portal=chain_in hops=2'){throw 'Portal chain was not traversed'}
         }
+        $opposite=[regex]::Match($log,'(?s)THROUGH_OPPOSITE_BEGIN(.*?)THROUGH_OPPOSITE_END').Groups[1].Value
+        if($opposite -notmatch 'impact orange success=0' -or $opposite -match 'PORTALGUN_SHOT portal=|placed orange') { throw 'Opposite-color shot passed through or overlapped own portal' }
         $loop=[regex]::Match($log,'(?s)THROUGH_LOOP_BEGIN(.*?)THROUGH_LOOP_END').Groups[1].Value
         if($loop -notmatch 'hops=8' -or $loop -notmatch 'impact blue success=0 blocked=1' -or $loop -match 'placed blue'){throw 'Portal loop was not bounded'}
         $outside=[regex]::Match($log,'(?s)THROUGH_OUTSIDE_BEGIN(.*?)THROUGH_OUTSIDE_END').Groups[1].Value
@@ -122,10 +125,10 @@ foreach($name in $Cases) {
         if($flight -notmatch 'Saved shot_flight' -or $flight -notmatch 'Saved shot_opening' -or
             ([regex]::Matches($flight,'PORTALGUN_SHOT impact blue success=1')).Count -ne 1 -or
             $flight -notmatch 'PORTALGUN_OPENING rw_gun_blue remaining=0'){throw 'In-flight/opening save failed'}
-        if($flight -notmatch 'PORTALGUN_ENDPOINT rw_gun_blue origin=511 0 71' -or
-            $flight -notmatch 'PORTALGUN placed blue at 511 180 71'){throw 'Portal replacement moved before arrival or lost the captured target'}
+        if($flight -notmatch 'PORTALGUN_ENDPOINT rw_gun_blue origin=511 0 54' -or
+            $flight -notmatch 'PORTALGUN placed blue at 511 180 54'){throw 'Portal replacement moved before arrival or lost the captured target'}
         $look=[regex]::Match($log,'(?s)SHOT_LOOK_BEGIN(.*?)SHOT_LOOK_END').Groups[1].Value
-        if($look -notmatch 'PORTALGUN placed orange at -511 180 71' -or $look -notmatch 'portal=rw_gun_orange'){throw 'Looking away changed a shot already in flight'}
+        if($look -notmatch 'PORTALGUN placed orange at -?0 511 54' -or $look -match 'PORTALGUN_SHOT portal='){throw 'Looking away changed a shot already in flight'}
         $supersede=[regex]::Match($log,'(?s)SHOT_SUPERSEDE_BEGIN(.*?)SHOT_SUPERSEDE_END').Groups[1].Value
         if(([regex]::Matches($supersede,'PORTALGUN_SHOT launch blue')).Count -ne 2 -or
             ([regex]::Matches($supersede,'PORTALGUN_SHOT impact blue success=1')).Count -ne 1){throw 'Superseded shot placed an old portal'}
@@ -275,7 +278,7 @@ foreach($name in $Cases) {
         if(($dy*$dy/(39*39)+$dz*$dz/(49*49)) -le 1){throw 'Shifted portal overlaps obstacle'}
         $blocked=[regex]::Match($log,'(?s)SURFACE_BLOCKED_BEGIN(.*?)SURFACE_BLOCKED_END').Groups[1].Value
         if($blocked -notmatch 'rejected: no nearby supported opening' -or $blocked -match 'placed blue'){throw 'Portal fit through blocked opening'}
-        if($low -notmatch 'placed orange at 511 -200 71'){throw 'Lower wall placement failed'}
+        if($low -notmatch 'placed orange at 511 -200 54'){throw 'Lower wall placement failed'}
     }
     if($name -eq 'floor_slab') {
         $entry=[regex]::Match($log,'(?s)SLAB_ENTRY_BEGIN(.*?)SLAB_ENTRY_END').Groups[1].Value
@@ -346,7 +349,7 @@ foreach($name in $Cases) {
             $part -match 'PORTALGUN_VIEW fire|PORTALGUN_SHOT launch') {throw 'Rejected spawn played firing effects or rejection was not exercised'}
     }
     if($name -eq 'reticle') {
-        foreach($case in @(@('VALID',1,1),@('THROUGH',1,1),@('SCRIPTED',1,1),@('BLUE',1,0),@('INVALID',0,0),@('RELOAD',1,0))) {
+        foreach($case in @(@('VALID',1,1),@('THROUGH',1,0),@('SCRIPTED',1,1),@('BLUE',1,0),@('INVALID',0,0),@('RELOAD',1,0))) {
             $part=[regex]::Match($log,"(?s)RETICLE_$($case[0])_BEGIN(.*?)RETICLE_$($case[0])_END").Groups[1].Value
             if($part -notmatch "PORTAL_RETICLE_STATUS blue=$($case[1]) orange=$($case[2])" -or
                 $part -match 'PORTALGUN placed|PORTAL_REPLACEMENT_CLEAR') {throw "Reticle $($case[0]) disagreed with placement or mutated the world"}
@@ -360,18 +363,27 @@ foreach($name in $Cases) {
         $center=[regex]::Match($log,'(?s)CORNER_CENTER_BEGIN(.*?)CORNER_CENTER_END').Groups[1].Value
         $edge=[regex]::Match($log,'(?s)CORNER_EDGE_BEGIN(.*?)CORNER_EDGE_END').Groups[1].Value
         $prop=[regex]::Match($log,'(?s)CORNER_PROP_BEGIN(.*?)CORNER_PROP_END').Groups[1].Value
-        if($log -notmatch 'placed blue at 127 16 71' -or $log -match 'PORTALGUN rejected:'){throw 'Corner backing placement failed'}
+        if($log -notmatch 'placed blue at 127 16 54' -or $log -match 'PORTALGUN rejected:'){throw 'Corner backing placement failed'}
         if(([regex]::Matches($center,'PORTAL_EXIT ')).Count -ne 1){throw 'Corner center traversal failed'}
         if($edge -notmatch 'PORTAL_PROBE fraction=0.404297 end=111.75 55' -or
             ([regex]::Matches($edge,'PORTAL_EXIT ')).Count -ne 1){throw 'Corner edge lost solid collision or bounded approach assistance'}
         if(([regex]::Matches($prop,'PORTAL_ENTITY_EXIT hhMoveable name=corner_prop')).Count -ne 1){throw 'Corner prop did not cross exactly once'}
     }
+    if($name -eq 'realign') {
+        foreach($phase in @('LOW','HIGH')) {
+            $part=[regex]::Match($log,"(?s)ALIGN_${phase}_BEGIN(.*?)ALIGN_${phase}_END").Groups[1].Value
+            if($part -notmatch 'placed blue at 511 0 54') { throw "Floor alignment differed for $phase aim height" }
+        }
+        $part=[regex]::Match($log,'(?s)REALIGN_FLOOR_BEGIN(.*?)REALIGN_FLOOR_END').Groups[1].Value
+        if($part -match 'PORTALGUN_SHOT portal=' -or $part -notmatch 'impact blue success=1') { throw 'Same-color floor replacement traversed or failed' }
+        if($part -notmatch 'rw_gun_blue origin=-256 [-0-9.]+ 1 normal=0 0 1 up=0' -or $part -notmatch 'rw_gun_orange origin=-0 511 54') { throw 'Floor replacement moved the wrong endpoint or left the floor' }
+    }
     if($name -eq 'close') {
         $adjacent=[regex]::Match($log,'(?s)CLOSE_ADJACENT_BEGIN(.*?)CLOSE_ADJACENT_END').Groups[1].Value
-        if($adjacent -notmatch 'placed orange at 511 -118 71') { throw 'Adjacent portal was shifted away from the requested location' }
+        if($adjacent -notmatch 'placed orange at 511 -118 54') { throw 'Adjacent portal was shifted away from the requested location' }
         $overlap=[regex]::Match($log,'(?s)CLOSE_OVERLAP_BEGIN(.*?)CLOSE_OVERLAP_END').Groups[1].Value
         if($overlap -notmatch 'rejected: no nearby supported opening' -or $overlap -match 'placed orange') { throw 'Overlapping portal was allowed' }
-        if($overlap -notmatch 'rw_gun_orange origin=511 -118 71') { throw 'Rejected overlap changed the old endpoint' }
+        if($overlap -notmatch 'rw_gun_orange origin=511 -118 54') { throw 'Rejected overlap changed the old endpoint' }
         $crossing=[regex]::Match($log,'(?s)CLOSE_CROSS_BEGIN(.*?)CLOSE_CROSS_END').Groups[1].Value
         if($crossing -notmatch 'PORTAL_EXIT ') { throw 'Adjacent portal traversal failed' }
     }
