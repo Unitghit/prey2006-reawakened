@@ -1304,7 +1304,7 @@ void hhPlayer::DrawHUD( idUserInterface *_hud ) {
 
 	// weapon targeting crosshair
 	if ( !GuiActive() ) {
-		if ( cursor ) {
+		if ( cursor && !DrawPortalGunReticle() ) {
 			UpdateCrosshairs();
 			const idVec2 offset = gameLocal.GetPresentationCursorOffset();
 			cursor->Redraw( gameLocal.realClientTime, offset.x, offset.y );
@@ -5251,6 +5251,7 @@ void hhPlayer::Think( void ) {
 	}
 
     UpdatePortalGunView();
+    UpdatePortalGunReticle();
 	if (InVehicle()) {
 		UpdateHud( GetVehicleInterfaceLocal()->GetHUD() );
 	}
@@ -7321,6 +7322,7 @@ void hhPlayer::Save( idSaveGame *savefile ) const {
 //hhPlayer::Restore
 //================
 void hhPlayer::Restore( idRestoreGame *savefile ) {
+    portalReticleRefresh = -1;
 	// Public vars
 	savefile->Read(weaponInfo, sizeof(weaponInfo_t)*15);
 	savefile->Read(altWeaponInfo, sizeof(weaponInfo_t)*15);

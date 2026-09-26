@@ -90,6 +90,8 @@ def main():
         dest.write_bytes(vpk.read('sound/weapons/portalgun/'+sound+'.wav'))
     dest=output/'sound/portalgun_view.sndshd'
     dest.write_text('\n'.join(f'rw_portalgun_{c} {{\n volume -5\n sound/reawakened/portalgun/{c}.wav\n}}' for c in ('blue','orange'))+'\n')
+    from import_reticle import import_reticle
+    import_reticle(install, output)
     for path in sorted(output.rglob('*')):
         if path.is_file():
             target=destination/path.relative_to(output)

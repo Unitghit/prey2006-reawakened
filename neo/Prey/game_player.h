@@ -70,7 +70,15 @@ public:
     bool PortalGunViewAvailable() const;
     void UpdatePortalGun();
     void UpdatePortalGunView();
-    bool PlaceGunPortal(int color, const idDict *shot = NULL);
+    bool PlaceGunPortal(int color, const idDict *shot = NULL, int *previewCandidate = NULL);
+    void UpdatePortalGunReticle();
+    bool DrawPortalGunReticle();
+    // Transient UI work only; intentionally absent from the save stream.
+    int portalReticleRefresh = -1;
+    int portalReticleCandidate[2] = { 0, 0 };
+    bool portalReticleValid[2] = { false, false };
+    idVec3 portalReticleEye;
+    idMat3 portalReticleAxis;
     void FireGunPortal(int color);
     void SelectPortalGun(bool selected);
 

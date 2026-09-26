@@ -345,6 +345,17 @@ foreach($name in $Cases) {
         if(([regex]::Matches($part,"Could not spawn 'rw_portal_shot'")).Count -ne 2 -or
             $part -match 'PORTALGUN_VIEW fire|PORTALGUN_SHOT launch') {throw 'Rejected spawn played firing effects or rejection was not exercised'}
     }
+    if($name -eq 'reticle') {
+        foreach($case in @(@('VALID',1,1),@('THROUGH',1,1),@('SCRIPTED',1,1),@('BLUE',1,0),@('INVALID',0,0),@('RELOAD',1,0))) {
+            $part=[regex]::Match($log,"(?s)RETICLE_$($case[0])_BEGIN(.*?)RETICLE_$($case[0])_END").Groups[1].Value
+            if($part -notmatch "PORTAL_RETICLE_STATUS blue=$($case[1]) orange=$($case[2])" -or
+                $part -match 'PORTALGUN placed|PORTAL_REPLACEMENT_CLEAR') {throw "Reticle $($case[0]) disagreed with placement or mutated the world"}
+        }
+        foreach($capture in @('valid','blue','invalid','reload','standard')) {
+            if(!(Test-Path "$base/reticle_$capture.tga")) {throw "Missing reticle $capture capture"}
+        }
+        if($log -match 'GL_INVALID|program error|Couldn.t load.*reticle') {throw 'Reticle rendering error'}
+    }
     if($name -eq 'corner') {
         $center=[regex]::Match($log,'(?s)CORNER_CENTER_BEGIN(.*?)CORNER_CENTER_END').Groups[1].Value
         $edge=[regex]::Match($log,'(?s)CORNER_EDGE_BEGIN(.*?)CORNER_EDGE_END').Groups[1].Value

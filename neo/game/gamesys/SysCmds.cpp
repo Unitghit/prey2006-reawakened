@@ -2663,6 +2663,9 @@ static void Cmd_PlasmaInfo_f(const idCmdArgs &args) {
 static void Cmd_PortalGun_f(const idCmdArgs &args) {
     hhPlayer *player = static_cast<hhPlayer *>(gameLocal.GetLocalPlayer());
     if (!player) return;
+    if (cvarSystem->GetCVarBool("developer") && args.Argc() == 2 && !idStr::Icmp(args.Argv(1), "reticle"))
+        gameLocal.Printf("PORTAL_RETICLE_STATUS blue=%d orange=%d pending=%d\n", player->portalReticleValid[0],
+            player->portalReticleValid[1], player->portalReticleCandidate[0] >= 0 || player->portalReticleCandidate[1] >= 0);
     if (cvarSystem->GetCVarBool("developer") && args.Argc() == 4 && !idStr::Icmp(args.Argv(1), "look"))
         player->SetViewAngles(idAngles(atof(args.Argv(2)), atof(args.Argv(3)), 0));
     if (cvarSystem->GetCVarBool("developer") && args.Argc() == 5 && !idStr::Icmp(args.Argv(1), "velocity"))

@@ -1,7 +1,8 @@
 // Experimental single-player portal tool. State uses existing entity/player save dictionaries.
 static idCVar g_portalGun("g_portalGun", "0", CVAR_GAME | CVAR_BOOL | CVAR_ARCHIVE, "experimental slot-1 blue/orange portal tool");
-// Keep the opening ahead of thin wall-decoration layers, without separating
-// the visible aperture from the plane that actually teleports the player.
+static idCVar g_portalGunReticle("g_portalGunReticle", "1", CVAR_GAME | CVAR_BOOL | CVAR_ARCHIVE, "portal-gun placement indicators");
+static idCVar g_portalReticleTrace("g_portalReticleTrace", "0", CVAR_GAME | CVAR_BOOL, "log portal aim preview results");
+// Keep the visual aperture just ahead of thin wall decorations.
 static const float RW_PORTAL_SURFACE_OFFSET = 1.0f;
 // Artwork backing, hull clearance and broad-phase occupancy are deliberately
 // different. Shrinking traversal to the artwork restores shoulder/foot snags.
@@ -732,24 +733,26 @@ static void RW_GunPortalVisual(hhPortal *portal, bool restart) {
 
 }
 
-bool hhPlayer::PlaceGunPortal(int color, const idDict *shot) {
+bool hhPlayer::PlaceGunPortal(int color, const idDict *shot, int *previewCandidate) {
+    const bool preview = previewCandidate != NULL;
+    if (preview && *previewCandidate < 0) return *previewCandidate == -2;
     if (!RW_PortalGunEnabled() || color < 0 || color > 1 ||
-        health <= 0 || InVehicle() || IsSpiritOrDeathwalking() || gameLocal.inCinematic) return false;
+        health <= 0 || InVehicle() || IsSpiritOrDeathwalking() || gameLocal.inCinematic) { if (preview) *previewCandidate = -1; return false; }
     const idVec3 eye = shot ? shot->GetVector("shot_eye") : GetEyePosition();
 
     // firstPersonViewAxis includes Prey's local-gravity orientation.
     trace_t hit;
     idVec3 shotDirection = shot ? shot->GetVector("shot_direction") : firstPersonViewAxis[0];
-    if (!shot && cvarSystem->GetCVarBool("developer") && spawnArgs.GetBool("rw_portal_test_aim")) {
+    if (!preview && !shot && cvarSystem->GetCVarBool("developer") && spawnArgs.GetBool("rw_portal_test_aim")) {
         shotDirection = spawnArgs.GetVector("rw_portal_test_direction");
         spawnArgs.SetBool("rw_portal_test_aim", false);
     }
     gameLocal.clip.TracePoint(hit, eye, eye + shotDirection * 8192.0f, MASK_SOLID, this);
     if (shot && (hit.endpos - shot->GetVector("shot_target")).LengthSqr() > Square(2.0f)) {
-        gameLocal.Printf("PORTALGUN rejected: target obstructed during flight\n"); return false;
+        if (!preview) gameLocal.Printf("PORTALGUN rejected: target obstructed during flight\n"); if (preview) *previewCandidate = -1; return false;
     }
     if (!RW_PortalPlacementSurface(hit)) {
-        gameLocal.Printf("PORTALGUN rejected: aim at a stationary world surface\n"); return false;
+        if (!preview) gameLocal.Printf("PORTALGUN rejected: aim at a stationary world surface\n"); if (preview) *previewCandidate = -1; return false;
     }
     idVec3 normal = hit.c.normal;
     normal.Normalize();
@@ -776,9 +779,14 @@ bool hhPlayer::PlaceGunPortal(int color, const idDict *shot) {
     hhPortal *other = RW_GunPortal(1-color), *portal = RW_GunPortal(color);
     // Search nearest first on a bounded surface-plane grid. A failed shot
     // leaves the existing endpoints and their link untouched.
+    int candidateIndex = 0, tested = 0;
     for (int radiusSquared = 0; radiusSquared <= 64 && !supported; ++radiusSquared) {
         for (int z = -8; z <= 8 && !supported; ++z) for (int y = -8; y <= 8 && !supported; ++y) {
             if (y*y + z*z != radiusSquared) continue;
+            if (preview && candidateIndex++ < *previewCandidate) continue;
+            // Spread difficult searches across ticks instead of adding a large
+            // aim-dependent hitch. Live shots keep the original full search.
+            if (preview && tested++ == 8) { *previewCandidate = candidateIndex-1; return false; }
             const idVec3 candidate = aimedCenter + axis[1]*(y*8.0f) + up*(z*8.0f);
             if (other && (other->GetOrigin()-candidate).LengthSqr() < Square(160.0f)) continue;
             if (RW_PortalSurfaceSupports(candidate, axis, this)) { center = candidate; supported = true; }
@@ -788,13 +796,16 @@ bool hhPlayer::PlaceGunPortal(int color, const idDict *shot) {
                 if (RW_FitPortalSurface(fittedCenter, fittedAxis, this) &&
                     (!other || (other->GetOrigin()-fittedCenter).LengthSqr() >= Square(160.0f))) {
                     center = fittedCenter; axis = fittedAxis; normal = axis[0]; supported = true;
-                    if (cvarSystem->GetCVarBool("com_fpsTrace"))
+                    if (!preview && cvarSystem->GetCVarBool("com_fpsTrace"))
                         gameLocal.Printf("PORTAL_TERRAIN_FIT center=%s normal=%s\n", center.ToString(), normal.ToString());
                 }
             }
         }
     }
-    if (!supported) { gameLocal.Printf("PORTALGUN rejected: no nearby supported opening\n"); return false; }
+    if (!supported) { if (!preview) gameLocal.Printf("PORTALGUN rejected: no nearby supported opening\n"); if (preview) *previewCandidate = -1; return false; }
+    // Surface preview never clears occupants or modifies endpoints. Objects
+    // and changing geometry can still invalidate a shot before its impact.
+    if (preview) { *previewCandidate = -2; return true; }
     if (portal && !RW_ClearPortalOccupants(portal, other)) {
         gameLocal.Printf("PORTALGUN rejected: leave the opening clear before replacing it\n"); return false;
     }
@@ -1079,4 +1090,95 @@ void hhPlayer::UpdatePortalGunView() {
     weapon->SetShaderParm(5, spawnArgs.GetInt("rw_portal_view_last_color") ? 1.0f : 0.0f);
     weapon->SetShaderParm(6, idMath::ClampFloat(0, 1,
         (spawnArgs.GetInt("rw_portal_view_flash_end") - gameLocal.time) / 200.0f));
+}
+
+
+void hhPlayer::UpdatePortalGunReticle() {
+    if (!g_portalGunReticle.GetBool() || !g_showHud.GetBool() || !g_crosshair.GetInteger() ||
+        pm_thirdPerson.GetBool() || privateCameraView || !PortalGunSelected() || currentWeapon != 1 ||
+        health <= 0 || InVehicle() || InCinematic() || ActiveGui() || GuiActive()) {
+        portalReticleRefresh = -1;
+        portalReticleValid[0] = portalReticleValid[1] = false;
+        return;
+    }
+    const idVec3 eye = GetEyePosition();
+    const bool moved = portalReticleRefresh < 0 || !eye.Compare(portalReticleEye, 0.05f) ||
+        !firstPersonViewAxis.Compare(portalReticleAxis, 0.001f);
+    const bool finished = portalReticleCandidate[0] < 0 && portalReticleCandidate[1] < 0;
+    if (moved || gameLocal.time < portalReticleRefresh || (finished && gameLocal.time >= portalReticleRefresh + 100)) {
+        portalReticleEye = eye; portalReticleAxis = firstPersonViewAxis;
+        portalReticleRefresh = gameLocal.time;
+        portalReticleCandidate[0] = portalReticleCandidate[1] = 0;
+        if (moved) portalReticleValid[0] = portalReticleValid[1] = false;
+    } else if (finished) return;
+
+    // Follow the same surfaces and linked openings as the projectile, carrying
+    // its remaining range and gravity-relative orientation through each link.
+    idVec3 start = eye, direction = firstPersonViewAxis[0];
+    idVec3 up = -GetPhysics()->GetGravityNormal(), left = firstPersonViewAxis[1];
+    float remaining = 8192.0f;
+    trace_t hit;
+    bool targetFound = false;
+    for (int hop = 0; hop <= 8; ++hop) {
+        const idVec3 end = start + direction*remaining;
+        gameLocal.clip.TracePoint(hit, start, end, MASK_SOLID, this);
+        float fraction; idVec3 remote; idMat3 rotation;
+        hhPortal *portal = RW_FindShotPortal(start, end, fraction, remote, rotation);
+        if (!portal || fraction > hit.fraction) { targetFound = true; break; }
+        remaining *= 1.0f-fraction;
+        if (hop == 8 || remaining <= 1) break;
+        direction *= rotation; direction.Normalize();
+        up *= rotation; left *= rotation;
+        start = remote + direction*0.05f;
+    }
+    if (!targetFound || hit.fraction >= 1) {
+        portalReticleValid[0] = portalReticleValid[1] = false;
+        portalReticleCandidate[0] = portalReticleCandidate[1] = -1;
+    } else {
+        idDict aim;
+        RW_SetPortalShotVector(aim, "shot_eye", start);
+        RW_SetPortalShotVector(aim, "shot_direction", direction);
+        RW_SetPortalShotVector(aim, "shot_up", up);
+        RW_SetPortalShotVector(aim, "shot_left", left);
+        RW_SetPortalShotVector(aim, "shot_target", hit.endpos);
+        for (int color = 0; color < 2; ++color) {
+            if (portalReticleCandidate[color] < 0) continue;
+            const bool valid = PlaceGunPortal(color, &aim, &portalReticleCandidate[color]);
+            if (portalReticleCandidate[color] < 0) portalReticleValid[color] = valid;
+        }
+    }
+    if (g_portalReticleTrace.GetBool() && portalReticleCandidate[0] < 0 && portalReticleCandidate[1] < 0)
+        gameLocal.Printf("PORTAL_RETICLE blue=%d orange=%d\n", portalReticleValid[0], portalReticleValid[1]);
+}
+
+bool hhPlayer::DrawPortalGunReticle() {
+    if (!g_portalGunReticle.GetBool() || !PortalGunSelected() || currentWeapon != 1 ||
+        !g_crosshair.GetInteger() || privateCameraView || IsLocked(idealWeapon) ||
+        (hand.IsValid() && !hand->IsLowered()) || InCinematic() || InVehicle() || health <= 0 || !weapon.IsValid()) return false;
+    const idMaterial *atlas = declManager->FindMaterial("guis/assets/portalgun/reticle", false);
+    if (!atlas || atlas->GetState() == DS_DEFAULTED) return false;
+    const idVec2 offset = gameLocal.GetPresentationCursorOffset();
+    const float aspect = (4.0f/3.0f) * renderSystem->GetScreenHeight()/Max(1,renderSystem->GetScreenWidth());
+    const float cx = 320 + offset.x, cy = 240 + offset.y;
+    const float h = 24, w = h*44.0f/64.0f;
+    for (int color = 0; color < 2; ++color) {
+        const idVec3 rgb = color ? idVec3(1.0f,0.55f,0.12f) : idVec3(0.15f,0.65f,1.0f);
+        renderSystem->SetColor4(rgb.x,rgb.y,rgb.z,0.9f);
+        const float u = (portalReticleValid[color] ? 98.0f : 2.0f) + color*48.0f;
+        renderSystem->DrawStretchPic(cx + (color ? -0.35f : -0.64f)*w*aspect,
+            cy-h*0.5f + (color ? 0.17f : -0.17f)*h, w*aspect,h, u/256,0,(u+44)/256,1,atlas);
+        // The small outer oval identifies the last fired color separately from
+        // surface validity. Use the existing saved gun-color state.
+        const bool fired = spawnArgs.GetInt("rw_shot_serial_0") > 0 || spawnArgs.GetInt("rw_shot_serial_1") > 0;
+        const bool last = fired && spawnArgs.GetInt("rw_portal_view_last_color") == color;
+        const float flash = idMath::ClampFloat(0,1,(spawnArgs.GetInt("rw_portal_view_flash_end")-gameLocal.time)/200.0f);
+        renderSystem->SetColor4(rgb.x,rgb.y,rgb.z,last ? 0.75f+0.25f*flash : 0.2f);
+        const float markerW = h*28.0f/64.0f;
+        renderSystem->DrawStretchPic(cx+(color ? 0.75f : -1.85f)*markerW*aspect,
+            cy-h*0.5f,markerW*aspect,h,194.0f/256,0,222.0f/256,1,atlas);
+    }
+    renderSystem->SetColor4(1,1,1,0.95f);
+    renderSystem->DrawStretchPic(cx-0.65f*aspect,cy-0.65f,1.3f*aspect,1.3f,0,0,1,1,declManager->FindMaterial("_white"));
+    renderSystem->SetColor4(1,1,1,1);
+    return true;
 }
