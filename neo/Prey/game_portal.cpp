@@ -647,6 +647,15 @@ bool hhPortal::AttemptPortal( idPlane &plane, idEntity *hit, idVec3 location, id
 
     idPlane crossingPlane = plane;
     if (eyeOffset != 0) crossingPlane.FitThroughPoint(GetOrigin() - plane.Normal()*eyeOffset);
+    // Walking NPC feet may already be behind the slightly raised visual
+    // plane before entering the opening. Detect their descent through the
+    // supporting surface instead, so lateral entry cannot miss the crossing.
+    if (spawnArgs.GetBool("rw_portalGun") && hit->IsType(idAI::Type) &&
+        hit->GetPhysics()->IsType(idPhysics_Monster::Type) &&
+        plane.Normal() * -hit->GetPhysics()->GetGravityNormal() > 0.95f) {
+        crossingPlane.FitThroughPoint(GetOrigin() - plane.Normal() *
+            (spawnArgs.GetFloat("rw_portal_surface_offset", "1") + 0.25f));
+    }
     int side = crossingPlane.Side( location );
 	if ( side == PLANESIDE_ON || side == PLANESIDE_CROSS ) {
 		side = PLANESIDE_BACK;
