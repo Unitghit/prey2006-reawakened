@@ -229,6 +229,11 @@ public:
 	bool		CanDecodeDetached( idStr &fileName ) const;
 	// Completes ActuallyLoadImage( true, false ) from pixels decoded on a worker.
 	void		FinishDetachedLoad( byte *pic, int width, int height, ID_TIME_T fileTimestamp, unsigned int pixelHash );
+	// Texture cache (image_textureCache): finished GPU-compressed mip chains
+	// stored in the profile, keyed by source, settings and driver.
+	bool		TextureCacheValid() const;
+	bool		LoadFromTextureCache();
+	void		WriteTextureCache();
 	void		StartBackgroundImageLoad();
 	int			BitsForInternalFormat( int internalFormat ) const;
 	void		UploadCompressedNormalMap( int width, int height, const byte *rgba, int mipLevel );

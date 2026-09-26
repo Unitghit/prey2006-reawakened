@@ -1696,6 +1696,11 @@ void	idImage::ActuallyLoadImage( bool checkForPrecompressed, bool fromBackEnd ) 
 			// fall through to load the normal image
 		}
 
+		// a finished mip chain from an earlier load of this exact image
+		if ( LoadFromTextureCache() ) {
+			return;
+		}
+
 		{
 			idHitchScope decodeHitch( "image_decode", imgName.c_str(), true, 0.0 );
 			R_LoadImageProgram( imgName, &pic, &width, &height, &timestamp, &depth );
@@ -1735,6 +1740,8 @@ void	idImage::ActuallyLoadImage( bool checkForPrecompressed, bool fromBackEnd ) 
 		precompressedFile = false;
 
 		R_StaticFree( pic );
+
+		WriteTextureCache();
 
 		// write out the precompressed version of this file if needed
 		WritePrecompressedImage();
@@ -1807,8 +1814,276 @@ void idImage::FinishDetachedLoad( byte *pic, int width, int height, ID_TIME_T fi
 
 	free( pic );
 
+	WriteTextureCache();
+
 	// write out the precompressed version of this file if needed
 	WritePrecompressedImage();
+}
+
+/*
+===============================================================================
+
+Texture cache
+
+Stores each finished, GPU-compressed mip chain read back from the driver in
+the profile (texcache/). A later load uploads those bytes directly, skipping
+decode, mipmap generation and driver compression. Entries are keyed by the
+image, its source timestamp, every setting that changes the uploaded data and
+the GPU/driver strings; any difference rebuilds the entry.
+
+===============================================================================
+*/
+
+static idCVar image_textureCache( "image_textureCache", "0", CVAR_RENDERER | CVAR_ARCHIVE | CVAR_BOOL,
+	"reuse finished GPU-compressed textures from the profile's texcache folder" );
+static idCVar image_verifyTextureCache( "image_verifyTextureCache", "0", CVAR_RENDERER | CVAR_BOOL,
+	"load textures normally and compare the result with the texture cache" );
+
+static const int TEXCACHE_VERSION = 1;
+
+struct texCacheHeader_t {
+	char	magic[4];
+	int		version;
+	int		keyLength;
+	int		imageHash;
+	int		internalFormat;
+	int		width;
+	int		height;
+	int		levels;
+};
+
+static int texCacheVerified, texCacheMismatched;
+
+static bool TextureCacheActive() {
+	return image_textureCache.GetBool() && glConfig.isInitialized && glConfig.textureCompressionAvailable;
+}
+
+static idStr TextureCacheFileName( const idStr &imgName ) {
+	return va( "texcache/%08x_%04x.bin", MD4_BlockChecksum( imgName.c_str(), imgName.Length() ), imgName.Length() & 0xffff );
+}
+
+idStr FS_SearchPathSignature();	// FileSystem.cpp
+
+// Everything that changes the uploaded data. Archive entries report timestamp
+// zero, so sources are identified by the newest loose-file timestamp plus a
+// signature of every archive (name, size, header checksum) on the search path.
+static bool TextureCacheKey( const idImage *image, idStr &key ) {
+	ID_TIME_T sourceTime = 0;
+	R_LoadImageProgram( image->imgName.c_str(), NULL, NULL, NULL, &sourceTime, NULL );
+	if ( sourceTime == FILE_NOT_FOUND_TIMESTAMP ) {
+		return false;
+	}
+	const idStr searchPath = FS_SearchPathSignature();
+	const idImageManager *m = globalImages;
+	key = va( "v%d|%s|d%d|r%d|a%d|t%lld|sp%08x", TEXCACHE_VERSION, image->imgName.c_str(), (int)image->depth,
+		(int)image->repeat, image->allowDownSize ? 1 : 0, (long long)sourceTime,
+		MD4_BlockChecksum( searchPath.c_str(), searchPath.Length() ) );
+	key += va( "|c%d|n%d|f%d|ds%d,%d,%d|sp%d,%d|bm%d,%d|rd%d|cm%d", m->image_useCompression.GetInteger(),
+		m->image_useNormalCompression.GetInteger(), m->image_useAllFormats.GetInteger(),
+		m->image_downSize.GetInteger(), m->image_downSizeLimit.GetInteger(), m->image_forceDownSize.GetInteger(),
+		m->image_downSizeSpecular.GetInteger(), m->image_downSizeSpecularLimit.GetInteger(),
+		m->image_downSizeBump.GetInteger(), m->image_downSizeBumpLimit.GetInteger(),
+		m->image_roundDown.GetInteger(), m->image_colorMipLevels.GetInteger() );
+	key += va( "|gl%d,%d,%d,%d|%s|%s|%s", glConfig.maxTextureSize, glConfig.textureCompressionAvailable ? 1 : 0,
+		glConfig.bptcTextureCompressionAvailable ? 1 : 0, glConfig.sharedTexturePaletteAvailable ? 1 : 0,
+		glConfig.vendor_string, glConfig.renderer_string, glConfig.version_string );
+	return true;
+}
+
+static int TextureCacheLevelSize( int internalFormat, int width, int height ) {
+	return ( ( width + 3 ) / 4 ) * ( ( height + 3 ) / 4 ) *
+		( internalFormat <= GL_COMPRESSED_RGBA_S3TC_DXT1_EXT ? 8 : 16 );
+}
+
+// Reads and validates an entry. Returns an R_StaticAlloc buffer or NULL.
+static byte *ReadTextureCacheEntry( const idStr &fileName, const idStr &key, int &length ) {
+	idFile *f = fileSystem->OpenExplicitFileRead( fileSystem->RelativePathToOSPath( fileName, "fs_savepath" ) );
+	if ( !f ) {
+		return NULL;
+	}
+	length = f->Length();
+	byte *data = NULL;
+	if ( length >= (int)sizeof( texCacheHeader_t ) ) {
+		data = (byte *)R_StaticAlloc( length );
+		if ( f->Read( data, length ) != length ) {
+			R_StaticFree( data );
+			data = NULL;
+		}
+	}
+	fileSystem->CloseFile( f );
+	if ( !data ) {
+		return NULL;
+	}
+	const texCacheHeader_t *h = (const texCacheHeader_t *)data;
+	bool ok = !memcmp( h->magic, "PTXC", 4 ) && h->version == TEXCACHE_VERSION && h->keyLength == key.Length() &&
+		(int)sizeof( texCacheHeader_t ) + h->keyLength <= length &&
+		!memcmp( data + sizeof( texCacheHeader_t ), key.c_str(), h->keyLength ) &&
+		FormatIsDXT( h->internalFormat ) && h->width > 0 && h->height > 0 && h->levels > 0 && h->levels <= MAX_TEXTURE_LEVELS;
+	// every level must be present in full
+	int offset = sizeof( texCacheHeader_t ) + h->keyLength;
+	int w = h->width, hgt = h->height;
+	for ( int level = 0; ok && level < h->levels; level++ ) {
+		offset += TextureCacheLevelSize( h->internalFormat, w, hgt );
+		ok = offset <= length;
+		w = Max( 1, w >> 1 );
+		hgt = Max( 1, hgt >> 1 );
+	}
+	if ( !ok || offset != length ) {
+		R_StaticFree( data );
+		return NULL;
+	}
+	return data;
+}
+
+/*
+===============
+idImage::TextureCacheValid
+===============
+*/
+bool idImage::TextureCacheValid() const {
+	idStr key;
+	if ( !TextureCacheActive() || image_verifyTextureCache.GetBool() || !TextureCacheKey( this, key ) ) {
+		return false;
+	}
+	int length;
+	byte *data = ReadTextureCacheEntry( TextureCacheFileName( imgName ), key, length );
+	if ( !data ) {
+		return false;
+	}
+	R_StaticFree( data );
+	return true;
+}
+
+/*
+===============
+idImage::LoadFromTextureCache
+
+Leaves the image in the same state GenerateImage and the 2D branch of
+ActuallyLoadImage would, using the stored mip chain.
+===============
+*/
+bool idImage::LoadFromTextureCache() {
+	idStr key;
+	if ( !TextureCacheActive() || image_verifyTextureCache.GetBool() || !TextureCacheKey( this, key ) ) {
+		return false;
+	}
+	int length;
+	byte *data = ReadTextureCacheEntry( TextureCacheFileName( imgName ), key, length );
+	if ( !data ) {
+		return false;
+	}
+	idHitchScope hitch( "image_cache_load", imgName.c_str(), true, 0.0 );
+	const texCacheHeader_t *h = (const texCacheHeader_t *)data;
+
+	PurgeImage();
+	qglGenTextures( 1, &texnum );
+	internalFormat = h->internalFormat;
+	uploadWidth = h->width;
+	uploadHeight = h->height;
+	type = TT_2D;
+	Bind();
+
+	const byte *level = data + sizeof( texCacheHeader_t ) + h->keyLength;
+	int w = h->width, hgt = h->height;
+	for ( int i = 0; i < h->levels; i++ ) {
+		const int size = TextureCacheLevelSize( internalFormat, w, hgt );
+		qglCompressedTexImage2DARB( GL_TEXTURE_2D, i, internalFormat, w, hgt, 0, size, level );
+		level += size;
+		w = Max( 1, w >> 1 );
+		hgt = Max( 1, hgt >> 1 );
+	}
+	SetImageFilterAndRepeat();
+	GL_CheckErrors();
+
+	imageHash = h->imageHash;
+	// R_LoadImageProgram leaves the newest source timestamp here.
+	R_LoadImageProgram( imgName.c_str(), NULL, NULL, NULL, &timestamp, NULL );
+	precompressedFile = false;
+	fileSystem->AddToReadCount( length );
+	R_StaticFree( data );
+
+	// write out the precompressed version of this file if needed
+	WritePrecompressedImage();
+	return true;
+}
+
+/*
+===============
+idImage::WriteTextureCache
+
+Reads the uploaded mip chain back from the driver. With
+image_verifyTextureCache, compares it with the existing entry instead.
+===============
+*/
+void idImage::WriteTextureCache() {
+	idStr key;
+	if ( !image_textureCache.GetBool() || !glConfig.isInitialized || !glConfig.textureCompressionAvailable ||
+		type != TT_2D || !FormatIsDXT( internalFormat ) || generatorFunction || !TextureCacheKey( this, key ) ) {
+		return;
+	}
+	const int levels = NumLevelsForImageSize( uploadWidth, uploadHeight );
+	if ( levels > MAX_TEXTURE_LEVELS ) {
+		return;
+	}
+	texCacheHeader_t header;
+	memcpy( header.magic, "PTXC", 4 );
+	header.version = TEXCACHE_VERSION;
+	header.keyLength = key.Length();
+	header.imageHash = imageHash;
+	header.internalFormat = internalFormat;
+	header.width = uploadWidth;
+	header.height = uploadHeight;
+	header.levels = levels;
+
+	idList<byte> bytes;
+	bytes.SetGranularity( 64 * 1024 );
+	bytes.SetNum( sizeof( header ) + key.Length() );
+	memcpy( bytes.Ptr(), &header, sizeof( header ) );
+	memcpy( bytes.Ptr() + sizeof( header ), key.c_str(), key.Length() );
+
+	Bind();
+	qglPixelStorei( GL_PACK_ALIGNMENT, 1 );
+	int w = uploadWidth, hgt = uploadHeight;
+	for ( int i = 0; i < levels; i++ ) {
+		const int size = TextureCacheLevelSize( internalFormat, w, hgt );
+		const int offset = bytes.Num();
+		bytes.SetNum( offset + size );
+		qglGetCompressedTexImageARB( GL_TEXTURE_2D, i, bytes.Ptr() + offset );
+		w = Max( 1, w >> 1 );
+		hgt = Max( 1, hgt >> 1 );
+	}
+	if ( qglGetError() != GL_NO_ERROR ) {
+		return;
+	}
+
+	const idStr fileName = TextureCacheFileName( imgName );
+	if ( image_verifyTextureCache.GetBool() ) {
+		int length;
+		byte *cached = ReadTextureCacheEntry( fileName, key, length );
+		if ( cached ) {
+			const bool match = length == bytes.Num() && !memcmp( cached, bytes.Ptr(), length );
+			R_StaticFree( cached );
+			texCacheVerified++;
+			if ( !match ) {
+				texCacheMismatched++;
+				common->Printf( "TEXTURE_CACHE_VERIFY MISMATCH %s\n", imgName.c_str() );
+			}
+			return;
+		}
+	}
+
+	idFile *f = fileSystem->OpenFileWrite( fileName, "fs_savepath" );
+	if ( f ) {
+		f->Write( bytes.Ptr(), bytes.Num() );
+		fileSystem->CloseFile( f );
+	}
+}
+
+void R_TextureCacheReport() {
+	if ( image_verifyTextureCache.GetBool() ) {
+		common->Printf( "TEXTURE_CACHE_VERIFY checked=%d mismatches=%d\n", texCacheVerified, texCacheMismatched );
+	}
+	texCacheVerified = texCacheMismatched = 0;
 }
 
 //=========================================================================================================

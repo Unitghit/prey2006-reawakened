@@ -41,6 +41,8 @@ If you have questions concerning this license or the applicable additional terms
 
 static idCVar image_threadedDecode( "image_threadedDecode", "0", CVAR_RENDERER | CVAR_ARCHIVE | CVAR_BOOL,
 	"read and decode plain .tga textures on worker threads during level load" );
+void R_TextureCacheReport();	// Image_load.cpp
+
 static idCVar image_verifyThreadedDecode( "image_verifyThreadedDecode", "0", CVAR_RENDERER | CVAR_BOOL,
 	"also decode threaded textures the original way and report any difference" );
 
@@ -2247,6 +2249,10 @@ void idImageManager::EndLevelLoad() {
 				!image->CanDecodeDetached( fileName ) ) {
 				continue;
 			}
+			// cached images upload their stored mip chain in ActuallyLoadImage
+			if ( image->TextureCacheValid() ) {
+				continue;
+			}
 			std::unique_ptr<detachedImageJob_t> job( new detachedImageJob_t );
 			if ( !FS_ResolveDetached( fileName.c_str(), job->source ) ) {
 				continue;
@@ -2297,6 +2303,7 @@ void idImageManager::EndLevelLoad() {
 	common->Printf( "%5i purged from previous\n", purgeCount );
 	common->Printf( "%5i kept from previous\n", keepCount );
 	common->Printf( "%5i new loaded\n", loadCount );
+	R_TextureCacheReport();
 	if ( image_threadedDecode.GetBool() ) {
 		common->Printf( "%5i decoded on worker threads\n", threadedCount );
 		if ( image_verifyThreadedDecode.GetBool() ) {

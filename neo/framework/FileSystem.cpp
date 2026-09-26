@@ -392,6 +392,7 @@ public:
 private:
 	friend int				BackgroundDownloadThread( void *pexit );
 	friend void FS_PreloadPump();
+	friend idStr FS_SearchPathSignature();
 
 	searchpath_t *			searchPaths;
 	int						readCount;			// total bytes read
@@ -589,6 +590,27 @@ bool FS_ReadDetached( const fsDetachedSource_t &source, std::vector<unsigned cha
 		ok = false;
 	}
 	return ok && done == source.length;
+}
+
+/*
+================
+FS_SearchPathSignature
+
+Identifies the current search path contents: every archive by name, size and
+header checksum, and every loose directory by path. Archive entries report no
+timestamp, so caches of derived data key on this instead. Main thread only.
+================
+*/
+idStr FS_SearchPathSignature() {
+	idStr signature;
+	for ( searchpath_t *search = fileSystemLocal.searchPaths; search; search = search->next ) {
+		if ( search->pack ) {
+			signature += va( "p:%s:%d:%08x;", search->pack->pakFilename.c_str(), search->pack->length, search->pack->checksum );
+		} else if ( search->dir ) {
+			signature += va( "d:%s/%s;", search->dir->path.c_str(), search->dir->gamedir.c_str() );
+		}
+	}
+	return signature;
 }
 
 void FS_ReleaseDetachedHandles() {
