@@ -1,0 +1,8 @@
+// Test-only definition: exercise a failed projectile spawn without changing code.
+entityDef rw_portal_shot {
+    "spawnclass" "PortalTestMissingClass"
+}
+entityDef rw_portal_shot_impact {
+    "spawnclass" "idStaticEntity"
+    "solid" "0"
+}

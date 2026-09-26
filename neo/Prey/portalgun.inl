@@ -3,6 +3,21 @@ static idCVar g_portalGun("g_portalGun", "0", CVAR_GAME | CVAR_BOOL | CVAR_ARCHI
 // Keep the opening ahead of thin wall-decoration layers, without separating
 // the visible aperture from the plane that actually teleports the player.
 static const float RW_PORTAL_SURFACE_OFFSET = 1.0f;
+// Artwork backing, hull clearance and broad-phase occupancy are deliberately
+// different. Shrinking traversal to the artwork restores shoulder/foot snags.
+static const float RW_PORTAL_BACKING_HALF_WIDTH = 39.0f;
+static const float RW_PORTAL_BACKING_HALF_HEIGHT = 49.0f;
+static const float RW_PORTAL_TRAVERSAL_HALF_WIDTH = 47.0f;
+static const float RW_PORTAL_TRAVERSAL_HALF_HEIGHT = 71.0f;
+static const float RW_PORTAL_PLAYER_CORNER_ALLOWANCE = 8.0f;
+static const float RW_PORTAL_FOOT_FLAT_START = -48.0f;
+static const float RW_PORTAL_FOOT_MIN = -105.0f;
+// Candidate filter only; closing-clearance traces determine actual occupancy.
+static const idBounds RW_PORTAL_OCCUPANCY_BOUNDS(idVec3(-2, -49, -87), idVec3(2, 49, 73));
+static const idBounds RW_PORTAL_ENTITY_BOUNDS(idVec3(-4, -48, -72), idVec3(4, 48, 72));
+static bool RW_PortalGunEnabled() {
+    return g_portalGun.GetBool() && !gameLocal.isMultiplayer && !*cvarSystem->GetCVarString("fs_game");
+}
 static const char *RW_PortalName(int color) { return color ? "rw_gun_orange" : "rw_gun_blue"; }
 static hhPortal *RW_GunPortal(int color) {
     idEntity *ent = gameLocal.FindEntity(RW_PortalName(color));
@@ -18,7 +33,7 @@ static bool RW_PortalOccupied(const hhPortal *portal, const idPhysics *physics) 
         const idVec3 corner(bounds[(i&1)!=0].x, bounds[(i&2)!=0].y, bounds[(i&4)!=0].z);
         local.AddPoint((physics->GetOrigin() + corner * physics->GetAxis() - portal->GetOrigin()) * portal->GetAxis().Transpose());
     }
-    return local.IntersectsBounds(idBounds(idVec3(-2, -49, -87), idVec3(2, 49, 73)));
+    return local.IntersectsBounds(RW_PORTAL_OCCUPANCY_BOUNDS);
 }
 static bool RW_GunPortalEntity(const idEntity *ent) {
     return ent && !ent->fl.noPortal && !ent->IsBound() &&
@@ -125,7 +140,7 @@ static bool RW_ClearPortalOccupants(hhPortal *first, hhPortal *second) {
 // interpolation. Strong player input and fast lateral travel always take priority.
 void RW_AssistPortalFall(const idEntity *entity, const idVec3 &origin, const idVec3 &look,
     int forwardInput, int sideInput, float dt, idVec3 &velocity) {
-    if (!g_portalGun.GetBool() || gameLocal.isMultiplayer || *cvarSystem->GetCVarString("fs_game") ||
+    if (!RW_PortalGunEnabled() ||
         !entity || !entity->IsType(hhPlayer::Type) || abs(forwardInput) > 32 || abs(sideInput) > 32 || dt <= 0) return;
     const hhPlayer *player = static_cast<const hhPlayer *>(entity);
     if (player->health <= 0 || player->IsSpiritOrDeathwalking() || player->InVehicle()) return;
@@ -163,7 +178,7 @@ void RW_AssistPortalFall(const idEntity *entity, const idVec3 &origin, const idV
 // changes lateral velocity only; all movement still uses ordinary swept collision.
 void RW_AssistPortalApproach(const idEntity *entity, const idVec3 &origin,
     const idVec3 &wish, float dt, idVec3 &velocity) {
-    if (!g_portalGun.GetBool() || gameLocal.isMultiplayer || *cvarSystem->GetCVarString("fs_game") ||
+    if (!RW_PortalGunEnabled() ||
         !entity || !entity->IsType(hhPlayer::Type) || dt <= 0) return;
     const hhPlayer *player = static_cast<const hhPlayer *>(entity);
     if (player->health <= 0 || player->IsSpiritOrDeathwalking() || player->InVehicle()) return;
@@ -366,20 +381,20 @@ static bool RW_PortalFits(const hhPortal *portal, const idTraceModel *trm, const
         // Give the player's square collision corners a small shoulder/foot
         // allowance. The center must still fit; no camera nudging or suction.
         if (playerHull) {
-            local.y -= idMath::ClampFloat(-8, 8, local.y - hullCenter.y);
-            local.z -= idMath::ClampFloat(-8, 8, local.z - hullCenter.z);
+            local.y -= idMath::ClampFloat(-RW_PORTAL_PLAYER_CORNER_ALLOWANCE, RW_PORTAL_PLAYER_CORNER_ALLOWANCE, local.y - hullCenter.y);
+            local.z -= idMath::ClampFloat(-RW_PORTAL_PLAYER_CORNER_ALLOWANCE, RW_PORTAL_PLAYER_CORNER_ALLOWANCE, local.z - hullCenter.z);
         }
         float apertureZ = local.z;
-        if (footClearance && apertureZ < -48.0f) {
-            if (apertureZ < -105.0f) return false;
-            apertureZ = -48.0f;
+        if (footClearance && apertureZ < RW_PORTAL_FOOT_FLAT_START) {
+            if (apertureZ < RW_PORTAL_FOOT_MIN) return false;
+            apertureZ = RW_PORTAL_FOOT_FLAT_START;
         }
-        if (Square(local.y / 47.0f) + Square(apertureZ / 71.0f) > 1.0f) return false;
+        if (Square(local.y / RW_PORTAL_TRAVERSAL_HALF_WIDTH) + Square(apertureZ / RW_PORTAL_TRAVERSAL_HALF_HEIGHT) > 1.0f) return false;
     }
     return true;
 }
 bool RW_PortalHoldPlayerAxis(const idEntity *entity) {
-    if (!g_portalGun.GetBool() || gameLocal.isMultiplayer || *cvarSystem->GetCVarString("fs_game") ||
+    if (!RW_PortalGunEnabled() ||
         !entity || !entity->IsType(hhPlayer::Type)) return false;
     const idPhysics *physics = entity->GetPhysics();
     const idClipModel *clip = physics->GetClipModel();
@@ -420,7 +435,7 @@ bool RW_PortalClipPlane(const idEntity *entity, const idTraceModel *trm, const i
     const idVec3 &start, const idVec3 &end, idPlane &plane, float &limit) {
     limit = 1.0f;
     if (rw_portalClosingQuery) return false;
-    if (!g_portalGun.GetBool() || gameLocal.isMultiplayer || *cvarSystem->GetCVarString("fs_game") || !RW_GunPortalEntity(entity) || !trm) return false;
+    if (!RW_PortalGunEnabled() || !RW_GunPortalEntity(entity) || !trm) return false;
     hhPortal *a = RW_GunPortal(0), *b = RW_GunPortal(1);
     if (!a || !b || !a->cameraTarget || !b->cameraTarget) return false;
     for (int i = 0; i < 2; ++i) {
@@ -491,7 +506,7 @@ bool RW_PortalCoverPlane(const idPlane &wall, const idVec3 &query, idPlane &cove
     for (int color = 0; color < 2; ++color) {
         hhPortal *portal = RW_GunPortal(color);
         if (!portal || portal->GetAxis()[0] * wall.Normal() < 0.9999f) continue;
-        const idVec3 surface = portal->GetOrigin() - portal->GetAxis()[0] * RW_PORTAL_SURFACE_OFFSET;
+        const idVec3 surface = portal->GetOrigin() - portal->GetAxis()[0] * portal->spawnArgs.GetFloat("rw_portal_surface_offset");
         if (idMath::Fabs(wall.Distance(surface)) > 0.15f) continue;
         const float distance = (query - portal->GetOrigin()).LengthSqr();
         if (distance < nearestDistance) { nearest = portal; nearestDistance = distance; }
@@ -537,8 +552,8 @@ static bool RW_PortalPlacementSurface(const trace_t &hit) {
 static bool RW_PortalWindowClear(const idVec3 &center, const idMat3 &axis, const idEntity *ignore, float skin = 0.25f) {
     const float rimScale = 1.0f / idMath::Cos(idMath::PI / 8.0f);
     idTraceModel window;
-    window.SetupCylinder(idBounds(idVec3(-39*rimScale, -49*rimScale, skin),
-        idVec3(39*rimScale, 49*rimScale, 4.0f)), 8);
+    window.SetupCylinder(idBounds(idVec3(-RW_PORTAL_BACKING_HALF_WIDTH*rimScale, -RW_PORTAL_BACKING_HALF_HEIGHT*rimScale, skin),
+        idVec3(RW_PORTAL_BACKING_HALF_WIDTH*rimScale, RW_PORTAL_BACKING_HALF_HEIGHT*rimScale, 4.0f)), 8);
     idClipModel clearance(window);
     return !gameLocal.clip.Contents(center, &clearance, idMat3(axis[1], axis[2], axis[0]), MASK_SOLID, ignore);
 }
@@ -551,11 +566,11 @@ static bool RW_PortalSurfaceSupports(const idVec3 &center, const idMat3 &axis, c
         if (sampleIndex < 32) {
             const float angle = (sampleIndex % 16) * idMath::TWO_PI / 16.0f;
             const float scale = sampleIndex < 16 ? 1.0f : 0.5f;
-            py = scale * 39.0f * idMath::Cos(angle); pz = scale * 49.0f * idMath::Sin(angle);
+            py = scale * RW_PORTAL_BACKING_HALF_WIDTH * idMath::Cos(angle); pz = scale * RW_PORTAL_BACKING_HALF_HEIGHT * idMath::Sin(angle);
         } else {
             const int grid = sampleIndex - 32;
             py = (grid % 11 - 5) * 8.0f; pz = (grid / 11 - 7) * 8.0f;
-            if (Square(py / 39.0f) + Square(pz / 49.0f) > 1.0f) continue;
+            if (Square(py / RW_PORTAL_BACKING_HALF_WIDTH) + Square(pz / RW_PORTAL_BACKING_HALF_HEIGHT) > 1.0f) continue;
         }
         const idVec3 sample = center + axis[1] * py + axis[2] * pz;
         trace_t support;
@@ -563,7 +578,7 @@ static bool RW_PortalSurfaceSupports(const idVec3 &center, const idMat3 &axis, c
         const float facing = support.c.normal * axis[0];
         if (!RW_PortalPlacementSurface(support) || facing < 0.5f) return false;
         const float depth = (sample * support.c.normal - support.c.dist) / facing;
-        const bool flatCore = (sampleIndex >= 16 && sampleIndex < 32) || Square(py / 19.5f) + Square(pz / 24.5f) <= 1.0f;
+        const bool flatCore = (sampleIndex >= 16 && sampleIndex < 32) || Square(py / (RW_PORTAL_BACKING_HALF_WIDTH * 0.5f)) + Square(pz / (RW_PORTAL_BACKING_HALF_HEIGHT * 0.5f)) <= 1.0f;
         if (depth < -0.14f || depth > 8.0f ||
             (flatCore && (facing < 0.9999f || idMath::Fabs(depth) > 0.14f))) return false;
     }
@@ -678,7 +693,7 @@ static void RW_UpdateGunPortalFloor(hhPortal *portal) {
     portal->UpdateVisuals();
 }
 bool hhPlayer::PortalGunSelected() const {
-    return g_portalGun.GetBool() && !gameLocal.isMultiplayer && !*cvarSystem->GetCVarString("fs_game") && idealWeapon == 1 &&
+    return RW_PortalGunEnabled() && idealWeapon == 1 &&
         spawnArgs.GetBool("rw_weapon_portal_selected") && !IsSpiritOrDeathwalking();
 }
 bool hhPlayer::PortalGunViewAvailable() const {
@@ -718,7 +733,7 @@ static void RW_GunPortalVisual(hhPortal *portal, bool restart) {
 }
 
 bool hhPlayer::PlaceGunPortal(int color, const idDict *shot) {
-    if (!g_portalGun.GetBool() || gameLocal.isMultiplayer || *cvarSystem->GetCVarString("fs_game") || color < 0 || color > 1 ||
+    if (!RW_PortalGunEnabled() || color < 0 || color > 1 ||
         health <= 0 || InVehicle() || IsSpiritOrDeathwalking() || gameLocal.inCinematic) return false;
     const idVec3 eye = shot ? shot->GetVector("shot_eye") : GetEyePosition();
 
@@ -788,7 +803,7 @@ bool hhPlayer::PlaceGunPortal(int color, const idDict *shot) {
         args.Set("classname", "object_portal"); args.Set("name", RW_PortalName(color));
         args.SetBool("rw_portalGun", true); args.SetBool("startActive", true);
         args.Set("model", "models/reawakened/portalgun/closed.ase");
-        args.Set("mins", "-4 -48 -72"); args.Set("maxs", "4 48 72");
+        args.SetVector("mins", RW_PORTAL_ENTITY_BOUNDS[0]); args.SetVector("maxs", RW_PORTAL_ENTITY_BOUNDS[1]);
         args.Set("deformType", "0"); args.Set("shaderParm5", "100000"); args.Set("shaderParm6", "99999");
         args.SetVector("origin", center + normal * RW_PORTAL_SURFACE_OFFSET); args.SetMatrix("rotation", axis);
         idEntity *created = NULL;
@@ -953,8 +968,7 @@ static void RW_SetPortalShotVector(idDict &args, const char *key, const idVec3 &
     args.Set(key, va("%.9g %.9g %.9g", value.x, value.y, value.z));
 }
 void hhPlayer::FireGunPortal(int color) {
-    if (color < 0 || color > 1 || !g_portalGun.GetBool() || gameLocal.isMultiplayer ||
-        *cvarSystem->GetCVarString("fs_game") || health <= 0 || InVehicle() || IsSpiritOrDeathwalking() || gameLocal.inCinematic) return;
+    if (color < 0 || color > 1 || !RW_PortalGunEnabled() || health <= 0 || InVehicle() || IsSpiritOrDeathwalking() || gameLocal.inCinematic) return;
     const idVec3 eye = GetEyePosition();
     idVec3 direction = firstPersonViewAxis[0];
     if (cvarSystem->GetCVarBool("developer") && spawnArgs.GetBool("rw_portal_test_aim")) {
@@ -1030,11 +1044,9 @@ void hhPlayer::UpdatePortalGun() {
     if (!gameLocal.inCinematic && !bFrozen && health > 0) {
         if ((buttons & BUTTON_ATTACK) && !(previous & BUTTON_ATTACK)) {
             FireGunPortal(0);
-            spawnArgs.SetInt("rw_portal_view_fire", 1);
         }
         if ((buttons & BUTTON_ATTACK_ALT) && !(previous & BUTTON_ATTACK_ALT)) {
             FireGunPortal(1);
-            spawnArgs.SetInt("rw_portal_view_fire", 2);
         }
     }
     usercmd.buttons &= ~(BUTTON_ATTACK | BUTTON_ATTACK_ALT);

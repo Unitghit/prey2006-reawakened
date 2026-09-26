@@ -2,7 +2,7 @@ param(
     [Parameter(Mandatory=$true)][string]$Engine,
     [Parameter(Mandatory=$true)][string]$RetailBase,
     [Parameter(Mandatory=$true)][string]$Profile,
-    [string[]]$Cases = @('input','regression','floor','ceiling','blocked','replacement','access','floor_edge','guidance','guide_lookaway','guide_steering','guide_fast','floor_exit','placement','objects','fixed_fixture','exit_rim','replacement_occupants','through_portals','floor_escape','floor_partial','floor_continuous','floor_approach','floor_edge_slide','floor_corner','floor_clearance','surface_fit','ceiling_entry','floor_slab','wall_step','wall_approach','tapered_shell','cover_static','cover_mover','cover_limit','cover_far','sloped_ceiling','clip_column','oblique','terrain_fit','mesh_ground','rough_surfaces','reverse','static_exit')
+    [string[]]$Cases = @('input','regression','floor','ceiling','blocked','replacement','access','floor_edge','guidance','guide_lookaway','guide_steering','guide_fast','floor_exit','placement','objects','fixed_fixture','corner','fire_rejected','exit_rim','replacement_occupants','through_portals','floor_escape','floor_partial','floor_continuous','floor_approach','floor_edge_slide','floor_corner','floor_clearance','surface_fit','ceiling_entry','floor_slab','wall_step','wall_approach','tapered_shell','cover_static','cover_mover','cover_limit','cover_far','sloped_ceiling','clip_column','oblique','terrain_fit','mesh_ground','rough_surfaces','reverse','static_exit')
 )
 $ErrorActionPreference='Stop'
 $Engine=(Resolve-Path -LiteralPath $Engine).Path
@@ -12,6 +12,7 @@ if(Test-Path -LiteralPath $Profile){throw 'Use a new isolated profile directory.
 $base=Join-Path $Profile 'base'
 New-Item -ItemType Directory -Path "$base/maps","$base/materials","$base/models" -Force | Out-Null
 Copy-Item "$PSScriptRoot/tests/rw_portal_lab.map" "$base/maps/"
+Copy-Item "$PSScriptRoot/tests/rw_portal_corner.map" "$base/maps/"
 Copy-Item "$PSScriptRoot/tests/rw_portal_surface.map" "$base/maps/"
 Copy-Item "$PSScriptRoot/tests/rw_portal_slab.map" "$base/maps/"
 Copy-Item "$PSScriptRoot/tests/rw_portal_taper.map" "$base/maps/"
@@ -32,6 +33,10 @@ Copy-Item "$PSScriptRoot/tests/portal_lit_decal_test.ase" "$base/models/"
 Copy-Item "$PSScriptRoot/tests/portal_lit_decal_test.mtr" "$base/materials/"
 foreach($name in $Cases) {
     Copy-Item "$PSScriptRoot/tests/$name.cfg" "$base/test.cfg" -Force
+    if($name -eq 'fire_rejected') {
+        New-Item -ItemType Directory -Path "$base/def" -Force | Out-Null
+        Copy-Item "$PSScriptRoot/tests/fire_rejected.def" "$base/def/portalgun_shots.def"
+    }
     $arguments='+set fs_basepath "'+$Engine+'" +set fs_cdpath "'+(Split-Path $RetailBase -Parent)+'" +set fs_devpath "'+$Profile+'" +set fs_savepath "'+$Profile+'" +set fs_configpath "'+$Profile+'" +set fs_game "" +set r_fullscreen 0 +set r_fullscreenDesktop 0 +set r_mode -1 +set r_customWidth 960 +set r_customHeight 540 +set r_multiSamples 0 +set s_volume_dB -60 +set com_unlockedFPS 0 +set com_fixedTic 1 +set r_gammaInShader 1 +set developer 1 +set ai_disable 1 +set logfile 2 +exec test.cfg'
     $process=Start-Process (Join-Path $Engine 'prey06.exe') -WorkingDirectory $Engine -ArgumentList $arguments -WindowStyle Hidden -PassThru
     if(!$process.WaitForExit(60000)){Stop-Process -Id $process.Id; throw "$name timed out"}
@@ -333,6 +338,22 @@ foreach($name in $Cases) {
             $part=[regex]::Match($log,"(?s)OCCUPANT_${case}_BEGIN(.*?)OCCUPANT_${case}_END").Groups[1].Value
             if($part -notmatch 'rejected: leave the opening clear' -or $part -match 'PORTAL_REPLACEMENT_CLEAR|placed blue'){throw "Unsafe $case replacement allowed"}
         }
+    }
+    if($name -eq 'fire_rejected') {
+        Remove-Item -LiteralPath "$base/def/portalgun_shots.def"
+        $part=[regex]::Match($log,'(?s)REJECT_FIRE_BEGIN(.*?)REJECT_FIRE_END').Groups[1].Value
+        if(([regex]::Matches($part,"Could not spawn 'rw_portal_shot'")).Count -ne 2 -or
+            $part -match 'PORTALGUN_VIEW fire|PORTALGUN_SHOT launch') {throw 'Rejected spawn played firing effects or rejection was not exercised'}
+    }
+    if($name -eq 'corner') {
+        $center=[regex]::Match($log,'(?s)CORNER_CENTER_BEGIN(.*?)CORNER_CENTER_END').Groups[1].Value
+        $edge=[regex]::Match($log,'(?s)CORNER_EDGE_BEGIN(.*?)CORNER_EDGE_END').Groups[1].Value
+        $prop=[regex]::Match($log,'(?s)CORNER_PROP_BEGIN(.*?)CORNER_PROP_END').Groups[1].Value
+        if($log -notmatch 'placed blue at 127 16 71' -or $log -match 'PORTALGUN rejected:'){throw 'Corner backing placement failed'}
+        if(([regex]::Matches($center,'PORTAL_EXIT ')).Count -ne 1){throw 'Corner center traversal failed'}
+        if($edge -notmatch 'PORTAL_PROBE fraction=0.404297 end=111.75 55' -or
+            ([regex]::Matches($edge,'PORTAL_EXIT ')).Count -ne 1){throw 'Corner edge lost solid collision or bounded approach assistance'}
+        if(([regex]::Matches($prop,'PORTAL_ENTITY_EXIT hhMoveable name=corner_prop')).Count -ne 1){throw 'Corner prop did not cross exactly once'}
     }
     if($name -eq 'objects') {
         foreach($prop in @('polish_a','polish_b','polish_c')) {
