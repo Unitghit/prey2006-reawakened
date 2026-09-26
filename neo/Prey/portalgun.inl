@@ -1173,8 +1173,9 @@ bool hhPlayer::DrawPortalGunReticle() {
         // surface validity. Use the existing saved gun-color state.
         const bool fired = spawnArgs.GetInt("rw_shot_serial_0") > 0 || spawnArgs.GetInt("rw_shot_serial_1") > 0;
         const bool last = fired && spawnArgs.GetInt("rw_portal_view_last_color") == color;
+        if (!last) continue;
         const float flash = idMath::ClampFloat(0,1,(spawnArgs.GetInt("rw_portal_view_flash_end")-gameLocal.time)/200.0f);
-        renderSystem->SetColor4(rgb.x,rgb.y,rgb.z,last ? 0.75f+0.25f*flash : 0.2f);
+        renderSystem->SetColor4(rgb.x,rgb.y,rgb.z,0.75f+0.25f*flash);
         const float markerW = h*28.0f/64.0f;
         renderSystem->DrawStretchPic(cx+(color ? 0.75f : -1.85f)*markerW*aspect,
             cy-h*0.5f,markerW*aspect,h,194.0f/256,0,222.0f/256,1,atlas);
