@@ -1144,7 +1144,7 @@ void idSessionLocal::StartNewGame( const char *mapName, bool devmap ) {
 
 	MoveToNewMap( mapName );
 
-	cmdSystem->BufferCommandText( CMD_EXEC_APPEND, "exitMenu" );
+	cmdSystem->BufferCommandText( CMD_EXEC_APPEND, "exitMenu\n" );
 #endif
 }
 
