@@ -224,27 +224,28 @@ void RW_AssistPortalApproach(const idEntity *entity, const idVec3 &origin,
 }
 static void RW_AssistFloorExit(idEntity *entity, idEntity *destination, const idVec3 &origin,
     const idMat3 &axis, idVec3 &velocity) {
-    if (!entity->IsType(hhPlayer::Type)) return;
+    const bool npc = entity->IsType(idAI::Type) && entity->GetPhysics()->IsType(idPhysics_Monster::Type);
+    if (!entity->IsType(hhPlayer::Type) && !npc) return;
     idVec3 up = -destination->GetGravity();
     const float gravity = up.Normalize();
     const idVec3 normal = destination->GetAxis()[0];
     if (gravity < 0.01f || normal * up < 0.95f) return;
     const float acceleration = gravity * (normal * up);
-    // Supply only enough lift to clear the remaining hull, not a fixed jump.
-    // Already-clear exits and existing sufficient momentum need no assistance.
+    // Players need only enough lift to clear their remaining hull. NPCs cross
+    // at their feet and need a small rise to emerge before gravity pulls back.
     float back = idMath::INFINITY;
     const idBounds &bounds = entity->GetPhysics()->GetBounds();
     for (int k = 0; k < 8; ++k) {
         const idVec3 corner(bounds[(k&1)!=0].x, bounds[(k&2)!=0].y, bounds[(k&4)!=0].z);
         back = Min(back, (origin + corner*axis - destination->GetOrigin())*normal);
     }
-    const float needed = idMath::ClampFloat(0.0f, 24.0f, 1.0f-back);
+    const float needed = npc ? 24.0f : idMath::ClampFloat(0.0f, 24.0f, 1.0f-back);
     if (needed <= 0) return;
     const float maxMinimum = idMath::Sqrt(2 * acceleration * needed);
     const float outgoing = velocity * normal;
-    // Keep normal jump/fall momentum intact. Assistance is only for a
-    // near-stalled exit, not a minimum launch speed for every crossing.
-    if (outgoing >= 48.0f || outgoing >= maxMinimum) return;
+    // Preserve sufficient outgoing momentum. Players retain their existing
+    // near-stall threshold; NPCs get the bounded, clearance-tested rise.
+    if ((!npc && outgoing >= 48.0f) || outgoing >= maxMinimum) return;
     trace_t clearance;
     gameLocal.clip.Translation(clearance, origin, origin + normal*26, entity->GetPhysics()->GetClipModel(),
         axis, entity->GetPhysics()->GetClipMask(), entity);

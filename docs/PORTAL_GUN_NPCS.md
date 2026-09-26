@@ -11,3 +11,11 @@ Validation:
 - Existing input, objects, blocked, replacement_occupants, floor and through_portals cases pass.
 
 All tests use isolated hidden sessions with s_volume_dB -60. No save format changes or retail assets are included.
+
+## Floor exit correction
+
+The initial traversal test proved teleportation but did not prove that an NPC emerged above the destination floor. A floor-to-floor transform turned the NPC hull upside down; monster movement then tried to restore gravity alignment on the next tick. NPCs also did not receive floor-exit lift assistance.
+
+Gun-portal NPCs now adopt their destination gravity orientation during floor-exit validation, before committing the teleport. Slow floor exits receive collision-tested lift sufficient for 24 units of rise; existing higher outward velocity remains intact. Player assistance is unchanged. Non-floor exits keep the previous orientation behavior.
+
+The updated `portalnpc` replay shows Dalton at the orange destination, upright with his feet 21 units above the floor, followed by walking away and landing at floor height. The `npc_floor` fixture checks full-body emergence and repeated floor-pair traversal, rather than using a teleport log alone as evidence of success. The original wall-exit, noPortal and blocked-exit NPC checks remain part of the regression run.

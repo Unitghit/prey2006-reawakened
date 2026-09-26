@@ -1111,6 +1111,25 @@ bool hhPortal::PortalEntity( idEntity *ent, const idVec3 &point, const idVec3 *c
 		PortalRotate( newEntAxis[0], sourceAxis, destAxis, true );
 		PortalRotate( newEntAxis[1], sourceAxis, destAxis, true );
 		PortalRotate( newEntAxis[2], sourceAxis, destAxis, true );
+
+        // Monster movement restores gravity alignment every tick. Commit the
+        // same upright hull here rather than letting that correction rotate an
+        // upside-down floor-exit body through the supporting floor next tick.
+        const bool gunNPC = spawnArgs.GetBool("rw_portalGun") && ent->IsType(idAI::Type) &&
+            ent->GetPhysics()->IsType(idPhysics_Monster::Type);
+        if (gunNPC) {
+            idVec3 up = -cameraTarget->GetGravity();
+            if (up.Normalize() > 0.01f && up * destAxis[0] > 0.95f) {
+                idVec3 forward = newEntAxis[0] - up * (newEntAxis[0] * up);
+                if (forward.Normalize() < 0.01f) {
+                    forward = newEntAxis[1] - up * (newEntAxis[1] * up);
+                    forward.Normalize();
+                }
+                newEntAxis[0] = forward;
+                newEntAxis[1] = up.Cross(forward);
+                newEntAxis[2] = up;
+            }
+        }
 		
         bool continuous = true;
         if (crossingPoint && ent->GetPhysics()->GetClipModel()) {
