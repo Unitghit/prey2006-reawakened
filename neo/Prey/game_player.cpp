@@ -4,6 +4,8 @@
 
 #include "prey_local.h"
 
+static idCVar g_noSpiritResurrections("g_noSpiritResurrections", "0", CVAR_GAME | CVAR_BOOL,
+    "single-player final death instead of spirit resurrection; does not disable spirit walk");
 static idCVar g_doom3Shotgun("g_doom3Shotgun", "0", CVAR_GAME | CVAR_BOOL,
 	"enable the locally installed save-compatible Doom 3 shotgun");
 static idCVar g_weaponPackTrace("g_weaponPackTrace", "0", CVAR_GAME | CVAR_BOOL,
@@ -3798,7 +3800,7 @@ void hhPlayer::Killed( idEntity *inflictor, idEntity *attacker, int damage, cons
 		bSpiritWalk = false;
 		bReallyDead = true;
 	}
-	else if ( !inventory.requirements.bCanDeathWalk || !gameLocal.DeathwalkMapLoaded() ) {
+	else if ( (!gameLocal.isMultiplayer && g_noSpiritResurrections.GetBool()) || !inventory.requirements.bCanDeathWalk || !gameLocal.DeathwalkMapLoaded() ) {
 		bDeathWalk = false;
 		bSpiritWalk = false;
 		bReallyDead = true;

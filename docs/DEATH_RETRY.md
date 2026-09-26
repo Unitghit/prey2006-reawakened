@@ -7,3 +7,5 @@ Missing or invalid-header candidates are skipped in reverse interaction order. W
 The change handles the existing `died` session event after the game frame returns. Spirit deathwalk/resurrection logic and multiplayer spawning are unchanged.
 
 Hidden, muted engine tests cover a real death after loading an older save, a subsequent manual save, asynchronous saving, a fresh map with autosaves disabled, and deletion of the latest checkpoint. The first two must log `DEATH_RETRY save=retry_a` and `save=retry_c`; the fresh map must log `DEATH_RETRY restart=rw_portal_lab`. Deleted latest saves must fall back to the previous loaded checkpoint. Fixtures live in tools/tests/death-retry and require the isolated rw_portal_lab input save. Use s_volume_dB -60 and the private desktop runner.
+
+The launcher Gameplay option **No spirit resurrections** sets `g_noSpiritResurrections` (default 0). Enabled, normal single-player lethal damage uses final death even after spirit power is acquired; spirit walking and multiplayer are unaffected. Changing it applies on launch and does not remove the saved spirit ability.
