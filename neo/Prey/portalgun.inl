@@ -239,7 +239,7 @@ static void RW_AssistFloorExit(idEntity *entity, idEntity *destination, const id
         const idVec3 corner(bounds[(k&1)!=0].x, bounds[(k&2)!=0].y, bounds[(k&4)!=0].z);
         back = Min(back, (origin + corner*axis - destination->GetOrigin())*normal);
     }
-    const float needed = npc ? 24.0f : idMath::ClampFloat(0.0f, 24.0f, 1.0f-back);
+    const float needed = npc ? idMath::ClampFloat(0, 128, 24.0f-back) : idMath::ClampFloat(0.0f, 24.0f, 1.0f-back);
     if (needed <= 0) return;
     const float maxMinimum = idMath::Sqrt(2 * acceleration * needed);
     const float outgoing = velocity * normal;
@@ -247,7 +247,7 @@ static void RW_AssistFloorExit(idEntity *entity, idEntity *destination, const id
     // near-stall threshold; NPCs get the bounded, clearance-tested rise.
     if ((!npc && outgoing >= 48.0f) || outgoing >= maxMinimum) return;
     trace_t clearance;
-    gameLocal.clip.Translation(clearance, origin, origin + normal*26, entity->GetPhysics()->GetClipModel(),
+    gameLocal.clip.Translation(clearance, origin, origin + normal*(npc ? needed+2 : 26), entity->GetPhysics()->GetClipModel(),
         axis, entity->GetPhysics()->GetClipMask(), entity);
     const float space = Min(needed, (clearance.endpos-origin)*normal - 2);
     if (space <= 0) return;
@@ -449,7 +449,7 @@ bool RW_PortalClipPlane(const idEntity *entity, const idTraceModel *trm, const i
         // while the rotated hull emerges. Keep the cutout for that overlap,
         // but still reject players whose whole hull is behind the surface.
         float bodyFront = 0;
-        if (entity->IsType(hhPlayer::Type)) {
+        if (entity->IsType(hhPlayer::Type) || entity->IsType(idAI::Type)) {
             const idBounds &body = entity->GetPhysics()->GetBounds();
             for (int k = 0; k < 8; ++k) {
                 const idVec3 corner(body[(k&1)!=0].x, body[(k&2)!=0].y, body[(k&4)!=0].z);

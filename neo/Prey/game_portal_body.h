@@ -13,6 +13,36 @@ struct portalBodyPart_t {
     portalBodyPart_t() : base(NULL), snapshot(NULL), nearModel(NULL), farModel(NULL), ghostHandle(-1) {}
 };
 static idList<portalBodyPart_t *> portalBodyParts;
+struct npcPortalPose_t {
+    idEntityPtr<idEntity> entity, destination;
+    idMat3 correction;
+    int turnStart, crossingTime;
+    idVec3 oldCenter, newCenter;
+    idMat3 staleRotation;
+};
+static idList<npcPortalPose_t> npcPortalPoses;
+void hhGameLocal::BeginNPCPortalPresentation(idEntity *entity, idEntity *destination,
+    const idMat3 &mappedAxis, const idMat3 &physicalAxis, const idMat3 &rotation, const idVec3 &oldOrigin) {
+    int index = -1;
+    for (int i = 0; i < npcPortalPoses.Num(); ++i)
+        if (npcPortalPoses[i].entity.GetEntity() == entity) { index = i; break; }
+    idMat3 previous = mat3_identity;
+    if (index >= 0) {
+        const npcPortalPose_t &old = npcPortalPoses[index];
+        float t = old.turnStart < 0 ? 0 : idMath::ClampFloat(0,1,(time-old.turnStart)/250.0f);
+        t=t*t*(3-2*t); idQuat q; q.Slerp(old.correction.ToQuat(),mat3_identity.ToQuat(),t); previous=q.ToMat3();
+    }
+    if (index < 0) { npcPortalPose_t entry; index = npcPortalPoses.Append(entry); }
+    npcPortalPose_t &entry = npcPortalPoses[index];
+    entry.entity = entity; entry.destination = destination;
+    entry.correction = physicalAxis.Transpose() * mappedAxis * rotation.Transpose() * previous * rotation;
+    entry.turnStart = -1; entry.crossingTime = time;
+    const idMat3 oldAxis = mappedAxis * rotation.Transpose();
+    const idVec3 localCenter=entity->GetPhysics()->GetBounds().GetCenter();
+    entry.oldCenter=oldOrigin+localCenter*oldAxis;
+    entry.newCenter=entity->GetPhysics()->GetOrigin()+localCenter*physicalAxis;
+    entry.staleRotation=oldAxis.Transpose()*physicalAxis;
+}
 static void ClearPortalBodies() {
     for (int i = 0; i < portalBodyParts.Num(); ++i) {
         portalBodyPart_t &part = *portalBodyParts[i];
@@ -267,6 +297,114 @@ static bool ApplyPortalBodies(hhPlayer *player, const renderView_t &authoritativ
             gameLocal.time, portal->name.c_str(), pieces, triangles, sourceSide ? 1 : 0, timer.Milliseconds());
     }
     return pieces != 0;
+}
+// NPCs use the same clipped mesh builder, without first-person eye exclusions.
+// Ghosts are renderer definitions only: no additional AI, health or collision.
+static void ApplyNPCPortalBodies(const renderView_t &view, idList<presentationModelRestore_t> &restore) {
+    if (!g_portalBodySplit.GetBool() || gameLocal.isMultiplayer) return;
+    for (int i = npcPortalPoses.Num()-1; i >= 0; --i)
+        if (!npcPortalPoses[i].entity.IsValid() || !npcPortalPoses[i].destination.IsValid() ||
+            npcPortalPoses[i].entity->health <= 0) npcPortalPoses.RemoveIndex(i);
+    idList<hhPortal *> portals;
+    for (idEntity *ent=gameLocal.spawnedEntities.Next();ent;ent=ent->spawnNode.Next())
+        if(ent->IsType(hhPortal::Type) && ent->spawnArgs.GetBool("rw_portalGun")) portals.Append(static_cast<hhPortal *>(ent));
+    if(!portals.Num() && !npcPortalPoses.Num()) return;
+    for (idEntity *actor = gameLocal.spawnedEntities.Next(); actor; actor = actor->spawnNode.Next()) {
+        if (!actor->IsType(idAI::Type) || actor->health <= 0 || actor->IsHidden() || actor->IsBound() ||
+            actor->fl.noPortal || !actor->GetPhysics()->IsType(idPhysics_Monster::Type)) continue;
+        const renderEntity_t *body = gameRenderWorld->GetRenderEntity(actor->GetModelDefHandle());
+        if (!body || !body->hModel) continue;
+        const idVec3 center = actor->GetPhysics()->GetOrigin() +
+            actor->GetPhysics()->GetBounds().GetCenter()*actor->GetPhysics()->GetAxis();
+        idMat3 correction = mat3_identity;
+        bool correcting = false;
+        float turnBlend = 1;
+        int npcState = -1;
+        for (int i = 0; i < npcPortalPoses.Num(); ++i) {
+            npcPortalPose_t &entry = npcPortalPoses[i];
+            if (entry.entity.GetEntity() != actor) continue;
+            npcState = i;
+            idEntity *exit = entry.destination.GetEntity();
+            const float radius = (actor->GetPhysics()->GetBounds()[1]-actor->GetPhysics()->GetBounds()[0]).Length()*0.5f;
+            // Wait until the entire turning body clears the aperture. Then
+            // ease to upright around its center, rather than pivoting at feet.
+            if (entry.turnStart < 0 && (center-exit->GetOrigin())*exit->GetAxis()[0] > radius+2)
+                entry.turnStart = gameLocal.time;
+            float t = entry.turnStart < 0 ? 0 : idMath::ClampFloat(0, 1, (gameLocal.time + (presentationFraction >= 0 ? (presentationFraction-1)*USERCMD_MSEC : 0) - entry.turnStart)/250.0f);
+            t = t*t*(3-2*t); turnBlend=t;
+            idQuat q; q.Slerp(entry.correction.ToQuat(), mat3_identity.ToQuat(), t);
+            correction = q.ToMat3(); correcting = t < 1;
+            if (t >= 1) { npcPortalPoses.RemoveIndex(i); npcState=-1; }
+            break;
+        }
+        bool nearby = correcting;
+        for(int p=0;p<portals.Num() && !nearby;++p)
+            nearby=(center-portals[p]->GetOrigin()).LengthSqr()<256*256;
+        if(!nearby) continue;
+        idList<portalBodyPose_t> poses;
+        idBounds worldBounds; worldBounds.Clear();
+        for (idEntity *ent = gameLocal.spawnedEntities.Next(); ent; ent = ent->spawnNode.Next()) {
+            idEntity *owner = ent;
+            while (owner->GetBindMaster()) owner = owner->GetBindMaster();
+            if (owner != actor || ent->IsHidden() || ent->GetModelDefHandle() < 0) continue;
+            const renderEntity_t *render = gameRenderWorld->GetRenderEntity(ent->GetModelDefHandle());
+            if (!render || !render->hModel || render->hModel->IsDynamicModel() == DM_CONTINUOUS ||
+                render->remoteRenderView || render->weaponDepthHack) continue;
+            portalBodyPose_t item; item.entity = ent; item.original = item.pose = *render;
+            if (item.pose.callback) item.pose.callback(&item.pose, &view);
+            if (npcState >= 0 && npcPortalPoses[npcState].crossingTime == gameLocal.time) {
+                const npcPortalPose_t &entry=npcPortalPoses[npcState];
+                if((item.pose.origin-entry.oldCenter).LengthSqr()+1 < (item.pose.origin-entry.newCenter).LengthSqr()) {
+                    item.pose.origin=(item.pose.origin-entry.oldCenter)*entry.staleRotation+entry.newCenter;
+                    item.pose.axis*=entry.staleRotation;
+                }
+            }
+            if (correcting) {
+                item.pose.origin = center + (item.pose.origin-center)*correction;
+                item.pose.axis *= correction;
+            }
+            idBounds bounds; bounds.FromTransformedBounds(item.pose.bounds, item.pose.origin, item.pose.axis);
+            worldBounds.AddBounds(bounds); poses.Append(item);
+        }
+        hhPortal *portal = NULL;
+        idVec3 source, destination; idMat3 rotation; idPlane planes[17]; int count = 0;
+        float nearest = idMath::INFINITY;
+        for (int portalIndex=0;portalIndex<portals.Num();++portalIndex) {
+            hhPortal *ent=portals[portalIndex];
+            idVec3 a,b; idMat3 r; idPlane p[17]; int n; float distance;
+            // Portal selection follows the actor, independent of the viewer.
+            const idVec3 front = ent->GetOrigin()+ent->GetAxis()[0];
+            if (!static_cast<hhPortal *>(ent)->GetBodyPortalTransform(worldBounds, front, a,b,r,p,n,distance)) continue;
+            distance = (center-ent->GetOrigin()).LengthSqr();
+            if (distance >= nearest) continue;
+            portal = static_cast<hhPortal *>(ent); nearest=distance;
+            source=a; destination=b; rotation=r; count=n;
+            for (int k=0;k<n;++k) planes[k]=p[k];
+        }
+        if (!portal && !correcting) continue;
+        int triangles = 0;
+        for (int i=0;i<poses.Num();++i) {
+            portalBodyPose_t &item=poses[i];
+            presentationModelRestore_t saved; saved.handle=item.entity->GetModelDefHandle(); saved.model=item.original;
+            restore.Append(saved);
+            if (!portal) { gameRenderWorld->UpdateEntityDef(saved.handle,&item.pose); continue; }
+            portalBodyPart_t &part=PortalBodyPart(item.entity,item.pose.hModel);
+            int remoteTriangles=SplitPortalBodyModel(part,item.pose,planes,count,true);
+            if (!remoteTriangles) { gameRenderWorld->UpdateEntityDef(saved.handle,&item.pose); continue; }
+            renderEntity_t nearPiece=item.pose;
+            nearPiece.hModel=part.nearModel; nearPiece.bounds=part.nearModel->Bounds();
+            nearPiece.callback=NULL; nearPiece.callbackData=NULL; nearPiece.joints=NULL; nearPiece.numJoints=0;
+            nearPiece.forceUpdate=true; nearPiece.portalBodyEyeRadius=0;
+            gameRenderWorld->UpdateEntityDef(saved.handle,&nearPiece);
+            renderEntity_t farPiece=nearPiece;
+            farPiece.hModel=part.farModel; farPiece.bounds=part.farModel->Bounds();
+            farPiece.origin=(nearPiece.origin-source)*rotation+destination; farPiece.axis=nearPiece.axis*rotation;
+            if(part.ghostHandle<0) part.ghostHandle=gameRenderWorld->AddEntityDef(&farPiece);
+            else gameRenderWorld->UpdateEntityDef(part.ghostHandle,&farPiece);
+            triangles+=remoteTriangles;
+        }
+        if(g_portalBodyTrace.GetBool()) gameLocal.Printf("PORTAL_NPC_BODY name=%s triangles=%d turning=%d blend=%.3f\n",actor->GetName(),triangles,correcting,turnBlend);
+    }
 }
 static void RestorePortalBodies(const idList<presentationModelRestore_t> &restore) {
     for (int i = 0; i < restore.Num(); ++i) gameRenderWorld->UpdateEntityDef(restore[i].handle, &restore[i].model);

@@ -35,6 +35,7 @@ public:
 	void InvalidateEntityPresentation(idEntity *entity);
 	void SnapPortalViewModels(const renderView_t &oldView);
 	bool TransformPortalPresentation(idEntity *entity, const idVec3 &source, const idVec3 &destination, const idMat3 &rotation, const idVec3 &exitNormal);
+	void BeginNPCPortalPresentation(idEntity *entity, idEntity *destination, const idMat3 &mappedAxis, const idMat3 &physicalAxis, const idMat3 &rotation, const idVec3 &oldOrigin);
 	idVec2 GetPresentationCursorOffset() const;
 
 	// added functionality functions

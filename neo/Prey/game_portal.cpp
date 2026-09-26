@@ -647,14 +647,13 @@ bool hhPortal::AttemptPortal( idPlane &plane, idEntity *hit, idVec3 location, id
 
     idPlane crossingPlane = plane;
     if (eyeOffset != 0) crossingPlane.FitThroughPoint(GetOrigin() - plane.Normal()*eyeOffset);
-    // Walking NPC feet may already be behind the slightly raised visual
-    // plane before entering the opening. Detect their descent through the
-    // supporting surface instead, so lateral entry cannot miss the crossing.
+    // NPC ownership changes at the hull center while the two visual pieces
+    // remain joined at the opening. Feet entering alone no longer teleports
+    // the whole model, and walking below the raised rim still crosses reliably.
     if (spawnArgs.GetBool("rw_portalGun") && hit->IsType(idAI::Type) &&
-        hit->GetPhysics()->IsType(idPhysics_Monster::Type) &&
-        plane.Normal() * -hit->GetPhysics()->GetGravityNormal() > 0.95f) {
-        crossingPlane.FitThroughPoint(GetOrigin() - plane.Normal() *
-            (spawnArgs.GetFloat("rw_portal_surface_offset", "1") + 0.25f));
+        hit->GetPhysics()->IsType(idPhysics_Monster::Type)) {
+        const idVec3 center = hit->GetPhysics()->GetBounds().GetCenter() * hit->GetPhysics()->GetAxis();
+        crossingPlane.FitThroughPoint(GetOrigin() - plane.Normal() * (center * plane.Normal()));
     }
     int side = crossingPlane.Side( location );
 	if ( side == PLANESIDE_ON || side == PLANESIDE_CROSS ) {
@@ -1126,7 +1125,9 @@ bool hhPortal::PortalEntity( idEntity *ent, const idVec3 &point, const idVec3 *c
         // upside-down floor-exit body through the supporting floor next tick.
         const bool gunNPC = spawnArgs.GetBool("rw_portalGun") && ent->IsType(idAI::Type) &&
             ent->GetPhysics()->IsType(idPhysics_Monster::Type);
+        idVec3 npcOriginShift = vec3_origin;
         if (gunNPC) {
+            const idMat3 mappedAxis = newEntAxis;
             idVec3 up = -cameraTarget->GetGravity();
             if (up.Normalize() > 0.01f && up * destAxis[0] > 0.95f) {
                 idVec3 forward = newEntAxis[0] - up * (newEntAxis[0] * up);
@@ -1138,13 +1139,16 @@ bool hhPortal::PortalEntity( idEntity *ent, const idVec3 &point, const idVec3 *c
                 newEntAxis[1] = up.Cross(forward);
                 newEntAxis[2] = up;
             }
+            const idVec3 center = ent->GetPhysics()->GetBounds().GetCenter();
+            npcOriginShift = center * mappedAxis - center * newEntAxis;
+            newLocation += npcOriginShift;
         }
 		
         bool continuous = true;
         if (crossingPoint && ent->GetPhysics()->GetClipModel()) {
             idVec3 exitStart = *crossingPoint - GetOrigin();
             PortalRotate(exitStart, sourceAxis, destAxis, true);
-            exitStart += cameraTarget->GetOrigin();
+            exitStart += cameraTarget->GetOrigin() + npcOriginShift;
             trace_t exitTrace;
             // Preserve the teleport's world/static collision and telefrag
             // semantics, while preventing the remaining step crossing a wall.
@@ -1244,6 +1248,8 @@ bool hhPortal::PortalTeleport( idEntity *ent, const idVec3 &origin, const idMat3
 	// Properly set velocity relative to the new portal
 	idVec3 vel = ent->GetPhysics()->GetLinearVelocity();
     const idVec3 originalVelocity = vel;
+    const idMat3 originalActorAxis = ent->GetPhysics()->GetAxis();
+    const idVec3 originalActorOrigin = ent->GetPhysics()->GetOrigin();
 	PortalRotate( vel, sourceAxis, destAxis, true );
 	ent->GetPhysics()->SetLinearVelocity( vel );	
 
@@ -1346,6 +1352,10 @@ bool hhPortal::PortalTeleport( idEntity *ent, const idVec3 &origin, const idMat3
             ent->GetPhysics()->SetAngularVelocity(angularVelocity);
         }
 	}
+
+    if (gunPortal && ent->IsType(idAI::Type) && ent->GetPhysics()->IsType(idPhysics_Monster::Type)) {
+        gameLocal.BeginNPCPortalPresentation(ent, cameraTarget, originalActorAxis * presentationRotation, axis, presentationRotation, originalActorOrigin);
+    }
 
 	// Re-link the actor into the clip tree
 	clip->Link( gameLocal.clip );

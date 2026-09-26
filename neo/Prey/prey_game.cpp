@@ -281,6 +281,7 @@ void hhGameLocal::UnregisterEntity( idEntity *ent ) {
 //
 //---------------------------------------------------
 void hhGameLocal::MapShutdown( void ) {
+    npcPortalPoses.Clear();
     ClearPortalWeaponLights();
     presentationViewTestPending = false;
     ClosePlatformTrace();
@@ -1332,6 +1333,7 @@ bool hhGameLocal::Draw( int clientNum ) {
     const bool splitBody = ApplyPortalBodies(player, authoritativeView, *view, portalSourceSide, bodyRestore);
     if (!splitBody && (presentationPortalTime == time || portalSnapTime == time))
         SuppressPortalCrossingBody(view->viewID, adjustedViewModels);
+    ApplyNPCPortalBodies(*view, bodyRestore);
     ApplyPortalWeaponLighting(player, *view, adjustedLights);
     ApplyPortalLighter(player, stalePortalView ? savedView : authoritativeView, *view, adjustedLights);
 	// render the scene
@@ -1594,6 +1596,7 @@ void hhGameLocal::Save( idSaveGame *savefile ) const {
 //hhGameLocal::Restore
 //================
 void hhGameLocal::Restore( idRestoreGame *savefile ) {
+    npcPortalPoses.Clear();
 	ResetPresentation();
 	idEntity *ent;
 	int i, num;

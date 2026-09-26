@@ -366,13 +366,25 @@ foreach($name in $Cases) {
             ([regex]::Matches($edge,'PORTAL_EXIT ')).Count -ne 1){throw 'Corner edge lost solid collision or bounded approach assistance'}
         if(([regex]::Matches($prop,'PORTAL_ENTITY_EXIT hhMoveable name=corner_prop')).Count -ne 1){throw 'Corner prop did not cross exactly once'}
     }
+    if($name -eq 'npc_smooth') {
+        if($log -notmatch 'PORTAL_NPC_BODY name=npc_smooth triangles=[1-9][0-9]* turning=0') { throw 'Missing entry split mesh' }
+        if($log -notmatch 'PORTAL_NPC_BODY name=npc_smooth triangles=[1-9][0-9]* turning=1') { throw 'Missing exit split mesh' }
+        if($log -notmatch 'turning=1 blend=0\.[1-9]') { throw 'Missing gradual upright rotation' }
+        if(([regex]::Matches($log,'PORTAL_ENTITY_EXIT hhHunterSimple name=npc_smooth')).Count -lt 2) { throw 'Repeated smooth crossings failed' }
+        foreach($pose in [regex]::Matches($log,'PORTAL_ACTOR_POSE npc_smooth origin=([-0-9.]+) ([-0-9.]+) ([-0-9.]+)')) {
+            if([double]$pose.Groups[3].Value -lt -46) { throw 'NPC fell below its center-crossing boundary' }
+        }
+        if($log -match 'R_EyeballDeform:|GL_INVALID|odd vertex count') { throw 'NPC mesh rendering error' }
+        $cleanup=[regex]::Match($log,'(?s)NPC_CLEANUP_BEGIN(.*?)NPC_CLEANUP_END').Groups[1].Value
+        if(!$cleanup -or $cleanup -match 'PORTAL_NPC_BODY') { throw 'NPC presentation survived map reload' }
+    }
     if($name -eq 'npc_floor') {
         if(([regex]::Matches($log,'PORTAL_ENTITY_EXIT hhHunterSimple name=npc_floor')).Count -lt 2) { throw 'Floor NPC failed repeated traversal' }
         foreach($phase in @('AIR','REPEAT')) {
             $part=[regex]::Match($log,"(?s)NPC_FLOOR_${phase}_BEGIN(.*?)NPC_FLOOR_${phase}_END").Groups[1].Value
             $pose=[regex]::Match($part,'PORTAL_ACTOR_POSE npc_floor origin=([-0-9.]+) ([-0-9.]+) ([-0-9.]+) axis=0 0 1')
-            if(!$pose.Success -or [math]::Abs([double]$pose.Groups[1].Value) -lt 100 -or [double]$pose.Groups[3].Value -lt 0) { throw "NPC floor $phase position or upright orientation failed" }
-            if([double]$pose.Groups[3].Value -lt 8) { throw 'NPC did not emerge above floor' }
+            if(!$pose.Success -or [math]::Abs([double]$pose.Groups[1].Value) -lt 100 -or [double]$pose.Groups[3].Value -lt -46) { throw "NPC floor $phase position or upright orientation failed" }
+            if($phase -eq 'AIR' -and [double]$pose.Groups[3].Value -lt 8) { throw 'NPC did not emerge above floor' }
             if($part -notmatch 'PORTAL_ACTOR name=npc_floor health=100') { throw 'NPC floor exit caused damage' }
         }
     }
