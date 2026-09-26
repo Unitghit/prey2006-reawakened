@@ -38,6 +38,9 @@ If you have questions concerning this license or the applicable additional terms
 #include <conio.h>
 #include <uxtheme.h>
 
+#include <mutex>
+#include <string>
+
 #pragma comment(lib, "uxtheme.lib")
 
 #include "win_local.h"
@@ -450,6 +453,8 @@ void Sys_DestroyConsole( void ) {
 /*
 ** Sys_ShowConsole
 */
+static void Conbuf_FlushPending( void );
+
 void Sys_ShowConsole( int visLevel, bool quitOnClose ) {
 
 	s_wcd.quitOnClose = quitOnClose;
@@ -464,10 +469,13 @@ void Sys_ShowConsole( int visLevel, bool quitOnClose ) {
 		break;
 		case 1:
 			ShowWindow( s_wcd.hWnd, SW_SHOWNORMAL );
+			// text printed while the window was hidden
+			Conbuf_FlushPending();
 			SendMessage( s_wcd.hwndBuffer, EM_LINESCROLL, 0, 0xffff );
 		break;
 		case 2:
 			ShowWindow( s_wcd.hWnd, SW_MINIMIZE );
+			Conbuf_FlushPending();
 		break;
 		default:
 			Sys_Error( "Invalid visLevel %d sent to Sys_ShowConsole\n", visLevel );
@@ -492,8 +500,45 @@ char *Sys_ConsoleInput( void ) {
 
 /*
 ** Conbuf_AppendText
+
+While the console window is hidden, text is kept in memory instead of being
+sent to the edit control: each append costs several window messages and a
+scrollbar update even when nobody can see it. The pending text (only its
+tail, as the control keeps about 28K characters anyway) is added as soon as
+the window is shown by Sys_ShowConsole, including for fatal errors.
 */
+static void Conbuf_AppendTextDirect( const char *pMsg );
+
+static std::mutex		conbufPendingLock;
+static std::string		conbufPending;
+static const size_t		CONBUF_PENDING_LIMIT = 32768;
+
+static void Conbuf_FlushPending( void ) {
+	std::string pending;
+	{
+		std::lock_guard<std::mutex> guard( conbufPendingLock );
+		pending.swap( conbufPending );
+	}
+	if ( !pending.empty() ) {
+		Conbuf_AppendTextDirect( pending.c_str() );
+	}
+}
+
 void Conbuf_AppendText( const char *pMsg )
+{
+	if ( s_wcd.hWnd && !IsWindowVisible( s_wcd.hWnd ) ) {
+		std::lock_guard<std::mutex> guard( conbufPendingLock );
+		conbufPending += pMsg;
+		if ( conbufPending.size() > CONBUF_PENDING_LIMIT ) {
+			conbufPending.erase( 0, conbufPending.size() - CONBUF_PENDING_LIMIT );
+		}
+		return;
+	}
+	Conbuf_FlushPending();
+	Conbuf_AppendTextDirect( pMsg );
+}
+
+static void Conbuf_AppendTextDirect( const char *pMsg )
 {
 #define CONSOLE_BUFFER_SIZE		16384
 
