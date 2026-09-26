@@ -45,6 +45,8 @@ idCVar	idSessionLocal::com_fixedTic( "com_fixedTic", "0", CVAR_SYSTEM | CVAR_INT
 idCVar	idSessionLocal::com_showDemo( "com_showDemo", "0", CVAR_SYSTEM | CVAR_BOOL, "" );
 idCVar	idSessionLocal::com_skipGameDraw( "com_skipGameDraw", "0", CVAR_SYSTEM | CVAR_BOOL, "" );
 idCVar	idSessionLocal::com_wipeSeconds( "com_wipeSeconds", "1", CVAR_SYSTEM, "" );
+static idCVar com_loadingScreenMinMsec( "com_loadingScreenMinMsec", "0", CVAR_SYSTEM | CVAR_INTEGER,
+	"minimum milliseconds the loading screen animates before a map starts loading (original 1000)", 0, 5000 );
 idCVar	idSessionLocal::com_guid( "com_guid", "", CVAR_SYSTEM | CVAR_ARCHIVE | CVAR_ROM, "" );
 #ifdef MUSICAL_LEVELLOADS
 static idCVar g_levelloadmusic( "g_levelloadmusic", "1", CVAR_GAME | CVAR_ARCHIVE | CVAR_BOOL, "play music during level loads" );
@@ -550,7 +552,9 @@ void idSessionLocal::ShowLoadingGui() {
 	// introduced in D3XP code. don't think it actually fixes anything, but doesn't hurt either
 #if 1
 	// Try and prevent the while loop from being skipped over (long hitch on the main thread?)
-	int stop = Sys_Milliseconds() + 1000;
+	// The forced frames below always draw the loading screen; the extra minimum
+	// hold (originally 1000 ms) only delays the start of loading.
+	int stop = Sys_Milliseconds() + com_loadingScreenMinMsec.GetInteger();
 	int force = 10;
 	while ( Sys_Milliseconds() < stop || force-- > 0 ) {
 		com_frameTime = com_ticNumber * USERCMD_MSEC;
@@ -1468,6 +1472,9 @@ Exits with mapSpawned = true
 void idSessionLocal::ExecuteMapChange( bool noFadeWipe ) {
 	int		i;
 	bool	reloadingSameMap;
+	// Wall-clock phases, printed as one LOAD_WALL line when the map is ready.
+	const int wallStart = Sys_Milliseconds();
+	int wallFade = 0, wallLoadingGui = 0, wallProgressBar = 0;
 
 	// close console and remove any prints from the notify lines
 	console->Close();
@@ -1498,6 +1505,7 @@ void idSessionLocal::ExecuteMapChange( bool noFadeWipe ) {
 		// run the wipe to completion
 		CompleteWipe();
 	}
+	wallFade = Sys_Milliseconds() - wallStart;
 
 	// extract the map name from serverinfo
 	idStr mapString = mapSpawnData.serverInfo.GetString( "si_map" );
@@ -1561,7 +1569,11 @@ void idSessionLocal::ExecuteMapChange( bool noFadeWipe ) {
 	ClearWipe();
 
 	// let the loading gui spin for 1 second to animate out
-	ShowLoadingGui();
+	{
+		const int guiStart = Sys_Milliseconds();
+		ShowLoadingGui();
+		wallLoadingGui = Sys_Milliseconds() - guiStart;
+	}
 
 	// note any warning prints that happen during the load process
 	common->ClearWarnings( mapString );
@@ -1667,6 +1679,7 @@ void idSessionLocal::ExecuteMapChange( bool noFadeWipe ) {
 
 	common->PrintWarnings();
 
+	const int barStart = Sys_Milliseconds();
 	if ( guiLoading && bytesNeededForMapLoad ) {
 		float pct = guiLoading->State().GetFloat( "map_loading" );
 		if ( pct < 0.0f ) {
@@ -1680,6 +1693,7 @@ void idSessionLocal::ExecuteMapChange( bool noFadeWipe ) {
 			pct += 0.05f;
 		}
 	}
+	wallProgressBar = Sys_Milliseconds() - barStart;
 
 	// capture the current screen and start a wipe
 	StartWipe( "wipe2Material" );
@@ -1718,6 +1732,8 @@ void idSessionLocal::ExecuteMapChange( bool noFadeWipe ) {
 	mapSpawned = true;
 	Sys_ClearEvents();
 	FS_PreloadStart( currentMapName.c_str() );
+	common->Printf( "LOAD_WALL map=%s total=%d fade=%d loading_gui=%d load=%d progress_bar=%d\n",
+		currentMapName.c_str(), Sys_Milliseconds() - wallStart, wallFade, wallLoadingGui, msec, wallProgressBar );
 	if (cvarSystem->GetCVarBool("com_hitchTrace")) common->Printf("HITCH_MAP wall=%u phase=ready map=%s\n",Sys_Milliseconds(),currentMapName.c_str());
 }
 
