@@ -26,7 +26,7 @@ void weapon_d3bfg::Fire() {
     float chargeElapsed=0;
     float chargeCells=1;
     PlayAnim("fire_begin");
-    while(WEAPON_ATTACK && chargeElapsed<2.5) {
+    while(WEAPON_ATTACK && chargeElapsed<2.0) {
         CheckLower(2); CheckAside(2);
         chargeElapsed=sys.getTime()-chargeStart;
         setGuiParm("powerlevel",chargeElapsed/2);
@@ -38,17 +38,13 @@ void weapon_d3bfg::Fire() {
     if(chargeElapsed>=1.5) chargeCells=4;
     if(chargeCells>ammoInClip()) chargeCells=ammoInClip();
     setKey("rw_bfg_power",chargeCells);
-    if(chargeElapsed>=2.5) {
-        // The firing controller consumes the loaded chargeCells without spawning a shot.
-        setKey("rw_bfg_overcharge",1);
-        fireProjectiles();
-        setKey("rw_bfg_overcharge",0);
-        sys.radiusDamage(getOrigin(),self,getOwner(),$null_entity,"damage_d3bfg_overcharge",1);
-    } else {
-        PlayAnim("fire");
-        fireProjectiles();
-        while(!animDone(ANIMCHANNEL_ALL,0)) { CheckLower(2); CheckAside(2); waitFrame(); }
-    }
+    // Fire at full charge instead of destroying the loaded ammunition.
+    setKey("rw_bfg_overcharge",0);
+    PlayAnim("fire");
+    fireProjectiles();
+    while(!animDone(ANIMCHANNEL_ALL,0)) { CheckLower(2); CheckAside(2); waitFrame(); }
+    // One shot per press, including when the full charge fired automatically.
+    while(WEAPON_ATTACK) { CheckLower(2); CheckAside(2); waitFrame(); }
     setGuiParm("powerlevel",0);
     nextAttack=sys.getTime()+0.2;
     PerformAction("Idle",0);

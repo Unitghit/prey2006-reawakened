@@ -1,6 +1,6 @@
 # Doom 3 BFG 9000
 
-The optional Doom weapon pack adds the BFG as the third (purple) weapon in slot 7. Owning the native Rocket Launcher unlocks it, including when loading an existing save. Press 7 repeatedly or cycle weapons to select it. Hold primary fire to charge, release to fire, and use the normal reload binding. Holding past the full charge and grace period overloads the weapon.
+The optional Doom weapon pack adds the BFG as the third (purple) weapon in slot 7. Owning the native Rocket Launcher unlocks it, including when loading an existing save. Press 7 repeatedly or cycle weapons to select it. Hold primary fire to charge, release to fire, and use the normal reload binding. Holding primary fire automatically fires at full charge after two seconds. Release the button before charging the next shot; early release still fires a partial charge.
 
 The BFG and Plasma Gun share one 150-unit plasma pool, including loaded ammunition. Each BFG charge costs 37.5 units: four ordinary shots or one four-charge shot consume exactly 150. Fractional credit is preserved across saves and level transitions. The BFG holds up to four charge levels; firing either gun reduces the common total and clamps the other's usable magazine to the remaining supply. Magazine indicators are not additional ammo pools.
 
