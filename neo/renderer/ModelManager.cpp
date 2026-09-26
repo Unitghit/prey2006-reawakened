@@ -31,6 +31,7 @@ If you have questions concerning this license or the applicable additional terms
 
 #include "Model_local.h"
 #include "tr_local.h"	// just for R_FreeWorldInteractions and R_CreateWorldInteractions
+#include "../framework/HitchTrace.h"
 
 
 class idRenderModelManagerLocal : public idRenderModelManager {
@@ -251,6 +252,7 @@ idRenderModelManagerLocal::GetModel
 =================
 */
 idRenderModel *idRenderModelManagerLocal::GetModel( const char *modelName, bool createIfNotFound ) {
+	idHitchScope hitch( "load_model", modelName );
 	idStr		canonical;
 	idStr		extension;
 

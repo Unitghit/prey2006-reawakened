@@ -29,6 +29,8 @@ If you have questions concerning this license or the applicable additional terms
 #include "precompiled.h"
 #pragma hdrstop
 
+#include "HitchTrace.h"
+
 /*
 
 GUIs and script remain separately parsed
@@ -2217,6 +2219,7 @@ idDeclLocal::ParseLocal
 =================
 */
 void idDeclLocal::ParseLocal( void ) {
+	idHitchScope hitch( "parse_decl", name.c_str() );
 	bool generatedDefaultText = false;
 
 	AllocateSelf();

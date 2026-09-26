@@ -30,6 +30,7 @@ If you have questions concerning this license or the applicable additional terms
 #pragma hdrstop
 
 #include "../Game_local.h"
+#include "../../framework/HitchTrace.h"
 
 bool idAnimManager::forceExport = false;
 
@@ -1087,6 +1088,7 @@ idAnimManager::GetAnim
 ====================
 */
 idMD5Anim *idAnimManager::GetAnim( const char *name ) {
+	idHitchScope hitch( "load_anim", name );
 	idMD5Anim **animptrptr;
 	idMD5Anim *anim;
 

@@ -1576,6 +1576,10 @@ void idSessionLocal::ExecuteMapChange( bool noFadeWipe ) {
 	}
 
 	int start = Sys_Milliseconds();
+	// Per-stage load timings, printed as one LOAD_TIMINGS line at the end.
+	int stageStart = start;
+	int timeWorld = 0, timeGame = 0, timeMedia = 0, timeImages = 0, timeSounds = 0, timeDecls = 0, timeSettle = 0;
+	#define LOAD_STAGE( var ) { const int now = Sys_Milliseconds(); var = now - stageStart; stageStart = now; }
 
 	common->Printf( "----- Map Initialization -----\n" );
 	common->Printf( "Map: %s\n", mapString.c_str() );
@@ -1584,6 +1588,7 @@ void idSessionLocal::ExecuteMapChange( bool noFadeWipe ) {
 	if ( !rw->InitFromMap( fullMapName ) ) {
 		common->Error( "couldn't load %s", fullMapName.c_str() );
 	}
+	LOAD_STAGE( timeWorld );
 
 	// for the synchronous networking we needed to roll the angles over from
 	// level to level, but now we can just clear everything
@@ -1620,6 +1625,7 @@ void idSessionLocal::ExecuteMapChange( bool noFadeWipe ) {
 			game->SpawnPlayer( i );
 		}
 	}
+	LOAD_STAGE( timeGame );
 
 	// Browsing map metadata must not precache every map. Retain the selected map's media.
 	const idDeclEntityDef *selectedMap = static_cast<const idDeclEntityDef *>(declManager->FindType(DECL_MAPDEF, mapString.c_str(), false));
@@ -1628,15 +1634,19 @@ void idSessionLocal::ExecuteMapChange( bool noFadeWipe ) {
 		const idSoundShader *menuMusic = declManager->FindSound("guisounds_menu_music", false);
 		if (menuMusic) menuMusic->PreloadSamples();
 	}
+	LOAD_STAGE( timeMedia );
 
 	// actually purge/load the media
 	if ( !reloadingSameMap ) {
 		renderSystem->EndLevelLoad();
+		LOAD_STAGE( timeImages );
 		soundSystem->EndLevelLoad( mapString.c_str() );
+		LOAD_STAGE( timeSounds );
 		declManager->EndLevelLoad();
 		SetBytesNeededForMapLoad( mapString.c_str(), fileSystem->GetReadCount() );
 	}
 	uiManager->EndLevelLoad();
+	LOAD_STAGE( timeDecls );
 
 	if ( !idAsyncNetwork::IsActive() && !loadingSaveGame ) {
 		// run a few frames to allow everything to settle
@@ -1644,9 +1654,13 @@ void idSessionLocal::ExecuteMapChange( bool noFadeWipe ) {
 			game->RunFrame( mapSpawnData.mapSpawnUsercmd, com_editors );
 		}
 	}
+	LOAD_STAGE( timeSettle );
+	#undef LOAD_STAGE
 
 	int	msec = Sys_Milliseconds() - start;
 	common->Printf( "%6d msec to load %s\n", msec, mapString.c_str() );
+	common->Printf( "LOAD_TIMINGS map=%s total=%d world=%d game=%d media=%d images=%d sounds=%d decls=%d settle=%d\n",
+		mapString.c_str(), msec, timeWorld, timeGame, timeMedia, timeImages, timeSounds, timeDecls, timeSettle );
 
 	// let the renderSystem generate interactions now that everything is spawned
 	rw->GenerateAllInteractions();

@@ -81,23 +81,19 @@ size_t idDeclParticle::Size( void ) const {
 	return sizeof( idDeclParticle );
 }
 
+static idCVar com_verifyParticleBounds( "com_verifyParticleBounds", "0", CVAR_SYSTEM | CVAR_BOOL,
+	"also compute particle bounds with the original 1000-pass sampling and report any difference" );
+
 /*
 =====================
-idDeclParticle::GetStageBounds
+SampleStageOrigins
+
+Steps one particle sequence through its lifetime and bounds every origin.
 =====================
 */
-#ifdef PARTICLE_BOUNDS
-void idDeclParticle::GetStageBounds( idParticleStage *stage, idDrawVert *particleVerts ) {
-#else
-void idDeclParticle::GetStageBounds( idParticleStage *stage ) {
-#endif
-#ifdef PARTICLE_BOUNDS
-	(void)particleVerts;
-#endif // PARTICLE_BOUNDS
-
-	stage->bounds.Clear();
-
-	// this isn't absolutely guaranteed, but it should be close
+static idBounds SampleStageOrigins( const idParticleStage *stage, int passes ) {
+	idBounds bounds;
+	bounds.Clear();
 
 	particleGen_t g;
 
@@ -117,8 +113,7 @@ void idDeclParticle::GetStageBounds( idParticleStage *stage ) {
 	idRandom	steppingRandom;
 	steppingRandom.SetSeed( 0 );
 
-	// just step through a lot of possible particles as a representative sampling
-	for ( int i = 0 ; i < 1000 ; i++ ) {
+	for ( int i = 0 ; i < passes ; i++ ) {
 		g.random = g.originalRandom = steppingRandom;
 
 		int	maxMsec = stage->particleLife * 1000;
@@ -132,14 +127,45 @@ void idDeclParticle::GetStageBounds( idParticleStage *stage ) {
 			g.frac = (float)inCycleTime / ( stage->particleLife * 1000 );
 			g.age = inCycleTime * 0.001f;
 
-			// if the particle doesn't get drawn because it is faded out or beyond a kill region,
-			// don't increment the verts
-
 			idVec3	origin;
 			stage->ParticleOrigin( &g, origin );
-			stage->bounds.AddPoint( origin );
+			bounds.AddPoint( origin );
 		}
 	}
+	return bounds;
+}
+
+/*
+=====================
+idDeclParticle::GetStageBounds
+=====================
+*/
+#ifdef PARTICLE_BOUNDS
+void idDeclParticle::GetStageBounds( idParticleStage *stage, idDrawVert *particleVerts ) {
+#else
+void idDeclParticle::GetStageBounds( idParticleStage *stage ) {
+#endif
+#ifdef PARTICLE_BOUNDS
+	(void)particleVerts;
+#endif // PARTICLE_BOUNDS
+
+	// this isn't absolutely guaranteed, but it should be close
+	// The original code ran 1000 passes, but every pass restarted from the same
+	// unmodified seed, so all passes produced identical points. One pass gives
+	// the exact same bounds; com_verifyParticleBounds checks that at load time.
+	stage->bounds = SampleStageOrigins( stage, 1 );
+	if ( com_verifyParticleBounds.GetBool() ) {
+		const idBounds original = SampleStageOrigins( stage, 1000 );
+		const bool match = original[0] == stage->bounds[0] && original[1] == stage->bounds[1];
+		common->Printf( "PARTICLE_BOUNDS_VERIFY %s decl=%s\n", match ? "match" : "MISMATCH", GetName() );
+		if ( !match ) {
+			stage->bounds = original;
+		}
+	}
+
+	// Seeded here exactly as before for the size sampling below.
+	idRandom	steppingRandom;
+	steppingRandom.SetSeed( 0 );
 
 	// find the max size
 	float	maxSize = 0;
