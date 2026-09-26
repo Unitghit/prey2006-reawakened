@@ -279,3 +279,36 @@ Sys_SetPhysicalWorkMemory
 void Sys_SetPhysicalWorkMemory( int minBytes, int maxBytes ) {
 	::SetProcessWorkingSetSize( GetCurrentProcess(), minBytes, maxBytes );
 }
+
+/*
+================
+Directory change watches (loose-file cache)
+
+Sys_WatchDirectoryTree returns a handle that becomes signaled when a file or
+directory anywhere under osPath is added, removed or renamed, or NULL when the
+tree cannot be watched (for example, it does not exist). The file system only
+caches listings of trees it can watch.
+================
+*/
+void *Sys_WatchDirectoryTree( const char *osPath ) {
+	HANDLE h = FindFirstChangeNotificationA( osPath, TRUE, FILE_NOTIFY_CHANGE_FILE_NAME | FILE_NOTIFY_CHANGE_DIR_NAME );
+	return h == INVALID_HANDLE_VALUE ? NULL : (void *)h;
+}
+
+bool Sys_DirectoryTreeChanged( void *watch ) {
+	return watch == NULL || WaitForSingleObject( (HANDLE)watch, 0 ) != WAIT_TIMEOUT;
+}
+
+void Sys_ResetDirectoryWatch( void *watch ) {
+	// FindNextChangeNotification re-arms a signaled handle; loop in case it
+	// is still signaled by changes queued before the call.
+	for ( int i = 0; watch != NULL && i < 8 && WaitForSingleObject( (HANDLE)watch, 0 ) == WAIT_OBJECT_0; i++ ) {
+		FindNextChangeNotification( (HANDLE)watch );
+	}
+}
+
+void Sys_CloseDirectoryWatch( void *watch ) {
+	if ( watch != NULL ) {
+		FindCloseChangeNotification( (HANDLE)watch );
+	}
+}

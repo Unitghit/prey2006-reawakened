@@ -1196,3 +1196,25 @@ void Sys_Error(const char *error, ...) {
 
 	Posix_Exit( EXIT_FAILURE );
 }
+
+/*
+================
+Directory change watches (loose-file cache)
+
+Not implemented here: report every tree as unwatchable, so the file system does
+not cache loose-file listings and always checks the disk.
+================
+*/
+void *Sys_WatchDirectoryTree( const char *osPath ) {
+	return NULL;
+}
+
+bool Sys_DirectoryTreeChanged( void *watch ) {
+	return true;
+}
+
+void Sys_ResetDirectoryWatch( void *watch ) {
+}
+
+void Sys_CloseDirectoryWatch( void *watch ) {
+}

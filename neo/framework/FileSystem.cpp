@@ -390,7 +390,7 @@ public:
 	//HUMANHEAD END
 	virtual void			FindDLL( const char *basename, char dllPath[ MAX_OSPATH ], bool updateChecksum );
 	virtual void			ClearDirCache( void );
-	void					ClearLooseFileCache( void ) { looseFiles.clear(); }
+	void					ClearLooseFileCache( void );
 #ifdef HUMANHEAD_XP // HUMANHEAD mdl
 	virtual bool			HasD3XP( void );
 	virtual bool			RunningD3XP( void );
@@ -464,6 +464,7 @@ private:
 	struct looseDirCache_t {
 		bool							usable = false;
 		std::unordered_set<std::string>	files;		// lowercase, '/' separated
+		void *							watch = NULL;	// Sys_WatchDirectoryTree handle
 	};
 	std::map<const directory_t *, looseDirCache_t>	looseFiles;
 
@@ -479,6 +480,7 @@ private:
 	FILE *					OpenOSFileCorrectName( idStr &path, const char *mode );
 	bool					LooseFileMayExist( const directory_t *dir, const char *relativePath );
 	void					NoteLooseFileWritten( const char *osPath );
+	void					DropChangedLooseTrees( void );
 	int						DirectFileLength( FILE *o );
 	void					CopyFile( idFile *src, const char *toOSPath );
 	int						AddUnique( const char *name, idStrList &list, idHashIndex &hashIndex ) const;
@@ -763,6 +765,11 @@ FILE *idFileSystemLocal::OpenOSFile( const char *fileName, const char *mode, idS
 		return NULL;
 	}
 #endif
+	// Trees already changed by something else must not have that change
+	// absorbed when this write resets their watch (NoteLooseFileWritten).
+	if ( mode && ( strchr( mode, 'w' ) || strchr( mode, 'a' ) ) ) {
+		DropChangedLooseTrees();
+	}
 	fp = fopen( fileName, mode );
 	if ( !fp && fs_caseSensitiveOS.GetBool() ) {
 		fpath = fileName;
@@ -835,6 +842,11 @@ static idCVar fs_verifyLooseFileCache( "fs_verifyLooseFileCache", "0", CVAR_SYST
 	"diagnostic: also open files the listing shows as absent and report any that exist" );
 static const size_t LOOSE_FILE_LIMIT = 200000;	// larger trees are not cached
 
+void *	Sys_WatchDirectoryTree( const char *osPath );	// sys: NULL if the tree cannot be watched
+bool	Sys_DirectoryTreeChanged( void *watch );
+void	Sys_ResetDirectoryWatch( void *watch );		// consume changes made so far
+void	Sys_CloseDirectoryWatch( void *watch );
+
 static std::string LooseFileKey( const char *path ) {
 	std::string key( path ? path : "" );
 	for ( char &c : key ) {
@@ -890,14 +902,26 @@ bool idFileSystemLocal::LooseFileMayExist( const directory_t *dir, const char *r
 		return true;
 	}
 	auto found = looseFiles.find( dir );
+	// Anything added, removed or renamed in the tree since it was listed (by
+	// another program, or files created while the game runs) invalidates it.
+	if ( found != looseFiles.end() && found->second.usable && Sys_DirectoryTreeChanged( found->second.watch ) ) {
+		Sys_CloseDirectoryWatch( found->second.watch );
+		looseFiles.erase( found );
+		found = looseFiles.end();
+	}
 	if ( found == looseFiles.end() ) {
 		looseDirCache_t &cache = looseFiles[ dir ];
 		idStr root = BuildOSPath( dir->path, dir->gamedir, "" );
 		root.StripTrailing( PATHSEPERATOR_CHAR );
-		// A missing directory lists as empty, which is accurate.
-		cache.usable = ListLooseTree( root, "", cache.files, 0 );
+		// Only trees that can be watched are cached; a missing directory cannot
+		// be, so lookups there keep checking the disk and see it once created.
+		// The watch starts before listing so changes during the listing count.
+		cache.watch = Sys_WatchDirectoryTree( root.c_str() );
+		cache.usable = cache.watch != NULL && ListLooseTree( root, "", cache.files, 0 );
 		if ( !cache.usable ) {
 			cache.files.clear();
+			Sys_CloseDirectoryWatch( cache.watch );
+			cache.watch = NULL;
 		}
 		found = looseFiles.find( dir );
 	}
@@ -913,8 +937,33 @@ void idFileSystemLocal::NoteLooseFileWritten( const char *osPath ) {
 		const std::string root = LooseDirRoot( BuildOSPath( entry.first->path, entry.first->gamedir, "" ) );
 		if ( written.size() > root.size() && !written.compare( 0, root.size(), root ) ) {
 			entry.second.files.insert( written.substr( root.size() ) );
+			// The file now exists and is listed, so the change it caused needs no
+			// relisting (texcache/save writes would otherwise relist every time).
+			// An unrelated change landing at the same instant would be missed until
+			// the next change or map load.
+			if ( entry.second.usable ) {
+				Sys_ResetDirectoryWatch( entry.second.watch );
+			}
 		}
 	}
+}
+
+void idFileSystemLocal::DropChangedLooseTrees( void ) {
+	for ( auto it = looseFiles.begin(); it != looseFiles.end(); ) {
+		if ( it->second.usable && Sys_DirectoryTreeChanged( it->second.watch ) ) {
+			Sys_CloseDirectoryWatch( it->second.watch );
+			it = looseFiles.erase( it );
+		} else {
+			++it;
+		}
+	}
+}
+
+void idFileSystemLocal::ClearLooseFileCache( void ) {
+	for ( auto &entry : looseFiles ) {
+		Sys_CloseDirectoryWatch( entry.second.watch );
+	}
+	looseFiles.clear();
 }
 
 void FS_InvalidateLooseFileCache() {
