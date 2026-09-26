@@ -45,6 +45,13 @@ idCVar	idSessionLocal::com_fixedTic( "com_fixedTic", "0", CVAR_SYSTEM | CVAR_INT
 idCVar	idSessionLocal::com_showDemo( "com_showDemo", "0", CVAR_SYSTEM | CVAR_BOOL, "" );
 idCVar	idSessionLocal::com_skipGameDraw( "com_skipGameDraw", "0", CVAR_SYSTEM | CVAR_BOOL, "" );
 idCVar	idSessionLocal::com_wipeSeconds( "com_wipeSeconds", "1", CVAR_SYSTEM, "" );
+void FS_InvalidateLooseFileCache();			// FileSystem.cpp
+static idCVar com_profileLoad( "com_profileLoad", "0", CVAR_SYSTEM | CVAR_BOOL,
+	"diagnostic: sample the main thread during entity setup and print the hottest functions" );
+#ifdef _WIN32
+void Sys_LoadProfileStart();					// win_shared.cpp
+void Sys_LoadProfileStop( const char *label );
+#endif
 static idCVar com_loadFadeSeconds( "com_loadFadeSeconds", "0.25", CVAR_SYSTEM | CVAR_FLOAT,
 	"length of the fade-out before a map loads (original: com_wipeSeconds, 1)", 0, 5 );
 static idCVar com_loadingScreenMinMsec( "com_loadingScreenMinMsec", "0", CVAR_SYSTEM | CVAR_INTEGER,
@@ -1522,6 +1529,9 @@ void idSessionLocal::ExecuteMapChange( bool noFadeWipe ) {
 	// shut down the existing game if it is running
 	UnloadMap();
 
+	// pick up loose files added or changed outside the engine since the last load
+	FS_InvalidateLooseFileCache();
+
 	// don't do the deferred caching if we are reloading the same map
 	if ( fullMapName == currentMapName ) {
 		reloadingSameMap = true;
@@ -1606,6 +1616,13 @@ void idSessionLocal::ExecuteMapChange( bool noFadeWipe ) {
 		common->Error( "couldn't load %s", fullMapName.c_str() );
 	}
 	LOAD_STAGE( timeWorld );
+#ifdef _WIN32
+	// diagnostic: sample the entity setup stage
+	const bool profileGameStage = com_profileLoad.GetBool();
+	if ( profileGameStage ) {
+		Sys_LoadProfileStart();
+	}
+#endif
 
 	// for the synchronous networking we needed to roll the angles over from
 	// level to level, but now we can just clear everything
@@ -1642,6 +1659,11 @@ void idSessionLocal::ExecuteMapChange( bool noFadeWipe ) {
 			game->SpawnPlayer( i );
 		}
 	}
+#ifdef _WIN32
+	if ( profileGameStage ) {
+		Sys_LoadProfileStop( "game" );
+	}
+#endif
 	LOAD_STAGE( timeGame );
 
 	// Browsing map metadata must not precache every map. Retain the selected map's media.

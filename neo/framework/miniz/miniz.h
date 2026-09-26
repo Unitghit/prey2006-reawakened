@@ -246,6 +246,9 @@ MINIZ_EXPORT mz_ulong mz_adler32(mz_ulong adler, const unsigned char *ptr, size_
 #define MZ_CRC32_INIT (0)
 /* mz_crc32() returns the initial CRC-32 value to use when called with ptr==NULL. */
 MINIZ_EXPORT mz_ulong mz_crc32(mz_ulong crc, const unsigned char *ptr, size_t buf_len);
+/* Prey: enables the self-tested slice-by-8 CRC path; main thread, once. */
+MINIZ_EXPORT void mz_crc32_init(void);
+MINIZ_EXPORT int mz_crc32_fast(void);
 
 /* Compression strategies. */
 enum

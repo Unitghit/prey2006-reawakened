@@ -30,7 +30,12 @@ If you have questions concerning this license or the applicable additional terms
 #pragma hdrstop
 
 #include "Unzip.h"
+#include "miniz/miniz.h"
 #include "HitchTrace.h"
+
+#include <map>
+#include <string>
+#include <unordered_set>
 #include "Session_local.h"
 
 #ifdef WIN32
@@ -369,6 +374,7 @@ public:
 	//HUMANHEAD END
 	virtual void			FindDLL( const char *basename, char dllPath[ MAX_OSPATH ], bool updateChecksum );
 	virtual void			ClearDirCache( void );
+	void					ClearLooseFileCache( void ) { looseFiles.clear(); }
 #ifdef HUMANHEAD_XP // HUMANHEAD mdl
 	virtual bool			HasD3XP( void );
 	virtual bool			RunningD3XP( void );
@@ -436,6 +442,15 @@ private:
 	int						dir_cache_index;
 	int						dir_cache_count;
 
+	// Loose files known to exist in each search directory (fs_looseFileCache),
+	// so lookups skip OS opens that would fail. Listed on first use, extended
+	// by every file this system creates, and dropped at each map load.
+	struct looseDirCache_t {
+		bool							usable = false;
+		std::unordered_set<std::string>	files;		// lowercase, '/' separated
+	};
+	std::map<const directory_t *, looseDirCache_t>	looseFiles;
+
 #ifdef HUMANHEAD_XP // HUMANHEAD mdl
 	int						d3xp;	// 0: didn't check, -1: not installed, 1: installed
 #endif // HUMANHEAD END
@@ -446,6 +461,8 @@ private:
 	int						ListOSFiles( const char *directory, const char *extension, idStrList &list );
 	FILE *					OpenOSFile( const char *name, const char *mode, idStr *caseSensitiveName = NULL );
 	FILE *					OpenOSFileCorrectName( idStr &path, const char *mode );
+	bool					LooseFileMayExist( const directory_t *dir, const char *relativePath );
+	void					NoteLooseFileWritten( const char *osPath );
 	int						DirectFileLength( FILE *o );
 	void					CopyFile( idFile *src, const char *toOSPath );
 	int						AddUnique( const char *name, idStrList &list, idHashIndex &hashIndex ) const;
@@ -762,6 +779,10 @@ FILE *idFileSystemLocal::OpenOSFile( const char *fileName, const char *mode, idS
 		*caseSensitiveName = fileName;
 		caseSensitiveName->StripPath();
 	}
+	// a created file must be visible to later lookups
+	if ( fp && mode && ( strchr( mode, 'w' ) || strchr( mode, 'a' ) ) ) {
+		NoteLooseFileWritten( fileName );
+	}
 	return fp;
 }
 
@@ -779,6 +800,109 @@ FILE *idFileSystemLocal::OpenOSFileCorrectName( idStr &path, const char *mode ) 
 		path += caseName;
 	}
 	return f;
+}
+
+/*
+================
+Loose file cache
+
+Every file lookup tries each loose directory on the search path with an OS
+open before the archives, and nearly all of those opens fail. A listing of
+each directory lets lookups skip opens for files that are not there; a file
+that is listed still goes through the original open. Keys are lowercase, so
+on a case-sensitive OS the listing only ever errs toward trying the open.
+================
+*/
+static idCVar fs_looseFileCache( "fs_looseFileCache", "1", CVAR_SYSTEM | CVAR_BOOL,
+	"skip opening loose files that the directory listing shows are absent" );
+static idCVar fs_verifyLooseFileCache( "fs_verifyLooseFileCache", "0", CVAR_SYSTEM | CVAR_BOOL,
+	"diagnostic: also open files the listing shows as absent and report any that exist" );
+static const size_t LOOSE_FILE_LIMIT = 200000;	// larger trees are not cached
+
+static std::string LooseFileKey( const char *path ) {
+	std::string key( path ? path : "" );
+	for ( char &c : key ) {
+		if ( c == '\\' ) {
+			c = '/';
+		} else if ( c >= 'A' && c <= 'Z' ) {
+			c += 'a' - 'A';
+		}
+	}
+	while ( !key.empty() && key[0] == '/' ) {
+		key.erase( 0, 1 );
+	}
+	return key;
+}
+
+static bool ListLooseTree( const idStr &osDir, const std::string &prefix, std::unordered_set<std::string> &files, int depth ) {
+	if ( depth > 32 ) {
+		return false;
+	}
+	idStrList list;
+	if ( Sys_ListFiles( osDir, "", list ) > 0 ) {
+		for ( int i = 0; i < list.Num(); i++ ) {
+			files.insert( LooseFileKey( ( prefix + list[i].c_str() ).c_str() ) );
+		}
+	}
+	if ( files.size() > LOOSE_FILE_LIMIT ) {
+		return false;
+	}
+	idStrList dirs;
+	if ( Sys_ListFiles( osDir, "/", dirs ) > 0 ) {
+		for ( int i = 0; i < dirs.Num(); i++ ) {
+			if ( dirs[i] == "." || dirs[i] == ".." ) {
+				continue;
+			}
+			if ( !ListLooseTree( osDir + PATHSEPERATOR_STR + dirs[i], prefix + dirs[i].c_str() + "/", files, depth + 1 ) ) {
+				return false;
+			}
+		}
+	}
+	return true;
+}
+
+static std::string LooseDirRoot( const idStr &osRoot ) {
+	std::string root = LooseFileKey( osRoot.c_str() );
+	if ( !root.empty() && root.back() != '/' ) {
+		root += '/';
+	}
+	return root;
+}
+
+bool idFileSystemLocal::LooseFileMayExist( const directory_t *dir, const char *relativePath ) {
+	if ( !fs_looseFileCache.GetBool() ) {
+		return true;
+	}
+	auto found = looseFiles.find( dir );
+	if ( found == looseFiles.end() ) {
+		looseDirCache_t &cache = looseFiles[ dir ];
+		idStr root = BuildOSPath( dir->path, dir->gamedir, "" );
+		root.StripTrailing( PATHSEPERATOR_CHAR );
+		// A missing directory lists as empty, which is accurate.
+		cache.usable = ListLooseTree( root, "", cache.files, 0 );
+		if ( !cache.usable ) {
+			cache.files.clear();
+		}
+		found = looseFiles.find( dir );
+	}
+	return !found->second.usable || found->second.files.count( LooseFileKey( relativePath ) ) != 0;
+}
+
+void idFileSystemLocal::NoteLooseFileWritten( const char *osPath ) {
+	if ( looseFiles.empty() ) {
+		return;
+	}
+	const std::string written = LooseFileKey( osPath );
+	for ( auto &entry : looseFiles ) {
+		const std::string root = LooseDirRoot( BuildOSPath( entry.first->path, entry.first->gamedir, "" ) );
+		if ( written.size() > root.size() && !written.compare( 0, root.size(), root ) ) {
+			entry.second.files.insert( written.substr( root.size() ) );
+		}
+	}
+}
+
+void FS_InvalidateLooseFileCache() {
+	fileSystemLocal.ClearLooseFileCache();
 }
 
 /*
@@ -3006,6 +3130,10 @@ is resetting due to a game change
 ================
 */
 void idFileSystemLocal::Init( void ) {
+	// Faster archive CRC checks. Runs here, on the main thread, before any
+	// thread that reads archives exists.
+	mz_crc32_init();
+
 	// allow command line parms to override our defaults
 	// we have to specially handle this, because normal command
 	// line variable sets don't happen until after the filesystem
@@ -3111,6 +3239,8 @@ void idFileSystemLocal::Shutdown( bool reloading ) {
 	gamePakChecksum = 0;
 
 	ClearDirCache();
+	// keyed by directory_t pointers that are freed below
+	ClearLooseFileCache();
 
 	// free everything - loop through searchPaths and addonPaks
 	for ( loop = searchPaths; loop; loop == searchPaths ? loop = addonPaks : loop = NULL ) {
@@ -3389,10 +3519,20 @@ idFile *idFileSystemLocal::OpenFileReadFlags( const char *relativePath, int sear
 				}
 			}
 
+			// skip the OS open when the directory listing shows no such file
+			const bool listed = LooseFileMayExist( dir, relativePath );
+			if ( !listed && !fs_verifyLooseFileCache.GetBool() ) {
+				continue;
+			}
+
 			netpath = BuildOSPath( dir->path, dir->gamedir, relativePath );
 			fp = OpenOSFileCorrectName( netpath, "rb" );
 			if ( !fp ) {
 				continue;
+			}
+			if ( !listed ) {
+				// diagnostic: the listing missed a file that exists; use it
+				common->Printf( "LOOSE_FILE_VERIFY MISSED %s\n", netpath.c_str() );
 			}
 
 			idFile_Permanent *file = new idFile_Permanent();

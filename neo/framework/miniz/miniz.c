@@ -65,6 +65,10 @@ mz_ulong mz_adler32(mz_ulong adler, const unsigned char *ptr, size_t buf_len)
     return (s2 << 16) + s1;
 }
 
+/* Prey: slice-by-8 tables for mz_crc32, filled by mz_crc32_init. */
+static mz_uint32 mz_crc32_slice[8][256];
+static int mz_crc32_slice_ready = 0;
+
 /* Karl Malbrain's compact CRC-32. See "A compact CCITT crc16 and crc32 C implementation that balances processor cache usage against speed": http://www.geocities.com/malbrain/ */
 #if 0
     mz_ulong mz_crc32(mz_ulong crc, const mz_uint8 *ptr, size_t buf_len)
@@ -138,6 +142,27 @@ mz_ulong mz_crc32(mz_ulong crc, const mz_uint8 *ptr, size_t buf_len)
     mz_uint32 crc32 = (mz_uint32)crc ^ 0xFFFFFFFF;
     const mz_uint8 *pByte_buf = (const mz_uint8 *)ptr;
 
+    /* Prey: slice-by-8, the same CRC eight bytes per step. Tables are built
+     * and self-tested once by mz_crc32_init on the main thread, before any
+     * worker thread starts; until then (or if the test failed) the original
+     * loop below runs. */
+    if (mz_crc32_slice_ready)
+    {
+        while (buf_len >= 8)
+        {
+            const mz_uint32 lo = crc32 ^ ((mz_uint32)pByte_buf[0] | ((mz_uint32)pByte_buf[1] << 8) |
+                                          ((mz_uint32)pByte_buf[2] << 16) | ((mz_uint32)pByte_buf[3] << 24));
+            const mz_uint32 hi = (mz_uint32)pByte_buf[4] | ((mz_uint32)pByte_buf[5] << 8) |
+                                 ((mz_uint32)pByte_buf[6] << 16) | ((mz_uint32)pByte_buf[7] << 24);
+            crc32 = mz_crc32_slice[7][lo & 0xFF] ^ mz_crc32_slice[6][(lo >> 8) & 0xFF] ^
+                    mz_crc32_slice[5][(lo >> 16) & 0xFF] ^ mz_crc32_slice[4][lo >> 24] ^
+                    mz_crc32_slice[3][hi & 0xFF] ^ mz_crc32_slice[2][(hi >> 8) & 0xFF] ^
+                    mz_crc32_slice[1][(hi >> 16) & 0xFF] ^ mz_crc32_slice[0][hi >> 24];
+            pByte_buf += 8;
+            buf_len -= 8;
+        }
+    }
+
     while (buf_len >= 4)
     {
         crc32 = (crc32 >> 8) ^ s_crc_table[(crc32 ^ pByte_buf[0]) & 0xFF];
@@ -158,6 +183,56 @@ mz_ulong mz_crc32(mz_ulong crc, const mz_uint8 *ptr, size_t buf_len)
     return ~crc32;
 }
 #endif
+
+/* Prey: builds the slice-by-8 tables from the standard reflected polynomial
+ * and enables them only if they reproduce the original byte-at-a-time result
+ * on a range of lengths and alignments. Call once on the main thread before
+ * starting threads that read archives. */
+void mz_crc32_init(void)
+{
+    mz_uint8 buffer[1024 + 8];
+    mz_uint32 seed = 0x12345678;
+    int i, k, ok = 1;
+
+    if (mz_crc32_slice_ready)
+        return;
+
+    for (i = 0; i < 256; i++)
+    {
+        mz_uint32 c = (mz_uint32)i;
+        for (k = 0; k < 8; k++)
+            c = (c & 1) ? (c >> 1) ^ 0xEDB88320 : (c >> 1);
+        mz_crc32_slice[0][i] = c;
+    }
+    for (i = 0; i < 256; i++)
+        for (k = 1; k < 8; k++)
+            mz_crc32_slice[k][i] = (mz_crc32_slice[k - 1][i] >> 8) ^ mz_crc32_slice[0][mz_crc32_slice[k - 1][i] & 0xFF];
+
+    for (i = 0; i < (int)sizeof(buffer); i++)
+    {
+        seed = seed * 1103515245 + 12345;
+        buffer[i] = (mz_uint8)(seed >> 16);
+    }
+    for (k = 0; k < 8 && ok; k++)
+    {
+        size_t len;
+        for (len = 0; len <= 1024 && ok; len += (len < 64 ? 1 : 37))
+        {
+            mz_ulong expected, actual;
+            mz_crc32_slice_ready = 0;
+            expected = mz_crc32(MZ_CRC32_INIT, buffer + k, len);
+            mz_crc32_slice_ready = 1;
+            actual = mz_crc32(MZ_CRC32_INIT, buffer + k, len);
+            ok = expected == actual;
+        }
+    }
+    mz_crc32_slice_ready = ok;
+}
+
+int mz_crc32_fast(void)
+{
+    return mz_crc32_slice_ready;
+}
 
 void mz_free(void *p)
 {
