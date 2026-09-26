@@ -25,6 +25,24 @@ def block(text, name):
     return text[match.start():end].strip()
 
 
+def resolve_weapon_gui_strings(files, read):
+    """Resolve Doom's IDs locally; never overwrite Prey's global language table."""
+    targets = [name for name in files if re.fullmatch(
+        r'guis/reawakened/(?:bfg|machinegun|chaingun|plasmagun)_v\d+\.gui', name)]
+    if not any(b'#str_' in files[name] for name in targets):
+        return
+    language = read('strings/english.lang').decode('latin1')
+    strings = dict(re.findall(r'"(#str_\d+)"\s+"((?:\\.|[^"\\])*)"', language))
+    for name in targets:
+        gui = files[name].decode()
+        def replace(match):
+            key = match[1]
+            if key not in strings:
+                raise ValueError(f'Missing Doom GUI translation: {key} in {name}')
+            return '"' + strings[key] + '"'
+        files[name] = re.sub(r'"(#str_\d+)"', replace, gui).encode()
+
+
 def fix_gui_transitions(files):
     """Keep GUI transitions short without altering the weapon script/save layout."""
     for name in list(files):
@@ -232,6 +250,7 @@ def main():
             import_supershotgun(expansion, xp_read, xp_text, block, files)
 
 
+    resolve_weapon_gui_strings(files, read)
     fix_gui_transitions(files)
 
     # Validate everything before writing; no path may escape the output folder.
