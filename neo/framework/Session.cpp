@@ -92,6 +92,17 @@ bool Sys_ReplaceFile( const char *fromOSPath, const char *toOSPath );	// sys: at
 static std::thread saveWriteThread;
 static std::atomic<bool> saveWriteFailed( false );
 static idStr saveWritePath;
+static idStr pendingRetrySave;
+static idStrList retrySaves;
+static idStr retryGameDirectory;
+
+static void Session_RememberRetrySave(const idStr &name) {
+    const idStr gameDirectory = cvarSystem->GetCVarString("fs_game");
+    if (retryGameDirectory != gameDirectory) { retrySaves.Clear(); retryGameDirectory = gameDirectory; }
+    retrySaves.Remove(name);
+    retrySaves.Append(name);
+}
+
 
 void Session_WaitForSaveWrite() {
 	if ( saveWriteThread.joinable() ) {
@@ -99,7 +110,10 @@ void Session_WaitForSaveWrite() {
 		saveWriteThread.join();
 		if ( saveWriteFailed.exchange( false ) ) {
 			common->Warning( "Failed to write save file '%s'\n", saveWritePath.c_str() );
-		}
+		} else if (!pendingRetrySave.IsEmpty()) {
+            Session_RememberRetrySave(pendingRetrySave);
+        }
+        pendingRetrySave.Clear();
 	}
 }
 
@@ -1169,6 +1183,9 @@ void idSessionLocal::StartNewGame( const char *mapName, bool devmap ) {
 		return;
 	}
 
+	Session_WaitForSaveWrite();
+	retrySaves.Clear();
+
 	// clear the userInfo so the player starts out with the defaults
 	mapSpawnData.userInfo[0].Clear();
 	mapSpawnData.persistentPlayerInfo[0].Clear();
@@ -1221,6 +1238,7 @@ Leaves the existing userinfo and serverinfo
 */
 void idSessionLocal::MoveToNewMap( const char *mapName ) {
 	mapSpawnData.serverInfo.Set( "si_map", mapName );
+	retryLevelStartInfo = mapSpawnData.persistentPlayerInfo[0];
 
 	ExecuteMapChange();
 
@@ -2020,9 +2038,15 @@ bool idSessionLocal::SaveGame( const char *saveName, bool autosave, const char* 
 		std::vector<char> bytes( data, data + memFile->Length() );
 		delete memFile;
 		Session_StartSaveWrite( saveOSPath.c_str(), std::move( bytes ) );
+        pendingRetrySave = gameFile;
+        pendingRetrySave.StripPath();
+        pendingRetrySave.StripFileExtension();
 	} else {
 		idHitchScope hitch("save_close", "flush_and_close");
 		fileSystem->CloseFile( fileOut );
+        idStr retryName = gameFile;
+        retryName.StripPath(); retryName.StripFileExtension();
+        Session_RememberRetrySave(retryName);
 	}
 
 	// Write screenshot
@@ -2189,6 +2213,7 @@ bool idSessionLocal::LoadGame( const char *saveName ) {
 		// make sure no buttons are pressed
 		mapSpawnData.mapSpawnUsercmd[0].buttons = 0;
 
+		retryLevelStartInfo = mapSpawnData.persistentPlayerInfo[0];
 		ExecuteMapChange();
 
 		SetGUI( NULL, NULL );
@@ -2200,8 +2225,40 @@ bool idSessionLocal::LoadGame( const char *saveName ) {
 		savegameFile = NULL;
 	}
 
+	if (saveMap.IsEmpty() || !mapSpawned) return false;
+	loadFile.StripFileExtension();
+	Session_RememberRetrySave(loadFile);
 	return true;
 #endif
+}
+
+// Called after RunFrame returns, never while game entities are executing.
+void idSessionLocal::RetryAfterDeath() {
+    if (IsMultiplayer() || !mapSpawned) return;
+    Session_WaitForSaveWrite();
+    const idStr currentMap = mapSpawnData.serverInfo.GetString("si_map");
+    const idDict startInfo = retryLevelStartInfo;
+    if (retryGameDirectory != cvarSystem->GetCVarString("fs_game")) retrySaves.Clear();
+    const idStrList candidates = retrySaves;
+    for (int i = candidates.Num() - 1; i >= 0; --i) {
+        const idStr path = "savegames/" + candidates[i] + ".save";
+        const char *mod = cvarSystem->GetCVarString("fs_game");
+        idFile *file = fileSystem->OpenFileRead(path, true, *mod ? mod : NULL);
+        if (!file) continue;
+        // Reject missing/truncated/wrong-game headers without opening a dialog.
+        int length = 0;
+        bool valid = file->Length() > 32 && file->ReadInt(length) == sizeof(int) && length == int(strlen(GAME_NAME));
+        char name[128] = {0};
+        if (valid && length < sizeof(name)) valid = file->Read(name, length) == length && !strcmp(name, GAME_NAME);
+        else valid = false;
+        fileSystem->CloseFile(file);
+        if (!valid) continue;
+        common->Printf("DEATH_RETRY save=%s\n", candidates[i].c_str());
+        if (LoadGame(candidates[i])) return;
+    }
+    common->Printf("DEATH_RETRY restart=%s\n", currentMap.c_str());
+    mapSpawnData.persistentPlayerInfo[0] = startInfo;
+    MoveToNewMap(currentMap);
 }
 
 bool idSessionLocal::QuickSave() {
@@ -3102,9 +3159,7 @@ void idSessionLocal::RunGameTic() {
 
 			MoveToNewMap( args.Argv(1) );
 		} else if ( !idStr::Icmp( args.Argv(0), "died" ) ) {
-			// restart on the same map
-			UnloadMap();
-			SetGUI(guiRestartMenu, NULL);
+			RetryAfterDeath();
 		} else if ( !idStr::Icmp( args.Argv(0), "disconnect" ) ) {
 			cmdSystem->BufferCommandText( CMD_EXEC_INSERT, "stoprecording ; disconnect" );
 		}

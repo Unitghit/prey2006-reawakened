@@ -162,6 +162,8 @@ public:
 	void				ScrubSaveGameFileName( idStr &saveFileName ) const;
 	idStr				GetAutoSaveName( const char *mapName ) const;
 
+	void RetryAfterDeath();
+	idDict retryLevelStartInfo;
 	bool				LoadGame(const char *saveName);
 	// DG: added saveFileName so we can set a sensible filename for autosaves (see comment in MoveToNewMap())
 	bool				SaveGame(const char *saveName, bool autosave = false, const char* saveFileName = NULL);
