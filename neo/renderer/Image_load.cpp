@@ -1688,6 +1688,7 @@ void	idImage::ActuallyLoadImage( bool checkForPrecompressed, bool fromBackEnd ) 
 		// see if we have a pre-generated image file that is
 		// already image processed and compressed
 		if ( checkForPrecompressed && globalImages->image_usePrecompressedTextures.GetBool() ) {
+			idHitchScope ddsHitch( "image_dds", imgName.c_str(), true, 0.0 );
 			if ( CheckPrecompressedImage( true ) ) {
 				// we got the precompressed image
 				return;
@@ -1695,7 +1696,10 @@ void	idImage::ActuallyLoadImage( bool checkForPrecompressed, bool fromBackEnd ) 
 			// fall through to load the normal image
 		}
 
-		R_LoadImageProgram( imgName, &pic, &width, &height, &timestamp, &depth );
+		{
+			idHitchScope decodeHitch( "image_decode", imgName.c_str(), true, 0.0 );
+			R_LoadImageProgram( imgName, &pic, &width, &height, &timestamp, &depth );
+		}
 
 		if ( pic == NULL ) {
 			common->Warning( "Couldn't load image: %s", imgName.c_str() );
@@ -1718,9 +1722,15 @@ void	idImage::ActuallyLoadImage( bool checkForPrecompressed, bool fromBackEnd ) 
 		// build a hash for checking duplicate image files
 		// NOTE: takes about 10% of image load times (SD)
 		// may not be strictly necessary, but some code uses it, so let's leave it in
-		imageHash = MD4_BlockChecksum( pic, width * height * 4 );
+		{
+			idHitchScope hashHitch( "image_hash", imgName.c_str(), true, 0.0 );
+			imageHash = MD4_BlockChecksum( pic, width * height * 4 );
+		}
 
-		GenerateImage( pic, width, height, filter, allowDownSize, repeat, depth );
+		{
+			idHitchScope generateHitch( "image_generate", imgName.c_str(), true, 0.0 );
+			GenerateImage( pic, width, height, filter, allowDownSize, repeat, depth );
+		}
 		timestamp = timestamp;
 		precompressedFile = false;
 
@@ -1729,6 +1739,76 @@ void	idImage::ActuallyLoadImage( bool checkForPrecompressed, bool fromBackEnd ) 
 		// write out the precompressed version of this file if needed
 		WritePrecompressedImage();
 	}
+}
+
+/*
+===============
+CanDecodeDetached
+
+Matches the file R_LoadImageProgram -> R_LoadImage would read for this image,
+using the same lexer settings, and accepts only a single plain .tga name.
+Image programs, cube maps, partial and generated images use the normal path.
+===============
+*/
+bool idImage::CanDecodeDetached( idStr &fileName ) const {
+	if ( generatorFunction || isPartialImage || cubeFiles != CF_2D ) {
+		return false;
+	}
+	idLexer src;
+	src.LoadMemory( imgName.c_str(), imgName.Length(), imgName.c_str() );
+	src.SetFlags( LEXFL_NOFATALERRORS | LEXFL_NOSTRINGCONCAT | LEXFL_NOSTRINGESCAPECHARS | LEXFL_ALLOWPATHNAMES );
+	idToken token, extra;
+	if ( !src.ReadToken( &token ) || src.ReadToken( &extra ) ) {
+		return false;
+	}
+	fileName = token;
+	fileName.DefaultFileExtension( ".tga" );
+	if ( fileName.Length() < 5 ) {
+		return false;
+	}
+	fileName.ToLower();
+	idStr ext;
+	fileName.ExtractFileExtension( ext );
+	return !ext.Icmp( "tga" );
+}
+
+/*
+===============
+FinishDetachedLoad
+
+The same steps as the 2D branch of ActuallyLoadImage( true, false ), with the
+file read, TGA decode and pixel hash already done. pic is malloc-owned.
+===============
+*/
+void idImage::FinishDetachedLoad( byte *pic, int width, int height, ID_TIME_T fileTimestamp, unsigned int pixelHash ) {
+	idHitchScope hitch("load_image", imgName.c_str());
+
+	if ( globalImages->image_usePrecompressedTextures.GetBool() ) {
+		idHitchScope ddsHitch( "image_dds", imgName.c_str(), true, 0.0 );
+		if ( CheckPrecompressedImage( true ) ) {
+			free( pic );
+			return;
+		}
+	}
+
+	// R_LoadImageProgram starts at zero and keeps the newest file timestamp.
+	timestamp = 0;
+	if ( fileTimestamp > timestamp ) {
+		timestamp = fileTimestamp;
+	}
+
+	imageHash = pixelHash;
+
+	{
+		idHitchScope generateHitch( "image_generate", imgName.c_str(), true, 0.0 );
+		GenerateImage( pic, width, height, filter, allowDownSize, repeat, depth );
+	}
+	precompressedFile = false;
+
+	free( pic );
+
+	// write out the precompressed version of this file if needed
+	WritePrecompressedImage();
 }
 
 //=========================================================================================================

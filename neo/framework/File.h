@@ -219,6 +219,7 @@ private:
 class idFile_InZip : public idFile {
 	friend class			idFileSystemLocal;
 	friend void FS_PreloadPump();
+	friend bool FS_ResolveDetached( const char *, struct fsDetachedSource_t & );
 
 public:
 							idFile_InZip( void );

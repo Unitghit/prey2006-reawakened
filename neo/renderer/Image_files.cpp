@@ -521,14 +521,12 @@ TARGA LOADING
 LoadTGA
 =============
 */
+static byte *TGA_StaticAlloc( int bytes ) { return (byte *)R_StaticAlloc( bytes ); }
+static void TGA_StaticFree( byte *data ) { R_StaticFree( data ); }
+
 static void LoadTGA( const char *name, byte **pic, int *width, int *height, ID_TIME_T *timestamp ) {
-	int		columns, rows, numPixels, fileSize, numBytes;
-	byte	*pixbuf;
-	int		row, column;
-	byte	*buf_p;
+	int		fileSize;
 	byte	*buffer;
-	TargaHeader	targa_header;
-	byte		*targa_rgba;
 
 	if ( !pic ) {
 		fileSystem->ReadFile( name, NULL, timestamp );
@@ -545,44 +543,78 @@ static void LoadTGA( const char *name, byte **pic, int *width, int *height, ID_T
 		return;
 	}
 
+	char error[MAX_STRING_CHARS];
+	if ( !R_DecodeTGA( buffer, fileSize, name, TGA_StaticAlloc, TGA_StaticFree, pic, width, height, error, sizeof( error ) ) ) {
+		common->Error( "%s", error );
+	}
+
+	fileSystem->FreeFile( buffer );
+}
+
+/*
+=============
+R_DecodeTGA
+
+Decodes a TGA already in memory. Uses only the given allocator and no other
+engine state, so worker threads may call it. On failure *pic is NULL and
+error holds the message the loader reports.
+=============
+*/
+bool R_DecodeTGA( const byte *buffer, int fileSize, const char *name,
+				  byte *(*allocPixels)( int ), void (*freePixels)( byte * ),
+				  byte **pic, int *width, int *height, char *error, int errorSize ) {
+	int		columns, rows, numPixels, numBytes;
+	byte	*pixbuf;
+	int		row, column;
+	const byte	*buf_p;
+	TargaHeader	targa_header;
+	byte		*targa_rgba;
+
+#define TGA_FAIL( ... ) { idStr::snPrintf( error, errorSize, __VA_ARGS__ ); if ( *pic ) { freePixels( *pic ); *pic = NULL; } return false; }
+
+	*pic = NULL;
+	if ( fileSize < 18 ) {
+		TGA_FAIL( "LoadTGA( %s ): incomplete file\n", name );
+	}
+
 	buf_p = buffer;
 
 	targa_header.id_length = *buf_p++;
 	targa_header.colormap_type = *buf_p++;
 	targa_header.image_type = *buf_p++;
 
-	targa_header.colormap_index = LittleShort ( *(short *)buf_p );
+	targa_header.colormap_index = LittleShort ( *(const short *)buf_p );
 	buf_p += 2;
-	targa_header.colormap_length = LittleShort ( *(short *)buf_p );
+	targa_header.colormap_length = LittleShort ( *(const short *)buf_p );
 	buf_p += 2;
 	targa_header.colormap_size = *buf_p++;
-	targa_header.x_origin = LittleShort ( *(short *)buf_p );
+	targa_header.x_origin = LittleShort ( *(const short *)buf_p );
 	buf_p += 2;
-	targa_header.y_origin = LittleShort ( *(short *)buf_p );
+	targa_header.y_origin = LittleShort ( *(const short *)buf_p );
 	buf_p += 2;
-	targa_header.width = LittleShort ( *(short *)buf_p );
+	targa_header.width = LittleShort ( *(const short *)buf_p );
 	buf_p += 2;
-	targa_header.height = LittleShort ( *(short *)buf_p );
+	targa_header.height = LittleShort ( *(const short *)buf_p );
 	buf_p += 2;
 	targa_header.pixel_size = *buf_p++;
 	targa_header.attributes = *buf_p++;
 
 	if ( targa_header.image_type != 2 && targa_header.image_type != 10 && targa_header.image_type != 3 ) {
-		common->Error( "LoadTGA( %s ): Only type 2 (RGB), 3 (gray), and 10 (RGB) TGA images supported\n", name );
+		TGA_FAIL( "LoadTGA( %s ): Only type 2 (RGB), 3 (gray), and 10 (RGB) TGA images supported\n", name );
 	}
 
 	if ( targa_header.colormap_type != 0 ) {
-		common->Error( "LoadTGA( %s ): colormaps not supported\n", name );
+		TGA_FAIL( "LoadTGA( %s ): colormaps not supported\n", name );
 	}
 
 	if ( ( targa_header.pixel_size != 32 && targa_header.pixel_size != 24 ) && targa_header.image_type != 3 ) {
-		common->Error( "LoadTGA( %s ): Only 32 or 24 bit images supported (no colormaps)\n", name );
+		TGA_FAIL( "LoadTGA( %s ): Only 32 or 24 bit images supported (no colormaps)\n", name );
 	}
 
 	if ( targa_header.image_type == 2 || targa_header.image_type == 3 ) {
 		numBytes = targa_header.width * targa_header.height * ( targa_header.pixel_size >> 3 );
 		if ( numBytes > fileSize - 18 - targa_header.id_length ) {
-			common->Error( "LoadTGA( %s ): incomplete file\n", name );
+			TGA_FAIL( "LoadTGA( %s ): incomplete file\n", name );
 		}
 	}
 
@@ -597,7 +629,10 @@ static void LoadTGA( const char *name, byte **pic, int *width, int *height, ID_T
 		*height = rows;
 	}
 
-	targa_rgba = (byte *)R_StaticAlloc(numPixels*4);
+	targa_rgba = allocPixels( numPixels*4 );
+	if ( !targa_rgba ) {
+		TGA_FAIL( "LoadTGA( %s ): out of memory\n", name );
+	}
 	*pic = targa_rgba;
 
 	if ( targa_header.id_length != 0 ) {
@@ -646,7 +681,7 @@ static void LoadTGA( const char *name, byte **pic, int *width, int *height, ID_T
 					*pixbuf++ = alphabyte;
 					break;
 				default:
-					common->Error( "LoadTGA( %s ): illegal pixel_size '%d'\n", name, targa_header.pixel_size );
+					TGA_FAIL( "LoadTGA( %s ): illegal pixel_size '%d'\n", name, targa_header.pixel_size );
 					break;
 				}
 			}
@@ -680,7 +715,7 @@ static void LoadTGA( const char *name, byte **pic, int *width, int *height, ID_T
 								alphabyte = *buf_p++;
 								break;
 						default:
-							common->Error( "LoadTGA( %s ): illegal pixel_size '%d'\n", name, targa_header.pixel_size );
+							TGA_FAIL( "LoadTGA( %s ): illegal pixel_size '%d'\n", name, targa_header.pixel_size );
 							break;
 					}
 
@@ -725,7 +760,7 @@ static void LoadTGA( const char *name, byte **pic, int *width, int *height, ID_T
 									*pixbuf++ = alphabyte;
 									break;
 							default:
-								common->Error( "LoadTGA( %s ): illegal pixel_size '%d'\n", name, targa_header.pixel_size );
+								TGA_FAIL( "LoadTGA( %s ): illegal pixel_size '%d'\n", name, targa_header.pixel_size );
 								break;
 						}
 						column++;
@@ -747,10 +782,11 @@ static void LoadTGA( const char *name, byte **pic, int *width, int *height, ID_T
 	}
 
 	if ( (targa_header.attributes & (1<<5)) ) {			// image flp bit
-		R_VerticalFlip( *pic, *width, *height );
+		R_VerticalFlip( *pic, columns, rows );
 	}
 
-	fileSystem->FreeFile( buffer );
+	return true;
+#undef TGA_FAIL
 }
 
 /*

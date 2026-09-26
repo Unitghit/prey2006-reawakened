@@ -225,6 +225,10 @@ public:
 	bool		CheckPrecompressedImage( bool fullLoad );
 	void		UploadPrecompressedImage( byte *data, int len );
 	void		ActuallyLoadImage( bool checkForPrecompressed, bool fromBackEnd );
+	// True when ActuallyLoadImage would load exactly one plain .tga file.
+	bool		CanDecodeDetached( idStr &fileName ) const;
+	// Completes ActuallyLoadImage( true, false ) from pixels decoded on a worker.
+	void		FinishDetachedLoad( byte *pic, int width, int height, ID_TIME_T fileTimestamp, unsigned int pixelHash );
 	void		StartBackgroundImageLoad();
 	int			BitsForInternalFormat( int internalFormat ) const;
 	void		UploadCompressedNormalMap( int width, int height, const byte *rgba, int mipLevel );
@@ -500,6 +504,10 @@ IMAGEFILES
 */
 
 void R_LoadImage( const char *name, byte **pic, int *width, int *height, ID_TIME_T *timestamp, bool makePowerOf2 );
+// Thread-safe TGA decode from memory; see Image_files.cpp.
+bool R_DecodeTGA( const byte *buffer, int fileSize, const char *name,
+				  byte *(*allocPixels)( int ), void (*freePixels)( byte * ),
+				  byte **pic, int *width, int *height, char *error, int errorSize );
 // pic is in top to bottom raster format
 bool R_LoadCubeImages( const char *cname, cubeFiles_t extensions, byte *pic[6], int *size, ID_TIME_T *timestamp );
 

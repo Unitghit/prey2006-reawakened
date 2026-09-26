@@ -495,6 +495,110 @@ idFileSystemLocal	fileSystemLocal;
 idFileSystem *		fileSystem = &fileSystemLocal;
 
 #include "AssetPreload.h"
+#include "DetachedRead.h"
+
+/*
+================
+FS_ResolveDetached
+================
+*/
+bool FS_ResolveDetached( const char *relativePath, fsDetachedSource_t &source ) {
+	if ( !Sys_IsMainThread() ) {
+		return false;
+	}
+	pack_t *pack = NULL;
+	// Same search as ReadFile -> OpenFileRead, so overrides resolve identically.
+	idFile *file = fileSystemLocal.OpenFileReadFlags( relativePath, FSFLAG_SEARCH_DIRS | FSFLAG_SEARCH_PAKS, &pack, true, NULL );
+	if ( !file ) {
+		return false;
+	}
+	source = fsDetachedSource_t();
+	source.length = file->Length();
+	source.timestamp = file->Timestamp();
+	bool ok = source.length > 0;
+	if ( ok && pack ) {
+		source.archive = pack->pakFilename.c_str();
+		source.offset = static_cast<idFile_InZip *>( file )->zipFilePos;
+	} else if ( ok ) {
+		source.loosePath = file->GetFullPath();
+		ok = !source.loosePath.empty();
+	}
+	fileSystemLocal.CloseFile( file );
+	return ok;
+}
+
+namespace {
+struct detachedHandles_t {
+	std::map<std::string, unzFile> archives;
+	~detachedHandles_t() {
+		for ( auto &entry : archives ) {
+			if ( entry.second ) {
+				unzClose( entry.second );
+			}
+		}
+	}
+};
+thread_local detachedHandles_t detachedHandles;
+}
+
+/*
+================
+FS_ReadDetached
+================
+*/
+bool FS_ReadDetached( const fsDetachedSource_t &source, std::vector<unsigned char> &bytes ) {
+	if ( source.length <= 0 ) {
+		return false;
+	}
+	bytes.resize( source.length );
+	if ( source.archive.empty() ) {
+		FILE *fp = fopen( source.loosePath.c_str(), "rb" );
+		if ( !fp ) {
+			return false;
+		}
+		const bool ok = fread( bytes.data(), 1, bytes.size(), fp ) == bytes.size();
+		fclose( fp );
+		return ok;
+	}
+	unzFile &zip = detachedHandles.archives[ source.archive ];
+	if ( !zip ) {
+		zip = unzOpen64( source.archive.c_str() );
+		if ( !zip ) {
+			return false;
+		}
+	}
+	unz_file_info64 info;
+	if ( unzSetOffset64( zip, source.offset ) != UNZ_OK ||
+		unzGetCurrentFileInfo64( zip, &info, NULL, 0, NULL, 0, NULL, 0 ) != UNZ_OK ||
+		info.uncompressed_size != (ZPOS64_T)source.length ||
+		unzOpenCurrentFile( zip ) != UNZ_OK ) {
+		return false;
+	}
+	int done = 0;
+	bool ok = true;
+	while ( done < source.length ) {
+		const int count = unzReadCurrentFile( zip, bytes.data() + done, source.length - done );
+		if ( count <= 0 ) {
+			ok = false;
+			break;
+		}
+		done += count;
+	}
+	// A CRC mismatch is reported when closing the entry.
+	if ( unzCloseCurrentFile( zip ) != UNZ_OK ) {
+		ok = false;
+	}
+	return ok && done == source.length;
+}
+
+void FS_ReleaseDetachedHandles() {
+	for ( auto &entry : detachedHandles.archives ) {
+		if ( entry.second ) {
+			unzClose( entry.second );
+		}
+	}
+	detachedHandles.archives.clear();
+}
 
 /*
 ================

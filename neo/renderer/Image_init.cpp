@@ -30,6 +30,19 @@ If you have questions concerning this license or the applicable additional terms
 #pragma hdrstop
 
 #include "tr_local.h"
+#include "../framework/DetachedRead.h"
+
+#include <atomic>
+#include <condition_variable>
+#include <memory>
+#include <mutex>
+#include <thread>
+#include <vector>
+
+static idCVar image_threadedDecode( "image_threadedDecode", "0", CVAR_RENDERER | CVAR_ARCHIVE | CVAR_BOOL,
+	"read and decode plain .tga textures on worker threads during level load" );
+static idCVar image_verifyThreadedDecode( "image_verifyThreadedDecode", "0", CVAR_RENDERER | CVAR_BOOL,
+	"also decode threaded textures the original way and report any difference" );
 
 const char *imageFilter[] = {
 	"GL_LINEAR_MIPMAP_NEAREST",
@@ -2010,6 +2023,172 @@ void idImageManager::BeginLevelLoad() {
 
 /*
 ====================
+Threaded texture decode
+
+Workers read (own archive handles), decode and hash plain .tga files. They use
+only malloc and pure pixel code: no file system, strings, cvars or printing.
+The main thread consumes results in the original load order and performs the
+precompressed check, mip generation and GL upload exactly as before. Anything
+a worker cannot finish is loaded by the original path.
+====================
+*/
+namespace {
+static const int DETACHED_LOOKAHEAD = 64;	// bounds decoded pixels held in memory
+
+struct detachedImageJob_t {
+	idImage *			image = NULL;
+	fsDetachedSource_t	source;
+	std::string			fileName;
+	byte *				pic = NULL;		// malloc-owned
+	int					width = 0;
+	int					height = 0;
+	unsigned int		hash = 0;
+	std::atomic<int>	state{ 0 };		// 0 pending, 1 decoded, 2 use normal path
+};
+
+static byte *Detached_Alloc( int bytes ) { return (byte *)malloc( bytes ); }
+static void Detached_Free( byte *data ) { free( data ); }
+
+static void DecodeDetachedJob( detachedImageJob_t &job ) {
+	std::vector<unsigned char> bytes;
+	if ( !FS_ReadDetached( job.source, bytes ) ) {
+		return;
+	}
+	// ReadFile appends a terminating zero; keep the decoder's input identical.
+	bytes.push_back( 0 );
+	char error[256];
+	byte *pic = NULL;
+	int width = 0, height = 0;
+	if ( !R_DecodeTGA( bytes.data(), job.source.length, job.fileName.c_str(), Detached_Alloc, Detached_Free,
+			&pic, &width, &height, error, sizeof( error ) ) ) {
+		return;
+	}
+	// Sizes R_LoadImage would reject or resample take the normal path.
+	if ( width < 1 || height < 1 || ( width & ( width - 1 ) ) || ( height & ( height - 1 ) ) ) {
+		free( pic );
+		return;
+	}
+	job.hash = MD4_BlockChecksum( pic, width * height * 4 );
+	job.pic = pic;
+	job.width = width;
+	job.height = height;
+}
+
+class detachedDecoder_t {
+public:
+	std::vector<std::unique_ptr<detachedImageJob_t> > jobs;
+
+	~detachedDecoder_t() { Stop(); }
+
+	void Start() {
+		unsigned int count = std::thread::hardware_concurrency();
+		count = count > 1 ? count - 1 : 1;
+		if ( count > 8 ) {
+			count = 8;
+		}
+		for ( unsigned int i = 0; i < count && i < jobs.size(); i++ ) {
+			try {
+				workers.emplace_back( &detachedDecoder_t::Work, this );
+			} catch ( ... ) {
+				break;	// fewer workers; the main thread covers the rest
+			}
+		}
+	}
+
+	// Main thread: wait for job index, or claim it if no worker has.
+	detachedImageJob_t &Take( int index ) {
+		{
+			std::lock_guard<std::mutex> lock( mutex );
+			consumed = index;
+		}
+		wake.notify_all();
+		detachedImageJob_t &job = *jobs[index];
+		if ( workers.empty() ) {
+			job.state = 2;
+			return job;
+		}
+		std::unique_lock<std::mutex> lock( mutex );
+		done.wait( lock, [&job] { return job.state.load() != 0; } );
+		return job;
+	}
+
+	void Stop() {
+		{
+			std::lock_guard<std::mutex> lock( mutex );
+			stop = true;
+		}
+		wake.notify_all();
+		for ( std::thread &worker : workers ) {
+			if ( worker.joinable() ) {
+				worker.join();
+			}
+		}
+		workers.clear();
+		for ( auto &job : jobs ) {
+			if ( job->pic ) {
+				free( job->pic );
+				job->pic = NULL;
+			}
+		}
+	}
+
+private:
+	std::vector<std::thread>	workers;
+	std::mutex					mutex;
+	std::condition_variable		wake, done;
+	int							next = 0;
+	int							consumed = 0;
+	bool						stop = false;
+
+	void Work() {
+		for ( ;; ) {
+			int index;
+			{
+				std::unique_lock<std::mutex> lock( mutex );
+				wake.wait( lock, [this] { return stop || next >= (int)jobs.size() || next < consumed + DETACHED_LOOKAHEAD; } );
+				if ( stop || next >= (int)jobs.size() ) {
+					break;
+				}
+				index = next++;
+			}
+			detachedImageJob_t &job = *jobs[index];
+			try {
+				DecodeDetachedJob( job );
+			} catch ( ... ) {
+				if ( job.pic ) {
+					free( job.pic );
+					job.pic = NULL;
+				}
+			}
+			{
+				std::lock_guard<std::mutex> lock( mutex );
+				job.state = job.pic ? 1 : 2;
+			}
+			done.notify_all();
+		}
+		FS_ReleaseDetachedHandles();
+	}
+};
+
+// Diagnostic: decode the same image the original way and compare.
+static bool VerifyDetachedJob( const detachedImageJob_t &job ) {
+	byte *pic = NULL;
+	int width = 0, height = 0;
+	ID_TIME_T timestamp;
+	R_LoadImage( job.fileName.c_str(), &pic, &width, &height, &timestamp, true );
+	bool match = pic && width == job.width && height == job.height &&
+		!memcmp( pic, job.pic, width * height * 4 ) &&
+		MD4_BlockChecksum( pic, width * height * 4 ) == job.hash &&
+		timestamp == job.source.timestamp;
+	if ( pic ) {
+		R_StaticFree( pic );
+	}
+	return match;
+}
+}
+
+/*
+====================
 EndLevelLoad
 
 Free all images marked as unused, and load all images that are necessary.
@@ -2053,6 +2232,34 @@ void idImageManager::EndLevelLoad() {
 		}
 	}
 
+	// Queue plain .tga loads for worker threads, in load order. The loop
+	// below is unchanged apart from consuming a finished job when one exists.
+	detachedDecoder_t decoder;
+	idList<int> jobForImage;
+	if ( image_threadedDecode.GetBool() ) {
+		jobForImage.SetNum( images.Num() );
+		for ( int i = 0 ; i < images.Num() ; i++ ) {
+			jobForImage[i] = -1;
+			idImage	*image = images[ i ];
+			idStr fileName;
+			if ( image->generatorFunction || !image->levelLoadReferenced ||
+				image->texnum != idImage::TEXTURE_NOT_LOADED || image->partialImage ||
+				!image->CanDecodeDetached( fileName ) ) {
+				continue;
+			}
+			std::unique_ptr<detachedImageJob_t> job( new detachedImageJob_t );
+			if ( !FS_ResolveDetached( fileName.c_str(), job->source ) ) {
+				continue;
+			}
+			job->image = image;
+			job->fileName = fileName.c_str();
+			jobForImage[i] = (int)decoder.jobs.size();
+			decoder.jobs.push_back( std::move( job ) );
+		}
+		decoder.Start();
+	}
+	int threadedCount = 0, verifyMismatch = 0;
+
 	// load the ones we do need, if we are preloading
 	for ( int i = 0 ; i < images.Num() ; i++ ) {
 		idImage	*image = images[ i ];
@@ -2063,18 +2270,39 @@ void idImageManager::EndLevelLoad() {
 		if ( image->levelLoadReferenced && image->texnum == idImage::TEXTURE_NOT_LOADED && !image->partialImage ) {
 //			common->Printf( "Loading %s\n", image->imgName.c_str() );
 			loadCount++;
-			image->ActuallyLoadImage( true, false );
+			const int jobIndex = i < jobForImage.Num() ? jobForImage[i] : -1;
+			detachedImageJob_t *job = jobIndex >= 0 ? &decoder.Take( jobIndex ) : NULL;
+			if ( job && job->state == 1 && job->pic ) {
+				if ( image_verifyThreadedDecode.GetBool() && !VerifyDetachedJob( *job ) ) {
+					verifyMismatch++;
+					common->Printf( "THREADED_DECODE_VERIFY MISMATCH %s\n", job->fileName.c_str() );
+				}
+				fileSystem->AddToReadCount( job->source.length );
+				byte *pic = job->pic;
+				job->pic = NULL;	// ownership passes to FinishDetachedLoad
+				image->FinishDetachedLoad( pic, job->width, job->height, job->source.timestamp, job->hash );
+				threadedCount++;
+			} else {
+				image->ActuallyLoadImage( true, false );
+			}
 
 			if ( ( loadCount & 15 ) == 0 ) {
 				session->PacifierUpdate();
 			}
 		}
 	}
+	decoder.Stop();
 
 	int	end = Sys_Milliseconds();
 	common->Printf( "%5i purged from previous\n", purgeCount );
 	common->Printf( "%5i kept from previous\n", keepCount );
 	common->Printf( "%5i new loaded\n", loadCount );
+	if ( image_threadedDecode.GetBool() ) {
+		common->Printf( "%5i decoded on worker threads\n", threadedCount );
+		if ( image_verifyThreadedDecode.GetBool() ) {
+			common->Printf( "THREADED_DECODE_VERIFY checked=%d mismatches=%d\n", threadedCount, verifyMismatch );
+		}
+	}
 	common->Printf( "all images loaded in %5.1f seconds\n", (end-start) * 0.001 );
 }
 
