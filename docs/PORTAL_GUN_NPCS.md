@@ -19,3 +19,11 @@ The initial traversal test proved teleportation but did not prove that an NPC em
 Gun-portal NPCs now adopt their destination gravity orientation during floor-exit validation, before committing the teleport. Slow floor exits receive collision-tested lift sufficient for 24 units of rise; existing higher outward velocity remains intact. Player assistance is unchanged. Non-floor exits keep the previous orientation behavior.
 
 The updated `portalnpc` replay shows Dalton at the orange destination, upright with his feet 21 units above the floor, followed by walking away and landing at floor height. The `npc_floor` fixture checks full-body emergence and repeated floor-pair traversal, rather than using a teleport log alone as evidence of success. The original wall-exit, noPortal and blocked-exit NPC checks remain part of the regression run.
+
+## Ground-level walking entry
+
+The updated portalnpc save exposed a missed source crossing, not an exit collision: Chuck's feet were already below the raised visual portal plane when he walked onto it. The cutout removed support, but the front-to-back test never fired, allowing him to fall beneath the map.
+
+For NPC floor entry only, the crossing plane now sits just below the supporting surface, using the portal's stored surface offset. Player camera timing and non-floor crossing planes remain unchanged. No NPC-specific camera casts or save data are added.
+
+The updated save replay records Chuck transferring twice, then returning to normal floor height. Fifty post-load position samples ranged from 0.25 to 40.56 units above world zero, finishing at 0.25; the pre-fix replay descended to -67.75 without any teleport. The npc_floor fixture now starts at floor contact height (0.25), rather than falling from five units above the opening.
