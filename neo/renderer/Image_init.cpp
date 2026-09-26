@@ -39,7 +39,7 @@ If you have questions concerning this license or the applicable additional terms
 #include <thread>
 #include <vector>
 
-static idCVar image_threadedDecode( "image_threadedDecode", "0", CVAR_RENDERER | CVAR_ARCHIVE | CVAR_BOOL,
+static idCVar image_threadedDecode( "image_threadedDecode", "1", CVAR_RENDERER | CVAR_ARCHIVE | CVAR_BOOL,
 	"read and decode plain .tga textures on worker threads during level load" );
 void R_TextureCacheReport();	// Image_load.cpp
 
