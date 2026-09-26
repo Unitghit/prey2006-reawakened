@@ -14,6 +14,14 @@ static UINT WindowDpi(HWND window) {
     if (fn) return fn(window);
     HDC dc=GetDC(window); UINT dpi=GetDeviceCaps(dc,LOGPIXELSX); ReleaseDC(window,dc); return dpi?dpi:96;
 }
+// Hide a window from the screen while it still paints normally (DWM cloaking), so
+// it can be shown and fully drawn first, then revealed in one step. dwmapi is a
+// system library; if it is unavailable the window simply shows as before.
+static void Cloak(HWND window,BOOL cloak) {
+    using Fn=HRESULT(WINAPI*)(HWND,DWORD,LPCVOID,DWORD);
+    static Fn fn=[]{HMODULE m=LoadLibraryW(L"dwmapi.dll");return m?reinterpret_cast<Fn>(GetProcAddress(m,"DwmSetWindowAttribute")):nullptr;}();
+    if(fn) fn(window,13/*DWMWA_CLOAK*/,&cloak,sizeof(cloak));
+}
 static RECT WorkArea(HWND window) {
     MONITORINFO info{sizeof(info)};
     GetMonitorInfoW(MonitorFromWindow(window,MONITOR_DEFAULTTONEAREST),&info);
@@ -160,6 +168,13 @@ struct App {
         footerHeight=Footer(width,false,0);
         pageHeight=std::max<int>(1,client.bottom-D(36)-D(6)-footerHeight);
         MoveWindow(page,D(18),D(18),width,pageHeight,TRUE);
+        // Moving ~40 controls one by one repainted each immediately, so the list
+        // visibly filled in row by row. Suspend page drawing while placing them and
+        // repaint once. Only after the page itself is sized (a redraw-suspended window
+        // counts as hidden, so resizing it then would leave the uncovered area stale),
+        // and only while visible: WM_SETREDRAW TRUE would show a hidden window.
+        const bool batch=IsWindowVisible(window)!=FALSE;
+        if(batch) SendMessageW(page,WM_SETREDRAW,FALSE,0);
         // Measure once without a scroll bar, then account for its width if needed.
         ShowScrollBar(page,SB_VERT,FALSE);
         int contentWidth=width;
@@ -173,7 +188,11 @@ struct App {
         SetScrollInfo(page,SB_VERT,&si,TRUE);
         Content(contentWidth,true);
         Footer(width,true,D(18)+pageHeight+D(6));
-        InvalidateRect(page,nullptr,TRUE);layingOut=false;
+        if(batch) {
+            SendMessageW(page,WM_SETREDRAW,TRUE,0);
+            RedrawWindow(page,nullptr,nullptr,RDW_ERASE|RDW_FRAME|RDW_INVALIDATE|RDW_ALLCHILDREN|RDW_UPDATENOW);
+        } else InvalidateRect(page,nullptr,TRUE);
+        layingOut=false;
     }
     void ScrollTo(int value) {
         scroll=std::clamp(value,0,std::max(0,contentHeight-pageHeight));
@@ -411,7 +430,11 @@ int WINAPI wWinMain(HINSTANCE inst,HINSTANCE,PWSTR,int show) {
             auto output=root/L"validation/configurator-native";VerifyConfiguration(output);
             App app(root);app.Create();app.Verify(output);DestroyWindow(app.window);return 0;
         }
-        App app(root);app.Create();ShowWindow(app.window,show);UpdateWindow(app.window);
+        // Show while cloaked and paint every control synchronously, then uncloak:
+        // the window appears complete instead of as an empty frame or row by row.
+        App app(root);app.Create();Cloak(app.window,TRUE);ShowWindow(app.window,show);
+        RedrawWindow(app.window,nullptr,nullptr,RDW_INVALIDATE|RDW_ERASE|RDW_FRAME|RDW_ALLCHILDREN|RDW_UPDATENOW);
+        Cloak(app.window,FALSE);
         MSG message;while(GetMessageW(&message,nullptr,0,0)>0) {if(!IsDialogMessageW(app.window,&message)){TranslateMessage(&message);DispatchMessageW(&message);}}
         return (int)message.wParam;
     } catch(const std::exception& e) {
