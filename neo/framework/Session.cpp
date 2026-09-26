@@ -539,12 +539,16 @@ void idSessionLocal::CompleteWipe() {
 		UpdateScreen( true );
 		return;
 	}
-	while ( com_ticNumber < wipeStopTic ) {
+	// StartWipe only queues the capture (a draw of the current view and a
+	// copy). Always run at least one frame so those commands execute before
+	// a map change frees the geometry they reference; a zero-length wipe used
+	// to leave them for the loading screen to draw after UnloadMap.
+	do {
 #if ID_CONSOLE_LOCK
 		emptyDrawCount = 0;
 #endif
 		UpdateScreen( true );
-	}
+	} while ( com_ticNumber < wipeStopTic );
 }
 
 /*
