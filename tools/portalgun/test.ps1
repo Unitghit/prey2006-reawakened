@@ -366,6 +366,15 @@ foreach($name in $Cases) {
             ([regex]::Matches($edge,'PORTAL_EXIT ')).Count -ne 1){throw 'Corner edge lost solid collision or bounded approach assistance'}
         if(([regex]::Matches($prop,'PORTAL_ENTITY_EXIT hhMoveable name=corner_prop')).Count -ne 1){throw 'Corner prop did not cross exactly once'}
     }
+    if($name -eq 'close') {
+        $adjacent=[regex]::Match($log,'(?s)CLOSE_ADJACENT_BEGIN(.*?)CLOSE_ADJACENT_END').Groups[1].Value
+        if($adjacent -notmatch 'placed orange at 511 -118 71') { throw 'Adjacent portal was shifted away from the requested location' }
+        $overlap=[regex]::Match($log,'(?s)CLOSE_OVERLAP_BEGIN(.*?)CLOSE_OVERLAP_END').Groups[1].Value
+        if($overlap -notmatch 'rejected: no nearby supported opening' -or $overlap -match 'placed orange') { throw 'Overlapping portal was allowed' }
+        if($overlap -notmatch 'rw_gun_orange origin=511 -118 71') { throw 'Rejected overlap changed the old endpoint' }
+        $crossing=[regex]::Match($log,'(?s)CLOSE_CROSS_BEGIN(.*?)CLOSE_CROSS_END').Groups[1].Value
+        if($crossing -notmatch 'PORTAL_EXIT ') { throw 'Adjacent portal traversal failed' }
+    }
     if($name -eq 'npc_smooth') {
         if($log -notmatch 'PORTAL_NPC_BODY name=npc_smooth triangles=[1-9][0-9]* turning=0') { throw 'Missing entry split mesh' }
         if($log -notmatch 'PORTAL_NPC_BODY name=npc_smooth triangles=[1-9][0-9]* turning=1') { throw 'Missing exit split mesh' }

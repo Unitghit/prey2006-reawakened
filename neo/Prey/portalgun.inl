@@ -24,6 +24,36 @@ static hhPortal *RW_GunPortal(int color) {
     idEntity *ent = gameLocal.FindEntity(RW_PortalName(color));
     return ent && ent->IsType(hhPortal::Type) ? static_cast<hhPortal *>(ent) : NULL;
 }
+// Compare the visible openings, not their deliberately oversized traversal
+// bounds. A separating projection proves the two thin oval volumes are clear.
+// Exact ellipse support keeps the sampled-axis test conservative: it can never
+// approve intersecting ovals, including differently oriented floor portals.
+static bool RW_PortalOpeningsOverlap(const idVec3 &surfaceCenter, const idMat3 &axis, const hhPortal *other) {
+    if (!other) return false;
+    const idVec3 delta = surfaceCenter + axis[0]*RW_PORTAL_SURFACE_OFFSET - other->GetOrigin();
+    const float width = RW_PORTAL_BACKING_HALF_WIDTH + 1.0f;
+    const float height = RW_PORTAL_BACKING_HALF_HEIGHT + 1.0f;
+    const float thickness = 1.0f;
+    if (delta.LengthSqr() > 4*(height*height+thickness*thickness)) return false;
+    const idMat3 &otherAxis = other->GetAxis();
+    for (int sample = 0; sample < 67; ++sample) {
+        idVec3 direction;
+        if (sample < 2) direction = sample ? otherAxis[0] : axis[0];
+        else if (sample == 66) direction = axis[0].Cross(otherAxis[0]);
+        else {
+            const idMat3 &basis = sample < 34 ? axis : otherAxis;
+            const float angle = (sample-2)%32 * (idMath::PI/32);
+            direction = basis[1]*idMath::Cos(angle) + basis[2]*idMath::Sin(angle);
+        }
+        if (direction.LengthSqr() < 1e-8f) continue;
+        const float a = idMath::Sqrt(Square(width*(direction*axis[1])) + Square(height*(direction*axis[2]))) +
+            thickness*idMath::Fabs(direction*axis[0]);
+        const float b = idMath::Sqrt(Square(width*(direction*otherAxis[1])) + Square(height*(direction*otherAxis[2]))) +
+            thickness*idMath::Fabs(direction*otherAxis[0]);
+        if (idMath::Fabs(delta*direction) >= a+b) return false;
+    }
+    return true;
+}
 // Broad-phase overlap only: touching the rim does not imply being in the wall.
 static bool RW_PortalOccupied(const hhPortal *portal, const idPhysics *physics) {
     if (!portal) return false;
@@ -790,13 +820,13 @@ bool hhPlayer::PlaceGunPortal(int color, const idDict *shot, int *previewCandida
             // aim-dependent hitch. Live shots keep the original full search.
             if (preview && tested++ == 8) { *previewCandidate = candidateIndex-1; return false; }
             const idVec3 candidate = aimedCenter + axis[1]*(y*8.0f) + up*(z*8.0f);
-            if (other && (other->GetOrigin()-candidate).LengthSqr() < Square(160.0f)) continue;
+            if (RW_PortalOpeningsOverlap(candidate, axis, other)) continue;
             if (RW_PortalSurfaceSupports(candidate, axis, this)) { center = candidate; supported = true; }
             else {
                 idVec3 fittedCenter = candidate;
                 idMat3 fittedAxis = axis;
                 if (RW_FitPortalSurface(fittedCenter, fittedAxis, this) &&
-                    (!other || (other->GetOrigin()-fittedCenter).LengthSqr() >= Square(160.0f))) {
+                    !RW_PortalOpeningsOverlap(fittedCenter, fittedAxis, other)) {
                     center = fittedCenter; axis = fittedAxis; normal = axis[0]; supported = true;
                     if (!preview && cvarSystem->GetCVarBool("com_fpsTrace"))
                         gameLocal.Printf("PORTAL_TERRAIN_FIT center=%s normal=%s\n", center.ToString(), normal.ToString());
