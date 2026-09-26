@@ -1218,3 +1218,14 @@ void Sys_ResetDirectoryWatch( void *watch ) {
 
 void Sys_CloseDirectoryWatch( void *watch ) {
 }
+
+/*
+================
+Sys_ReplaceFile
+
+rename() replaces the destination atomically. Thread-safe.
+================
+*/
+bool Sys_ReplaceFile( const char *fromOSPath, const char *toOSPath ) {
+	return rename( fromOSPath, toOSPath ) == 0;
+}

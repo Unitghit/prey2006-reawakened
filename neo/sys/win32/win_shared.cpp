@@ -312,3 +312,15 @@ void Sys_CloseDirectoryWatch( void *watch ) {
 		FindCloseChangeNotification( (HANDLE)watch );
 	}
 }
+
+/*
+================
+Sys_ReplaceFile
+
+Replaces toOSPath with fromOSPath in one step (the destination is either the
+old file or the complete new one). Thread-safe.
+================
+*/
+bool Sys_ReplaceFile( const char *fromOSPath, const char *toOSPath ) {
+	return MoveFileExA( fromOSPath, toOSPath, MOVEFILE_REPLACE_EXISTING | MOVEFILE_WRITE_THROUGH ) != FALSE;
+}

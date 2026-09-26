@@ -82,12 +82,13 @@ static int presentationCap = -1;
 static bool presentationActive = false;
 
 // Background save writing. The game state is serialized into memory on the main
-// thread (fast), then one worker writes those bytes to the already-created save
-// file. The worker only uses the CRT (fopen/fwrite/malloc'd buffer), never engine
+// thread (fast), then one worker writes those bytes to a temporary file and
+// replaces the save with it. The worker only uses the CRT and Sys_ReplaceFile, never engine
 // systems. Anything that could read, delete, list or rewrite save files calls
 // Session_WaitForSaveWrite() first, as does shutdown.
 static idCVar com_asyncSaveWrite( "com_asyncSaveWrite", "1", CVAR_SYSTEM | CVAR_BOOL,
 	"write save files on a background thread after serializing them in memory" );
+bool Sys_ReplaceFile( const char *fromOSPath, const char *toOSPath );	// sys: atomic replace; thread-safe
 static std::thread saveWriteThread;
 static std::atomic<bool> saveWriteFailed( false );
 static idStr saveWritePath;
@@ -102,18 +103,22 @@ void Session_WaitForSaveWrite() {
 	}
 }
 
-static void Session_StartSaveWrite( const char *osPath, std::vector<char> &&bytes ) {
+// tempOSPath is "<save>.tmp"; the worker writes it, then replaces "<save>" with it.
+static void Session_StartSaveWrite( const char *tempOSPath, std::vector<char> &&bytes ) {
 	Session_WaitForSaveWrite();
-	saveWritePath = osPath;
-	std::string path = osPath;
-	saveWriteThread = std::thread( [path]( std::vector<char> data ) {
-		FILE *f = fopen( path.c_str(), "wb" );
+	std::string temp = tempOSPath;
+	std::string finalPath = temp.substr( 0, temp.size() - 4 );	// strip ".tmp"
+	saveWritePath = finalPath.c_str();
+	saveWriteThread = std::thread( [temp, finalPath]( std::vector<char> data ) {
+		FILE *f = fopen( temp.c_str(), "wb" );
 		bool ok = f != NULL;
 		if ( f ) {
 			ok = data.empty() || fwrite( data.data(), 1, data.size(), f ) == data.size();
 			ok = ( fclose( f ) == 0 ) && ok;
 		}
+		ok = ok && Sys_ReplaceFile( temp.c_str(), finalPath.c_str() );
 		if ( !ok ) {
+			remove( temp.c_str() );
 			saveWriteFailed = true;
 		}
 	}, std::move( bytes ) );
@@ -1956,12 +1961,15 @@ bool idSessionLocal::SaveGame( const char *saveName, bool autosave, const char* 
 	// a previous save may still be writing (possibly to this same name)
 	Session_WaitForSaveWrite();
 
-	// Open savegame file. With async writing, the real file is still created here
-	// (so failures are reported now and the file system notes it), but the state
-	// is serialized into memory and written by the background worker.
-	idFile *fileOut = fileSystem->OpenFileWrite( gameFile );
+	// Open savegame file. With async writing, a temporary file next to it is
+	// created here (so failures are reported now), the state is serialized into
+	// memory, and the background worker writes the temporary file and then
+	// replaces the save with it. An interrupted or failed write therefore leaves
+	// the previous save intact instead of truncated.
+	const bool wantAsync = com_asyncSaveWrite.GetBool();
+	idFile *fileOut = fileSystem->OpenFileWrite( wantAsync ? gameFile + ".tmp" : gameFile );
 	idStr saveOSPath;
-	const bool asyncWrite = com_asyncSaveWrite.GetBool() && fileOut != NULL;
+	const bool asyncWrite = wantAsync && fileOut != NULL;
 	if ( asyncWrite ) {
 		saveOSPath = fileOut->GetFullPath();
 		fileSystem->CloseFile( fileOut );
