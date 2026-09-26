@@ -30,6 +30,11 @@ If you have questions concerning this license or the applicable additional terms
 #pragma hdrstop
 #include "HitchTrace.h"
 
+#include <atomic>
+#include <string>
+#include <thread>
+#include <vector>
+
 #include "Session_local.h"
 #include "../sound/snd_local.h"
 
@@ -75,6 +80,44 @@ static idFile *fpsTraceFile = NULL;
 static double nextPresentationMsec = 0.0;
 static int presentationCap = -1;
 static bool presentationActive = false;
+
+// Background save writing. The game state is serialized into memory on the main
+// thread (fast), then one worker writes those bytes to the already-created save
+// file. The worker only uses the CRT (fopen/fwrite/malloc'd buffer), never engine
+// systems. Anything that could read, delete, list or rewrite save files calls
+// Session_WaitForSaveWrite() first, as does shutdown.
+static idCVar com_asyncSaveWrite( "com_asyncSaveWrite", "1", CVAR_SYSTEM | CVAR_BOOL,
+	"write save files on a background thread after serializing them in memory" );
+static std::thread saveWriteThread;
+static std::atomic<bool> saveWriteFailed( false );
+static idStr saveWritePath;
+
+void Session_WaitForSaveWrite() {
+	if ( saveWriteThread.joinable() ) {
+		idHitchScope hitch( "save_wait", "background_write" );
+		saveWriteThread.join();
+		if ( saveWriteFailed.exchange( false ) ) {
+			common->Warning( "Failed to write save file '%s'\n", saveWritePath.c_str() );
+		}
+	}
+}
+
+static void Session_StartSaveWrite( const char *osPath, std::vector<char> &&bytes ) {
+	Session_WaitForSaveWrite();
+	saveWritePath = osPath;
+	std::string path = osPath;
+	saveWriteThread = std::thread( [path]( std::vector<char> data ) {
+		FILE *f = fopen( path.c_str(), "wb" );
+		bool ok = f != NULL;
+		if ( f ) {
+			ok = data.empty() || fwrite( data.data(), 1, data.size(), f ) == data.size();
+			ok = ( fclose( f ) == 0 ) && ok;
+		}
+		if ( !ok ) {
+			saveWriteFailed = true;
+		}
+	}, std::move( bytes ) );
+}
 
 idSessionLocal		sessLocal;
 idSession			*session = &sessLocal;
@@ -448,6 +491,7 @@ idSessionLocal::Shutdown
 ===============
 */
 void idSessionLocal::Shutdown() {
+	Session_WaitForSaveWrite();
 	if ( fpsTraceFile ) {
 		fileSystem->CloseFile( fpsTraceFile );
 		fpsTraceFile = NULL;
@@ -1909,8 +1953,22 @@ bool idSessionLocal::SaveGame( const char *saveName, bool autosave, const char* 
 	descriptionFile = gameFile;
 	descriptionFile.SetFileExtension( ".txt" );
 
-	// Open savegame file
+	// a previous save may still be writing (possibly to this same name)
+	Session_WaitForSaveWrite();
+
+	// Open savegame file. With async writing, the real file is still created here
+	// (so failures are reported now and the file system notes it), but the state
+	// is serialized into memory and written by the background worker.
 	idFile *fileOut = fileSystem->OpenFileWrite( gameFile );
+	idStr saveOSPath;
+	const bool asyncWrite = com_asyncSaveWrite.GetBool() && fileOut != NULL;
+	if ( asyncWrite ) {
+		saveOSPath = fileOut->GetFullPath();
+		fileSystem->CloseFile( fileOut );
+		idFile_Memory *memFile = new idFile_Memory( gameFile );
+		memFile->SetGranularity( 4 * 1024 * 1024 );	// saves are ~10 MB; avoid regrowing
+		fileOut = memFile;
+	}
 	if ( fileOut == NULL ) {
 		common->Warning( "Failed to open save file '%s'\n", gameFile.c_str() );
 		if ( pauseWorld ) {
@@ -1947,7 +2005,14 @@ bool idSessionLocal::SaveGame( const char *saveName, bool autosave, const char* 
 	}
 
 	// close the sava game file
-	{
+	if ( asyncWrite ) {
+		idHitchScope hitch("save_close", "queue_background_write");
+		idFile_Memory *memFile = static_cast<idFile_Memory *>( fileOut );
+		const char *data = memFile->GetDataPtr();
+		std::vector<char> bytes( data, data + memFile->Length() );
+		delete memFile;
+		Session_StartSaveWrite( saveOSPath.c_str(), std::move( bytes ) );
+	} else {
 		idHitchScope hitch("save_close", "flush_and_close");
 		fileSystem->CloseFile( fileOut );
 	}
@@ -2025,6 +2090,8 @@ bool idSessionLocal::LoadGame( const char *saveName ) {
 		common->Printf( "Can't load during net play.\n" );
 		return false;
 	}
+
+	Session_WaitForSaveWrite();
 
 	//Hide the dialog box if it is up.
 	StopBox();
@@ -2130,6 +2197,7 @@ bool idSessionLocal::LoadGame( const char *saveName ) {
 }
 
 bool idSessionLocal::QuickSave() {
+	Session_WaitForSaveWrite();	// quicksave slots are read by timestamp
 	idStr saveName = common->GetLanguageDict()->GetString( "#str_07178" );
 
 	idStr saveFilePathBase = saveName;
@@ -2189,6 +2257,7 @@ bool idSessionLocal::QuickSave() {
 }
 
 bool idSessionLocal::QuickLoad() {
+	Session_WaitForSaveWrite();	// quicksave slots are read by timestamp
 
 	// Dont load rigth away, ask the user if they want to load the quick save!
 	if ( guiGameStatus && !reallyWantsLoad ) {

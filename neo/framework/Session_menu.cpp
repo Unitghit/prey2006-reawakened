@@ -138,6 +138,8 @@ ID_INLINE int idListSaveGameCompare( const fileTIME_T *a, const fileTIME_T *b ) 
 	return b->timeStamp - a->timeStamp;
 }
 
+void Session_WaitForSaveWrite();			// Session.cpp
+
 /*
 ===============
 idSessionLocal::GetSaveGameList
@@ -146,6 +148,9 @@ idSessionLocal::GetSaveGameList
 void idSessionLocal::GetSaveGameList( idStrList &fileList, idList<fileTIME_T> &fileTimes ) {
 	int i;
 	idFileList *files;
+
+	// a save still being written in the background must finish before listing
+	Session_WaitForSaveWrite();
 
 	// NOTE: no fs_game_base for savegames
 	idStr game = cvarSystem->GetCVarString( "fs_game" );
@@ -403,6 +408,7 @@ bool idSessionLocal::HandleSaveGameMenuCommand( idCmdArgs &args, int &icmd ) {
 	if ( !idStr::Icmp( cmd, "deleteGame" ) ) {
 		int choice = guiActive->State().GetInt( "loadgame_sel_0" );
 		if ( choice >= 0 && choice < loadGameList.Num() ) {
+			Session_WaitForSaveWrite();
 			fileSystem->RemoveFile( va("savegames/%s.save", loadGameList[choice].c_str()) );
 			fileSystem->RemoveFile( va("savegames/%s.tga", loadGameList[choice].c_str()) );
 			fileSystem->RemoveFile( va("savegames/%s.txt", loadGameList[choice].c_str()) );
