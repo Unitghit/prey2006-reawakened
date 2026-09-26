@@ -238,7 +238,7 @@ void hhItemCabinet::SpawnItems() {
 	// compute percentages of each ammo compared to the max allowed
 	for( i = 0; i < numAmmo; i++ ) {
 		validWeapon[i] = false;
-		if ( player->inventory.weapons & (1 << weaponIndexes[i] ) ) {
+		if ( player->inventory.AmmoSupplyAvailable(player, weaponIndexes[i], ammoTypes[i].c_str()) ) {
 			int ammoIndex = player->inventory.AmmoIndexForAmmoClass( ammoTypes[i].c_str() );
 			ammoPercent[i] = 1.0f - player->inventory.AmmoPercentage( player, ammoIndex );
 			if ( ammoPercent[i] == 0.0f ) { // Give full ammo weapons a slight chance
@@ -270,6 +270,9 @@ void hhItemCabinet::SpawnItems() {
 			if ( validWeapon[i] ) {
 				if ( random <= ammoPercent[i] ) { // This is the ammo we want
 					AddItem( itemNames[i], slot ); // Add the item
+					if (slot < CABINET_MAX_ITEMS && cvarSystem->GetCVarBool("g_weaponPackTrace")) {
+						gameLocal.Printf("AMMOCABINET name=%s slot=%d item=%s\n", GetName(), slot, itemNames[i].c_str());
+					}
 					ammoPercent[i] *= spawnArgs.GetFloat( "repeatReduce", "0.5" ); // reduce this item's chance of being chosen for the next slot
 					break; // No need to check further, go to the next slot
 				}

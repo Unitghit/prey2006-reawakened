@@ -258,6 +258,13 @@ bool hhInventory::SplitAutocannonAmmo(const idPlayer *owner) const {
 	const idDict *addon = gameLocal.FindEntityDefDict("weaponobj_d3chaingun", false);
 	return addon && addon->GetBool("rw_saveCompatible");
 }
+// Dynamic cabinets and automatic pickups share this eligibility rule. Do not
+// pretend the player owns the AutoCannon just to supply its Doom partner.
+bool hhInventory::AmmoSupplyAvailable(const idPlayer *owner, int weaponIndex, const char *ammoClass) const {
+	if (weaponIndex > 0 && weaponIndex < MAX_WEAPONS && (weapons & (1 << weaponIndex))) { return true; }
+	return ammoClass && !idStr::Icmp(ammoClass, "ammo_autocannon") &&
+		(weapons & (1 << 11)) && SplitAutocannonAmmo(owner);
+}
 bool hhInventory::SplitAcidAmmo(const idPlayer *owner) const {
 	if (!UsesIndependentWeaponAmmo(owner) || !cvarSystem->GetCVarBool("g_doom3Shotgun") ||
 		!owner->spawnArgs.GetBool("rw_weapon_d3plasmagun_owned")) { return false; }
@@ -799,6 +806,8 @@ float hhInventory::AmmoPercentage(idPlayer *player, ammo_t type) {
 		const float autoMax = Max(1, MaxAmmoForAmmoClass(player, "ammo_autocannon"));
 		const float autoPct = ammo[type] < 0 ? 1.0f : idMath::ClampFloat(0, 1, ammo[type] / autoMax);
 		const float beltPct = ammo[12] < 0 ? 1.0f : idMath::ClampFloat(0, 1, ammo[12] / 180.0f);
+		// Before the AutoCannon unlock, only the owned chaingun drives demand.
+		if (!(weapons & (1 << 5))) { return beltPct; }
 		return 0.5f * (autoPct + beltPct);
 	}
 	if (SplitAcidAmmo(player) && type == AmmoIndexForAmmoClass("ammo_acid")) {

@@ -9,6 +9,7 @@ public:
 	bool UsesIndependentWeaponAmmo(const idPlayer *owner) const;
 	bool SplitRifleAmmo(const idPlayer *owner) const;
 	bool SplitAutocannonAmmo(const idPlayer *owner) const;
+	bool AmmoSupplyAvailable(const idPlayer *owner, int weaponIndex, const char *ammoClass) const;
 	bool SplitAcidAmmo(const idPlayer *owner) const;
 	int AcidGroupAmmoCount(const idPlayer *owner) const;
 	bool SplitRocketAmmo(const idPlayer *owner) const;

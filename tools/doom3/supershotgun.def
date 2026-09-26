@@ -1,8 +1,8 @@
-// Slot-6 third weapon. Stable inventory index 15; shared shell ammo index 10.
+// Slot-2 third weapon; unlocked by the AutoCannon. Stable inventory index 15; shared shell ammo index 10.
 entityDef weaponobj_d3supershotgun {
     "rw_saveCompatible" "1"
     "rw_sharedShotgunAmmo" "1"
-    "rw_weaponGroup" "6"
+    "rw_weaponGroup" "2"
     "rw_weaponVariant" "2"
     "rw_ammoCapacity" "16"
     "rw_addonScript" "script/reawakened/weapon_d3supershotgun_v1.script"

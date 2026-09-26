@@ -2562,6 +2562,17 @@ static void Cmd_WeaponPackInfo_f( const idCmdArgs &args ) {
 			if ( slot >= 1 && slot < MAX_WEAPONS ) { player->SelectWeapon(slot, false); }
 		}
 	}
+	if (args.Argc() == 2 && !idStr::Icmp(args.Argv(1), "progression")) {
+		for (int slot = 1; slot < MAX_WEAPONS; ++slot) {
+			if (!*player->GetWeaponName(slot)) continue;
+			gameLocal.Printf("WEAPONUNLOCK slot=%d held=%d group=%d variant=%d\n", slot,
+				(player->inventory.weapons & (1 << slot)) != 0, player->WeaponGroup(slot), player->WeaponVariant(slot));
+		}
+		gameLocal.Printf("AUTOSUPPLY eligible=%d percent=%.3f\n",
+			player->inventory.AmmoSupplyAvailable(player, 5, "ammo_autocannon"),
+			player->inventory.AmmoPercentage(player, player->inventory.AmmoIndexForAmmoClass("ammo_autocannon")));
+	}
+
 	gameLocal.Printf("WEAPONGROUP current=%d ideal=%d group=%d variant=%d\n",
 		player->GetCurrentWeapon(), player->GetIdealWeapon(),
 		player->WeaponGroup(player->GetIdealWeapon()), player->WeaponVariant(player->GetIdealWeapon()));

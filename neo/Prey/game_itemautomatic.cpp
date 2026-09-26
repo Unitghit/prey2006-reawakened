@@ -135,7 +135,7 @@ idStr hhItemAutomatic::GetNewItem() {
 	// compute percentages of each ammo compared to the max allowed
 	for( i = 0; i < numAmmo; i++ ) {
 		validWeapon[i] = false;
-		if ( player->inventory.weapons & (1 << weaponIndexes[i] ) ) {
+		if ( player->inventory.AmmoSupplyAvailable(player, weaponIndexes[i], ammoTypes[i].c_str()) ) {
 			int ammoIndex = player->inventory.AmmoIndexForAmmoClass( ammoTypes[i].c_str() );
 			ammoPercent[i] = player->inventory.AmmoPercentage( player, ammoIndex );
 

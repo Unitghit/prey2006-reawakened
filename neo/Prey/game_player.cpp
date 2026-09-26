@@ -275,6 +275,18 @@ void hhPlayer::Spawn( void ) {
 	physicsObj.SetInwardGravity(-1); //rww
 }
 
+// Shared by grants, normal selection and restored spirit/vehicle weapons.
+static int RW_DoomUnlockParent(int slot) {
+	switch (slot) {
+		case 8: case 10: return 2;
+		case 11: return 4;
+		case 13: return 6;
+		case 14: return 7;
+		case 15: return 5;
+		default: return 0;
+	}
+}
+
 // State is stored in the existing entity dictionary and fixed inventory slots,
 // leaving the binary layout of old campaign saves unchanged.
 void hhPlayer::SynchronizeDoom3Shotgun() {
@@ -295,10 +307,10 @@ void hhPlayer::SynchronizeDoom3Shotgun() {
 		if (!definition || !definition->GetBool("rw_saveCompatible")) { continue; }
 		const bool enabled = g_doom3Shotgun.GetBool();
 		const bool held = (inventory.weapons & bit) != 0;
-		const int parentSlot = variant == 0 ? 2 : (variant == 1 ? 4 : (variant == 2 ? 5 : (variant == 3 ? 6 : (variant == 4 ? 7 : 6))));
+		const int parentSlot = RW_DoomUnlockParent(slot);
 		const bool parentOwned = (inventory.weapons & (1 << parentSlot)) != 0;
-		// Old prototypes granted the Machine Gun with the rifle. Its new unlock
-		// must depend on the Leech Gun, even when that old grant was saved.
+		// Unlock milestones are independent of selection groups and ammo sources.
+		// Recompute from campaign ownership when restoring existing saves.
 		const bool owned = variant > 0 ? parentOwned :
 			(held || parentOwned || spawnArgs.GetBool(va("rw_weapon_%s_owned", name)));
 		const bool changed = idStr::Icmp( GetWeaponName(slot), defName ) ||
@@ -1054,6 +1066,15 @@ void hhPlayer::UpdateHudAmmo(idUserInterface *_hud) {
     for (int rover = 1; rover <= 9; ++rover) {
 		int infoSlot = rover;
 		if (WeaponGroup(idealWeapon) == rover && idealWeapon > 0 && idealWeapon < MAX_WEAPONS) { infoSlot = idealWeapon; }
+		else if (!(inventory.weapons & (1 << infoSlot))) {
+			// An addon can now unlock before the native gun in its selection group.
+			for (int candidate = 1; candidate < MAX_WEAPONS; ++candidate) {
+				if (WeaponGroup(candidate) == rover && (inventory.weapons & (1 << candidate))) {
+					infoSlot = candidate;
+					break;
+				}
+			}
+		}
 		bool bHeld = false;
 		ammoPct = 0.0f;
 		altPct = 0.0f;
@@ -1624,8 +1645,9 @@ hhPlayer::SkipWeapon
 ===============
 */
 bool hhPlayer::SkipWeapon( int weaponNum ) const {
-	if ( (weaponNum == 8 || weaponNum == 10 || weaponNum == 11 || weaponNum == 13 || weaponNum == 14 || weaponNum == 15) && spawnArgs.FindKey("rw_weapon_d3shotgun_enabled") &&
-		(!g_doom3Shotgun.GetBool() || (weaponNum == 10 && !(inventory.weapons & (1 << 4))) || (weaponNum == 11 && !(inventory.weapons & (1 << 5))) || (weaponNum == 13 && !(inventory.weapons & (1 << 6))) || (weaponNum == 14 && !(inventory.weapons & (1 << 7))) || (weaponNum == 15 && !(inventory.weapons & (1 << 6)))) ) {
+	const int addonParent = RW_DoomUnlockParent(weaponNum);
+	if (addonParent && spawnArgs.FindKey("rw_weapon_d3shotgun_enabled") &&
+		(!g_doom3Shotgun.GetBool() || (weaponNum != 8 && !(inventory.weapons & (1 << addonParent))))) {
 		return true;
 	}
 	//No bow if not in spirit mode
@@ -5674,8 +5696,9 @@ nla: used to instantly force the spirit weapon, without lowering and raising
 void hhPlayer::ForceWeapon( int weaponNum ) {
 	// A saved spirit/vehicle hand archive may still reference the addon slot.
 	// Resolve it to an owned physical weapon before constructing the view model.
-	if ( (weaponNum == 8 || weaponNum == 10 || weaponNum == 11 || weaponNum == 13 || weaponNum == 14 || weaponNum == 15) && spawnArgs.FindKey("rw_weapon_d3shotgun_enabled") &&
-		(!g_doom3Shotgun.GetBool() || (weaponNum == 10 && !(inventory.weapons & (1 << 4))) || (weaponNum == 11 && !(inventory.weapons & (1 << 5))) || (weaponNum == 13 && !(inventory.weapons & (1 << 6))) || (weaponNum == 14 && !(inventory.weapons & (1 << 7))) || (weaponNum == 15 && !(inventory.weapons & (1 << 6)))) ) {
+	const int addonParent = RW_DoomUnlockParent(weaponNum);
+	if (addonParent && spawnArgs.FindKey("rw_weapon_d3shotgun_enabled") &&
+		(!g_doom3Shotgun.GetBool() || (weaponNum != 8 && !(inventory.weapons & (1 << addonParent))))) {
 		if ( inventory.weapons & (1 << 2) ) { weaponNum = 2; }
 		else if ( inventory.weapons & (1 << 1) ) { weaponNum = 1; }
 	}
