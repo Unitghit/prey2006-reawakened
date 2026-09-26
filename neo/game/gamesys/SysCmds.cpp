@@ -2663,6 +2663,15 @@ static void Cmd_PlasmaInfo_f(const idCmdArgs &args) {
 static void Cmd_PortalGun_f(const idCmdArgs &args) {
     hhPlayer *player = static_cast<hhPlayer *>(gameLocal.GetLocalPlayer());
     if (!player) return;
+    if (cvarSystem->GetCVarBool("developer") && args.Argc() == 2 && !idStr::Icmp(args.Argv(1), "actors")) {
+        for (idEntity *e = gameLocal.spawnedEntities.Next(); e; e = e->spawnNode.Next()) {
+            if (!e->IsType(idAI::Type) || (e->GetOrigin()-player->GetOrigin()).LengthSqr() > 1024*1024) continue;
+            gameLocal.Printf("PORTAL_ACTOR name=%s health=%d noPortal=%d bound=%d\n", e->GetName(), e->health, e->fl.noPortal, e->IsBound());
+            gameLocal.Printf("PORTAL_ACTOR_POSE %s origin=%s axis=%s\n", e->GetName(), e->GetOrigin().ToString(), e->GetPhysics()->GetAxis()[2].ToString());
+            gameLocal.Printf("PORTAL_ACTOR_HULL %s min=%s max=%s\n", e->GetName(), e->GetPhysics()->GetBounds()[0].ToString(), e->GetPhysics()->GetBounds()[1].ToString());
+
+        }
+    }
     if (cvarSystem->GetCVarBool("developer") && args.Argc() == 2 && !idStr::Icmp(args.Argv(1), "reticle"))
         gameLocal.Printf("PORTAL_RETICLE_STATUS blue=%d orange=%d pending=%d\n", player->portalReticleValid[0],
             player->portalReticleValid[1], player->portalReticleCandidate[0] >= 0 || player->portalReticleCandidate[1] >= 0);

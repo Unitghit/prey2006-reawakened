@@ -38,7 +38,8 @@ static bool RW_PortalOccupied(const hhPortal *portal, const idPhysics *physics) 
 }
 static bool RW_GunPortalEntity(const idEntity *ent) {
     return ent && !ent->fl.noPortal && !ent->IsBound() &&
-        (ent->IsType(hhPlayer::Type) || ent->IsType(hhProjectile::Type) || ent->IsType(idMoveable::Type));
+        (ent->IsType(hhPlayer::Type) || ent->IsType(hhProjectile::Type) || ent->IsType(idMoveable::Type) ||
+         (ent->IsType(idAI::Type) && ent->health > 0 && ent->GetPhysics()->IsType(idPhysics_Monster::Type)));
 }
 // Disable only the wall cutout for final closing-clearance queries. Keeping
 // portal trigger handling active avoids treating their sensor volumes as walls.

@@ -366,6 +366,17 @@ foreach($name in $Cases) {
             ([regex]::Matches($edge,'PORTAL_EXIT ')).Count -ne 1){throw 'Corner edge lost solid collision or bounded approach assistance'}
         if(([regex]::Matches($prop,'PORTAL_ENTITY_EXIT hhMoveable name=corner_prop')).Count -ne 1){throw 'Corner prop did not cross exactly once'}
     }
+    if($name -eq 'npc') {
+        $fall=[regex]::Match($log,'(?s)NPC_FALL_BEGIN(.*?)NPC_FALL_END').Groups[1].Value
+        if(([regex]::Matches($fall,'PORTAL_ENTITY_EXIT hhHunterSimple name=npc_fall')).Count -ne 1) { throw 'Hunter did not cross exactly once' }
+        if($fall -notmatch 'PORTAL_ACTOR name=npc_fall health=100') { throw 'Hunter was damaged during crossing' }
+        $pose=[regex]::Match($fall,'PORTAL_ACTOR_POSE npc_fall origin=([-0-9.]+) ([-0-9.]+) ([-0-9.]+)')
+        if(!$pose.Success -or [math]::Abs([double]$pose.Groups[1].Value) -gt 100 -or [double]$pose.Groups[2].Value -gt 470 -or [double]$pose.Groups[2].Value -lt 200) { throw 'Hunter did not resume moving after the exit' }
+        foreach($phase in @('FORBIDDEN','BLOCKED')) {
+            $part=[regex]::Match($log,"(?s)NPC_${phase}_BEGIN(.*?)NPC_${phase}_END").Groups[1].Value
+            if(!$part -or $part -match 'PORTAL_ENTITY_EXIT') { throw "NPC $phase restriction failed" }
+        }
+    }
     if($name -eq 'objects') {
         foreach($prop in @('polish_a','polish_b','polish_c')) {
             if(([regex]::Matches($log,'PORTAL_ENTITY_EXIT hhMoveable name='+$prop)).Count -ne 1){throw "Prop $prop did not cross exactly once"}
