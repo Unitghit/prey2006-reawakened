@@ -184,9 +184,19 @@ hhPlayer::Spawn
 Prepare any resources used by the player.
 ==============
 */
+// Reawakened: the portal gun view weapon is spawned on first use, which parsed its
+// entityDef (and loaded its model and textures) mid-gameplay: a ~70 ms hitch.
+// Parsing it while the map loads caches that media during the loading screen.
+static void RW_PrecachePortalGunView() {
+	if ( cvarSystem->GetCVarBool( "g_portalGun" ) && !gameLocal.isMultiplayer ) {
+		gameLocal.FindEntityDef( "weaponobj_portalgun", false );
+	}
+}
+
 void hhPlayer::Spawn( void ) {
 
 	SetupWeaponInfo();
+	RW_PrecachePortalGunView();
 
 	spiritDrainHeartbeatMS = SEC2MS(spawnArgs.GetFloat( "spiritDrainHeartbeat", "0.15" ));
 
@@ -7322,6 +7332,7 @@ void hhPlayer::Save( idSaveGame *savefile ) const {
 //hhPlayer::Restore
 //================
 void hhPlayer::Restore( idRestoreGame *savefile ) {
+    RW_PrecachePortalGunView();
     portalReticleRefresh = -1;
 	// Public vars
 	savefile->Read(weaponInfo, sizeof(weaponInfo_t)*15);
