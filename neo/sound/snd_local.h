@@ -968,7 +968,16 @@ public:
 	void					PurgeSoundSample();			// frees all data
 	void					CheckForDownSample();		// down sample if required
 	bool					FetchFromCache( int offset, const byte **output, int *position, int *size, const bool allowIO );
+	// Load-time OGG decode into an OpenAL buffer; preDecoded (objectSize
+	// shorts) comes from a worker thread, NULL decodes here.
+	void					DecodeOggToHardware( const short *preDecoded );
 };
+
+// In-place 44 kHz float to native-rate 16 bit conversion of the load-time OGG path.
+void R_OggFloatsToShorts( float *destData, int objectSize, int samplesPerSec );
+// Queues the load-time OGG decode of sample on a worker thread during a level
+// load (s_threadedDecode). False when it must be decoded immediately instead.
+bool SubmitThreadedOggDecode( idSoundSample *sample );
 
 
 /*
@@ -1020,6 +1029,7 @@ public:
 	void					EndLevelLoad();
 
 	void					PrintMemInfo( MemInfo_t *mi );
+	bool					InsideLevelLoad() const { return insideLevelLoad; }
 
 private:
 	bool					insideLevelLoad;

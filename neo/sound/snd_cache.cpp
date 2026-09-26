@@ -39,6 +39,229 @@ static idDynamicBlockAlloc<byte, 1<<20, 1<<10>	soundCacheAllocator;
 static idDynamicAlloc<byte, 1<<20, 1<<10>		soundCacheAllocator;
 #endif
 
+#define STB_VORBIS_NO_STDIO
+#define STB_VORBIS_NO_PUSHDATA_API
+#define STB_VORBIS_HEADER_ONLY
+#include "stb_vorbis.h"
+
+#include <condition_variable>
+#include <memory>
+#include <mutex>
+#include <thread>
+#include <vector>
+
+/*
+===============================================================================
+
+Threaded load-time OGG decoding (s_threadedDecode)
+
+During a level load, samples short enough to be decoded up front queue their
+decode here instead of decoding on the main thread. Workers run the same
+stb_vorbis loop, upsampling and 16 bit conversion as the original path, with
+their own copy of the compressed data and plain malloc; they never print.
+Anything unusual (errors, the tolerated dropped-sample case, other rates)
+fails the job, and the original path redoes it on the main thread.
+idSoundCache::EndLevelLoad fills the OpenAL buffers on the main thread; a
+sample played before then uses the existing software decoding path.
+
+===============================================================================
+*/
+
+static idCVar s_threadedDecode( "s_threadedDecode", "1", CVAR_SOUND | CVAR_BOOL,
+	"decode short OGG samples on worker threads during level loads" );
+static idCVar s_verifyThreadedDecode( "s_verifyThreadedDecode", "0", CVAR_SOUND | CVAR_BOOL,
+	"also decode threaded samples the original way and report any difference" );
+
+namespace {
+struct oggDecodeJob_t {
+	idSoundSample *				sample = NULL;
+	unsigned int				generation = 0;		// sample->dataGeneration when queued
+	std::vector<unsigned char>	ogg;				// copy of the compressed file
+	int							channels = 0;
+	int							samplesPerSec = 0;
+	int							objectSize = 0;
+	int							length44k = 0;
+	std::vector<short>			decoded;			// objectSize samples when ok
+	bool						ok = false;
+};
+
+std::vector<std::unique_ptr<oggDecodeJob_t> >	oggJobs;
+std::vector<std::thread>						oggWorkers;
+std::mutex										oggLock;
+std::condition_variable							oggWake;
+size_t											oggNext = 0;
+bool											oggFinish = false;
+
+// idSampleDecoderLocal::DecodeOGG for a fresh decoder at offset zero, then the
+// conversion of the load-time path. Returns false instead of printing.
+bool DecodeOggJob( oggDecodeJob_t &job ) {
+	const int channels = job.channels;
+	const int shift = 22050 / job.samplesPerSec;
+	std::vector<float> dest( job.length44k + 1 );
+
+	int stbVorbErr = 0;
+	stb_vorbis *stbv = stb_vorbis_open_memory( job.ogg.data(), (int)job.ogg.size(), &stbVorbErr, NULL );
+	if ( !stbv ) {
+		return false;
+	}
+	int totalSamples = job.length44k >> shift;
+	int readSamples = 0;
+	bool ok = true;
+	do {
+		float samplesBuf[2][MIXBUFFER_SAMPLES];
+		float *samples[2] = { samplesBuf[0], samplesBuf[1] };
+		const int reqSamples = Min( MIXBUFFER_SAMPLES, totalSamples / channels );
+		if ( reqSamples == 0 ) {
+			ok = false;		// the original's special case; leave it to that path
+			break;
+		}
+		int ret = stb_vorbis_get_samples_float( stbv, channels, samples, reqSamples );
+		if ( ret <= 0 ) {
+			ok = false;		// errors and the tolerated-drop case
+			break;
+		}
+		ret *= channels;
+		SIMDProcessor->UpSampleOGGTo44kHz( dest.data() + ( readSamples << shift ), samples, ret, job.samplesPerSec, channels );
+		readSamples += ret;
+		totalSamples -= ret;
+	} while ( totalSamples > 0 );
+	stb_vorbis_close( stbv );
+	if ( !ok ) {
+		return false;
+	}
+
+	// idSampleDecoderLocal::Decode zeroes whatever was not decoded
+	const int read44k = readSamples << shift;
+	if ( read44k < job.length44k ) {
+		memset( dest.data() + read44k, 0, ( job.length44k - read44k ) * sizeof( float ) );
+	}
+	R_OggFloatsToShorts( dest.data(), job.objectSize, job.samplesPerSec );
+	job.decoded.assign( (const short *)dest.data(), (const short *)dest.data() + job.objectSize );
+	return true;
+}
+
+void OggDecodeWorker() {
+	for ( ;; ) {
+		oggDecodeJob_t *job;
+		{
+			std::unique_lock<std::mutex> lock( oggLock );
+			oggWake.wait( lock, [] { return oggNext < oggJobs.size() || oggFinish; } );
+			if ( oggNext >= oggJobs.size() ) {
+				return;		// finishing and nothing left
+			}
+			job = oggJobs[ oggNext++ ].get();
+		}
+		bool ok = false;
+		try {
+			ok = DecodeOggJob( *job );
+		} catch ( ... ) {
+			ok = false;
+		}
+		std::lock_guard<std::mutex> lock( oggLock );
+		job->ok = ok;
+	}
+}
+
+// Waits for all queued decodes. Main thread.
+void FinishOggWorkers() {
+	{
+		std::lock_guard<std::mutex> lock( oggLock );
+		oggFinish = true;
+	}
+	oggWake.notify_all();
+	for ( std::thread &worker : oggWorkers ) {
+		if ( worker.joinable() ) {
+			worker.join();
+		}
+	}
+	oggWorkers.clear();
+	oggFinish = false;
+}
+}
+
+bool SubmitThreadedOggDecode( idSoundSample *sample ) {
+	if ( !s_threadedDecode.GetBool() || !soundSystemLocal.soundCache || !soundSystemLocal.soundCache->InsideLevelLoad() ||
+		!Sys_IsMainThread() || !sample->nonCacheData || sample->objectMemSize <= 0 ||
+		( sample->objectInfo.nChannels != 1 && sample->objectInfo.nChannels != 2 ) ||
+		( sample->objectInfo.nSamplesPerSec != 11025 && sample->objectInfo.nSamplesPerSec != 22050 &&
+		  sample->objectInfo.nSamplesPerSec != 44100 ) ) {
+		return false;
+	}
+	std::unique_ptr<oggDecodeJob_t> job( new oggDecodeJob_t );
+	job->sample = sample;
+	job->generation = sample->dataGeneration;
+	job->ogg.assign( sample->nonCacheData, sample->nonCacheData + sample->objectMemSize );
+	job->channels = sample->objectInfo.nChannels;
+	job->samplesPerSec = sample->objectInfo.nSamplesPerSec;
+	job->objectSize = sample->objectSize;
+	job->length44k = sample->LengthIn44kHzSamples();
+	{
+		std::lock_guard<std::mutex> lock( oggLock );
+		oggJobs.push_back( std::move( job ) );
+	}
+	if ( oggWorkers.empty() ) {
+		unsigned int count = std::thread::hardware_concurrency();
+		count = count > 1 ? Min( count - 1, 8u ) : 1;
+		for ( unsigned int i = 0; i < count; i++ ) {
+			try {
+				oggWorkers.emplace_back( OggDecodeWorker );
+			} catch ( ... ) {
+				break;
+			}
+		}
+		if ( oggWorkers.empty() ) {
+			// no threads available: undo and decode now
+			std::lock_guard<std::mutex> lock( oggLock );
+			oggJobs.pop_back();
+			return false;
+		}
+	}
+	oggWake.notify_one();
+	return true;
+}
+
+// Main thread: fills the OpenAL buffers of all queued decodes, in queue order.
+static void CompleteThreadedOggDecodes() {
+	if ( oggJobs.empty() ) {
+		return;
+	}
+	FinishOggWorkers();
+	int threaded = 0, fallback = 0, discarded = 0, mismatched = 0;
+	for ( auto &job : oggJobs ) {
+		idSoundSample *sample = job->sample;
+		idScopedCriticalSection sampleLock( CRITICAL_SECTION_ONE );
+		if ( sample->purged || sample->dataGeneration != job->generation ) {
+			discarded++;	// reloaded or purged since it was queued
+			continue;
+		}
+		if ( job->ok && s_verifyThreadedDecode.GetBool() ) {
+			idSampleDecoder *decoder = idSampleDecoder::Alloc();
+			float *check = (float *)soundCacheAllocator.Alloc( ( sample->LengthIn44kHzSamples() + 1 ) * sizeof( float ) );
+			decoder->Decode( sample, 0, sample->LengthIn44kHzSamples(), check );
+			R_OggFloatsToShorts( check, sample->objectSize, sample->objectInfo.nSamplesPerSec );
+			if ( memcmp( check, job->decoded.data(), sample->objectSize * sizeof( short ) ) ) {
+				mismatched++;
+				common->Printf( "THREADED_SOUND_VERIFY MISMATCH %s\n", sample->name.c_str() );
+			}
+			soundCacheAllocator.Free( (byte *)check );
+			idSampleDecoder::Free( decoder );
+		}
+		if ( job->ok ) {
+			sample->DecodeOggToHardware( job->decoded.data() );
+			threaded++;
+		} else {
+			sample->DecodeOggToHardware( NULL );
+			fallback++;
+		}
+	}
+	oggJobs.clear();
+	oggNext = 0;
+	common->Printf( "%5i sounds decoded on worker threads, %i on the main thread, %i discarded\n", threaded, fallback, discarded );
+	if ( s_verifyThreadedDecode.GetBool() ) {
+		common->Printf( "THREADED_SOUND_VERIFY checked=%d mismatches=%d\n", threaded, mismatched );
+	}
+}
+
 /*
 ===================
 idSoundCache::idSoundCache()
@@ -58,6 +281,10 @@ idSoundCache::~idSoundCache()
 ===================
 */
 idSoundCache::~idSoundCache() {
+	// no worker may outlive the samples; drop results of an unfinished load
+	FinishOggWorkers();
+	oggJobs.clear();
+	oggNext = 0;
 	listCache.DeleteContents( true );
 	soundCacheAllocator.Shutdown();
 }
@@ -184,6 +411,9 @@ Free all samples marked as unused
 void idSoundCache::EndLevelLoad() {
 	int	useCount, purgeCount;
 	common->Printf( "----- idSoundCache::EndLevelLoad -----\n" );
+
+	// fill the buffers of samples decoded on worker threads during the load
+	CompleteThreadedOggDecodes();
 
 	insideLevelLoad = false;
 
@@ -516,64 +746,105 @@ void idSoundSample::Load( void ) {
 		// OGG decompressed at load time (when smaller than s_decompressionLimit seconds, 6 seconds by default)
 		if ( objectInfo.wFormatTag == WAVE_FORMAT_TAG_OGG ) {
 			if ( ( objectSize < ( ( int ) objectInfo.nSamplesPerSec * idSoundSystemLocal::s_decompressionLimit.GetInteger() ) ) ) {
-				alGetError();
-				alGenBuffers( 1, &openalBuffer );
-				if ( alGetError() != AL_NO_ERROR )
-					common->Error( "idSoundCache: error generating OpenAL hardware buffer" );
-				if ( alIsBuffer( openalBuffer ) ) {
-					idSampleDecoder *decoder = idSampleDecoder::Alloc();
-					float *destData = (float *)soundCacheAllocator.Alloc( ( LengthIn44kHzSamples() + 1 ) * sizeof( float ) );
-
-					// Decoder *always* outputs 44 kHz data
-					decoder->Decode( this, 0, LengthIn44kHzSamples(), destData );
-
-					// Downsample back to original frequency (save memory)
-					if ( objectInfo.nSamplesPerSec == 11025 ) {
-						for ( int i = 0; i < objectSize; i++ ) {
-							if ( destData[i*4] < -32768.0f )
-								((short *)destData)[i] = -32768;
-							else if ( destData[i*4] > 32767.0f )
-								((short *)destData)[i] = 32767;
-							else
-								((short *)destData)[i] = idMath::FtoiFast( destData[i*4] );
-						}
-					} else if ( objectInfo.nSamplesPerSec == 22050 ) {
-						for ( int i = 0; i < objectSize; i++ ) {
-							if ( destData[i*2] < -32768.0f )
-								((short *)destData)[i] = -32768;
-							else if ( destData[i*2] > 32767.0f )
-								((short *)destData)[i] = 32767;
-							else
-								((short *)destData)[i] = idMath::FtoiFast( destData[i*2] );
-						}
-					} else {
-						for ( int i = 0; i < objectSize; i++ ) {
-							if ( destData[i] < -32768.0f )
-								((short *)destData)[i] = -32768;
-							else if ( destData[i] > 32767.0f )
-								((short *)destData)[i] = 32767;
-							else
-								((short *)destData)[i] = idMath::FtoiFast( destData[i] );
-						}
-					}
-
-					alGetError();
-					alBufferData( openalBuffer, objectInfo.nChannels==1?AL_FORMAT_MONO16:AL_FORMAT_STEREO16, destData, objectSize * sizeof( short ), objectInfo.nSamplesPerSec );
-					if ( alGetError() != AL_NO_ERROR ) {
-						common->Warning( "idSoundCache: error loading data into OpenAL hardware buffer" );
-						hardwareBuffer = false;
-					} else {
-						hardwareBuffer = true;
-					}
-
-					soundCacheAllocator.Free( (byte *)destData );
-					idSampleDecoder::Free( decoder );
+				// During a level load the decode may run on a worker thread;
+				// the buffer is then filled by idSoundCache::EndLevelLoad.
+				if ( !SubmitThreadedOggDecode( this ) ) {
+					DecodeOggToHardware( NULL );
 				}
 			}
 		}
 	}
 
 	fh.Close();
+}
+
+/*
+===================
+idSoundSample::DecodeOggToHardware
+
+The load-time OGG path: decodes the whole sample to 16 bit at its own rate
+and fills an OpenAL buffer. preDecoded, when given, holds that exact data
+(objectSize shorts) decoded on a worker; otherwise it is decoded here.
+===================
+*/
+void idSoundSample::DecodeOggToHardware( const short *preDecoded ) {
+	alGetError();
+	alGenBuffers( 1, &openalBuffer );
+	if ( alGetError() != AL_NO_ERROR )
+		common->Error( "idSoundCache: error generating OpenAL hardware buffer" );
+	if ( alIsBuffer( openalBuffer ) ) {
+		if ( preDecoded ) {
+			alGetError();
+			alBufferData( openalBuffer, objectInfo.nChannels==1?AL_FORMAT_MONO16:AL_FORMAT_STEREO16, preDecoded, objectSize * sizeof( short ), objectInfo.nSamplesPerSec );
+			if ( alGetError() != AL_NO_ERROR ) {
+				common->Warning( "idSoundCache: error loading data into OpenAL hardware buffer" );
+				hardwareBuffer = false;
+			} else {
+				hardwareBuffer = true;
+			}
+			return;
+		}
+
+		idSampleDecoder *decoder = idSampleDecoder::Alloc();
+		float *destData = (float *)soundCacheAllocator.Alloc( ( LengthIn44kHzSamples() + 1 ) * sizeof( float ) );
+
+		// Decoder *always* outputs 44 kHz data
+		decoder->Decode( this, 0, LengthIn44kHzSamples(), destData );
+
+		// Downsample back to original frequency (save memory)
+		R_OggFloatsToShorts( destData, objectSize, objectInfo.nSamplesPerSec );
+
+		alGetError();
+		alBufferData( openalBuffer, objectInfo.nChannels==1?AL_FORMAT_MONO16:AL_FORMAT_STEREO16, destData, objectSize * sizeof( short ), objectInfo.nSamplesPerSec );
+		if ( alGetError() != AL_NO_ERROR ) {
+			common->Warning( "idSoundCache: error loading data into OpenAL hardware buffer" );
+			hardwareBuffer = false;
+		} else {
+			hardwareBuffer = true;
+		}
+
+		soundCacheAllocator.Free( (byte *)destData );
+		idSampleDecoder::Free( decoder );
+	}
+}
+
+/*
+===================
+R_OggFloatsToShorts
+
+Converts decoded 44 kHz floats in place to objectSize 16 bit samples at the
+sample's own rate, as the load-time OGG path always has. Thread-safe.
+===================
+*/
+void R_OggFloatsToShorts( float *destData, int objectSize, int samplesPerSec ) {
+	if ( samplesPerSec == 11025 ) {
+		for ( int i = 0; i < objectSize; i++ ) {
+			if ( destData[i*4] < -32768.0f )
+				((short *)destData)[i] = -32768;
+			else if ( destData[i*4] > 32767.0f )
+				((short *)destData)[i] = 32767;
+			else
+				((short *)destData)[i] = idMath::FtoiFast( destData[i*4] );
+		}
+	} else if ( samplesPerSec == 22050 ) {
+		for ( int i = 0; i < objectSize; i++ ) {
+			if ( destData[i*2] < -32768.0f )
+				((short *)destData)[i] = -32768;
+			else if ( destData[i*2] > 32767.0f )
+				((short *)destData)[i] = 32767;
+			else
+				((short *)destData)[i] = idMath::FtoiFast( destData[i*2] );
+		}
+	} else {
+		for ( int i = 0; i < objectSize; i++ ) {
+			if ( destData[i] < -32768.0f )
+				((short *)destData)[i] = -32768;
+			else if ( destData[i] > 32767.0f )
+				((short *)destData)[i] = 32767;
+			else
+				((short *)destData)[i] = idMath::FtoiFast( destData[i] );
+		}
+	}
 }
 
 /*
