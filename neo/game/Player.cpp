@@ -347,14 +347,21 @@ void idInventory::Save( idSaveGame *savefile ) const {
 	savefile->WriteInt( weapons );
 	savefile->WriteInt( ammoPredictTime );
 
-	for( i = 0; i < AMMO_NUMTYPES; i++ ) {
+	for( i = 0; i < LEGACY_AMMO_NUMTYPES; i++ ) {
 		savefile->WriteInt( ammo[ i ] );
 	}
-	for( i = 0; i < MAX_WEAPONS; i++ ) {
+	for( i = 0; i < LEGACY_MAX_WEAPONS; i++ ) {
 		savefile->WriteInt( clip[ i ] );
 	}
 
-	savefile->WriteInt( items.Num() );
+	// Add extension data as a tagged dictionary in the existing item list.
+	// Old saves have no such record; their fixed arrays remain 16 entries.
+	savefile->WriteInt( items.Num() + 1 );
+	idDict extension;
+	extension.SetBool("rw_inventory_extension", true);
+	extension.SetInt("bfg_ammo", ammo[16]);
+	extension.SetInt("bfg_clip", clip[16]);
+	savefile->WriteDict(&extension);
 	for( i = 0; i < items.Num(); i++ ) {
 		savefile->WriteDict( items[ i ] );
 	}
@@ -389,15 +396,17 @@ idInventory::Restore
 */
 void idInventory::Restore( idRestoreGame *savefile ) {
 	int i, num;
+	ammo[16] = 0;
+	clip[16] = -1;
 
 	savefile->ReadInt( maxHealth );
 	savefile->ReadInt( weapons );
 	savefile->ReadInt( ammoPredictTime );
 
-	for( i = 0; i < AMMO_NUMTYPES; i++ ) {
+	for( i = 0; i < LEGACY_AMMO_NUMTYPES; i++ ) {
 		savefile->ReadInt( ammo[ i ] );
 	}
-	for( i = 0; i < MAX_WEAPONS; i++ ) {
+	for( i = 0; i < LEGACY_MAX_WEAPONS; i++ ) {
 		savefile->ReadInt( clip[ i ] );
 	}
 
@@ -406,7 +415,11 @@ void idInventory::Restore( idRestoreGame *savefile ) {
 		idDict *itemdict = new idDict;
 
 		savefile->ReadDict( itemdict );
-		items.Append( itemdict );
+		if (itemdict->GetBool("rw_inventory_extension")) {
+			ammo[16] = itemdict->GetInt("bfg_ammo");
+			clip[16] = itemdict->GetInt("bfg_clip", "-1");
+			delete itemdict;
+		} else { items.Append( itemdict ); }
 	}
 
 	savefile->ReadInt( num );
@@ -2114,6 +2127,7 @@ void idPlayer::SavePersistantInfo( void ) {
 		playerInfo.SetInt("rw_weapon_d3supershotgun_clip", inventory.clip[15]);
 	}
 
+	playerInfo.SetInt("rw_weapon_d3bfg_clip", inventory.clip[16]);
 	playerInfo.SetInt( "max_ammo_energy", spawnArgs.GetInt( "max_ammo_energy" ) );	//HUMANHEAD bjk: possibly unneeded but def works with it in
 }
 
@@ -6945,7 +6959,7 @@ void idPlayer::WriteToSnapshot( idBitMsgDelta &msg ) const {
 	msg.WriteDir( lastDamageDir, 9 );
 	msg.WriteShort( lastDamageLocation );
 	msg.WriteBits( idealWeapon, idMath::BitsForInteger( MAX_WEAPONS ) );
-	msg.WriteBits( inventory.weapons, MAX_WEAPONS );
+	msg.WriteBits( inventory.weapons, LEGACY_MAX_WEAPONS );
 	msg.WriteBits( weapon.GetSpawnId(), 32 );
 	msg.WriteBits( spectator, idMath::BitsForInteger( MAX_CLIENTS ) );
 	msg.WriteBits( lastHitToggle, 1 );
@@ -6982,7 +6996,7 @@ void idPlayer::ReadFromSnapshot( const idBitMsgDelta &msg ) {
 	lastDamageDir = msg.ReadDir( 9 );
 	lastDamageLocation = msg.ReadShort();
 	newIdealWeapon = msg.ReadBits( idMath::BitsForInteger( MAX_WEAPONS ) );
-	inventory.weapons = msg.ReadBits( MAX_WEAPONS );
+	inventory.weapons = msg.ReadBits( LEGACY_MAX_WEAPONS );
 	weaponSpawnId = msg.ReadBits( 32 );
 	spectator = msg.ReadBits( idMath::BitsForInteger( MAX_CLIENTS ) );
 	newHitToggle = msg.ReadBits( 1 ) != 0;
@@ -7120,12 +7134,12 @@ void idPlayer::WritePlayerStateToSnapshot( idBitMsgDelta &msg ) const {
 	msg.WriteFloat( stepUpDelta );
 	msg.WriteShort( inventory.weapons );
 
-	for( i = 0; i < AMMO_NUMTYPES; i++ ) {
+	for( i = 0; i < LEGACY_AMMO_NUMTYPES; i++ ) {
 		msg.WriteBits( inventory.ammo[i], ASYNC_PLAYER_INV_AMMO_BITS );
 	}
 	//HUMANHEAD rww - don't need the clip count for all weapons on the client, and weapon handles sending its own clip
 	/*
-	for( i = 0; i < MAX_WEAPONS; i++ ) {
+	for( i = 0; i < LEGACY_MAX_WEAPONS; i++ ) {
 		msg.WriteBits( inventory.clip[i], ASYNC_PLAYER_INV_CLIP_BITS );
 	}
 	*/
@@ -7145,7 +7159,7 @@ void idPlayer::ReadPlayerStateFromSnapshot( const idBitMsgDelta &msg ) {
 	stepUpDelta = msg.ReadFloat();
 	inventory.weapons = msg.ReadShort();
 
-	for( i = 0; i < AMMO_NUMTYPES; i++ ) {
+	for( i = 0; i < LEGACY_AMMO_NUMTYPES; i++ ) {
 		ammo = msg.ReadBits( ASYNC_PLAYER_INV_AMMO_BITS );
 		if ( gameLocal.time >= inventory.ammoPredictTime ) {
 			inventory.ammo[ i ] = ammo;
@@ -7154,7 +7168,7 @@ void idPlayer::ReadPlayerStateFromSnapshot( const idBitMsgDelta &msg ) {
 
 	//HUMANHEAD rww - don't need the clip count for all weapons on the client, and weapon handles sending its own clip
 	/*
-	for( i = 0; i < MAX_WEAPONS; i++ ) {
+	for( i = 0; i < LEGACY_MAX_WEAPONS; i++ ) {
 		inventory.clip[i] = msg.ReadBits( ASYNC_PLAYER_INV_CLIP_BITS );
 	}
 	*/

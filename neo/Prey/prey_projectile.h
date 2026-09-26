@@ -203,4 +203,31 @@ class hhProjectile : public idProjectile {
 		idVec3					collideVelocity; // cjr: This projectile struck a portal, so it should get portalled before thinking
 };
 
+
+// Doom 3 BFG behavior on Prey's portal-aware projectile physics.
+class hhDoomBFGProjectile : public hhProjectile {
+    CLASS_PROTOTYPE(hhDoomBFGProjectile);
+public:
+    hhDoomBFGProjectile();
+    virtual ~hhDoomBFGProjectile();
+    void Spawn();
+    void Save(idSaveGame *file) const;
+    void Restore(idRestoreGame *file);
+    virtual void Launch(const idVec3 &, const idMat3 &, const idVec3 &, float = 0, float = 1, float = 1);
+    virtual void Think();
+    virtual void Explode(const trace_t *, const idVec3 &, int);
+    virtual void SplashDamage(const idVec3 &, idEntity *, idEntity *, idEntity *, const char *);
+    virtual void Fizzle();
+    virtual void Portalled(idEntity *portal);
+protected:
+    virtual float DetermineDamageScale(const trace_t *) const { return damagePower; }
+private:
+    struct beam_t { idEntityPtr<idEntity> target; renderEntity_t render; int handle; };
+    idList<beam_t> beams;
+    renderEntity_t shell;
+    int shellHandle, nextDamage, beamEnd;
+    void ClearBeams();
+    void AcquireTargets(const idVec3 &, const idMat3 &);
+};
+
 #endif

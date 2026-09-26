@@ -225,6 +225,11 @@ void hhItemCabinet::SpawnItems() {
 	hhUtils::SplitString( idStr(spawnArgs.GetString( "ammoTypes" )), ammoTypes );
 	hhUtils::SplitString( idStr(spawnArgs.GetString( "itemNames" )), itemNames );
 
+	// BFG cells enter the random supply pool only after the weapon unlocks.
+	if (!gameLocal.isMultiplayer && (player->inventory.weapons & (1 << 16)) &&
+		cvarSystem->GetCVarBool("g_doom3Shotgun")) {
+		weaponNames.Append("weaponobj_d3bfg"); ammoTypes.Append("ammo_d3bfg"); itemNames.Append("ammo_d3bfg");
+	}
 	numAmmo = weaponNames.Num();
 
 	weaponIndexes.SetNum( numAmmo );
@@ -244,6 +249,7 @@ void hhItemCabinet::SpawnItems() {
 			if ( ammoPercent[i] == 0.0f ) { // Give full ammo weapons a slight chance
 				ammoPercent[i] = 0.01f;
 			}
+			if (!idStr::Icmp(ammoTypes[i], "ammo_d3bfg")) ammoPercent[i] *= 0.08f;
 			validWeapon[i] = true;
 		}
 	}	

@@ -212,6 +212,8 @@ def main():
         import_plasmagun(index, read, text, block, files)
         from import_rocketlauncher import import_rocketlauncher
         import_rocketlauncher(index, read, text, block, files)
+        from import_bfg import import_bfg
+        import_bfg(index, read, text, block, files)
         # Expansion assets are optional; base Doom owners retain the other guns.
         expansion = dict(index)
         for archive in sorted((args.install / 'd3xp').glob('pak*.pk4')):

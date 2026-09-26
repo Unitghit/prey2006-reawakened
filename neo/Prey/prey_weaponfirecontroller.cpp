@@ -368,6 +368,11 @@ void hhWeaponFireController::PublishShotgunClip() {
 }
 void hhWeaponFireController::UseAmmo() {
 	if( owner.IsValid() ) {
+        if (dict->GetBool("rw_bfgCharge")) {
+            const int cells=Min(Max(1,self->spawnArgs.GetInt("rw_bfg_power","1")),Max(0,ammoClip));
+            self->spawnArgs.SetInt("rw_bfg_power",cells);
+            owner->UseAmmo(GetAmmoType(),cells); ammoClip-=cells; return;
+        }
 		owner->UseAmmo( GetAmmoType(), AmmoRequired() );
 		if ( ClipSize() && AmmoRequired() ) {
 			ammoClip -= dict->GetBool("rw_clipInAmmoUnits") ? AmmoRequired() : 1;
@@ -399,7 +404,7 @@ hhWeaponFireController::GetAmmoType
 ================
 */
 ammo_t hhWeaponFireController::GetAmmoType( const char *ammoname ) {
-	if (!idStr::Icmp(ammoname, "ammo_d3shells") || !idStr::Icmp(ammoname, "ammo_d3bullets") || !idStr::Icmp(ammoname, "ammo_d3belt") || !idStr::Icmp(ammoname, "ammo_d3cells") || !idStr::Icmp(ammoname, "ammo_d3rockets") || !idStr::Icmp(ammoname, "ammo_d3supershells")) { return idWeapon::GetAmmoNumForName(ammoname); }
+	if (!idStr::Icmp(ammoname, "ammo_d3bfg") || !idStr::Icmp(ammoname, "ammo_d3shells") || !idStr::Icmp(ammoname, "ammo_d3bullets") || !idStr::Icmp(ammoname, "ammo_d3belt") || !idStr::Icmp(ammoname, "ammo_d3cells") || !idStr::Icmp(ammoname, "ammo_d3rockets") || !idStr::Icmp(ammoname, "ammo_d3supershells")) { return idWeapon::GetAmmoNumForName(ammoname); }
 
 	int num;
 	const idDict *ammoDict;

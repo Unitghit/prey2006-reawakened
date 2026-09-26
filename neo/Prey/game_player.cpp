@@ -281,7 +281,7 @@ static int RW_DoomUnlockParent(int slot) {
 		case 8: case 10: return 2;
 		case 11: return 4;
 		case 13: return 6;
-		case 14: return 7;
+		case 14: case 16: return 7;
 		case 15: return 5;
 		default: return 0;
 	}
@@ -298,11 +298,11 @@ void hhPlayer::SynchronizeDoom3Shotgun() {
 		return; // Do not alter unrelated mods or the old standalone prototype.
 	}
 	bool anyChanged = false;
-	for (int variant = 0; variant < 6; ++variant) {
-		const int slots[] = {8, 10, 11, 13, 14, 15};
+	for (int variant = 0; variant < 7; ++variant) {
+		const int slots[] = {8, 10, 11, 13, 14, 15, 16};
 		const int slot = slots[variant], bit = 1 << slot, flag = 1 << (slot - 1);
-		const char *name = variant == 0 ? "d3shotgun" : (variant == 1 ? "d3machinegun" : (variant == 2 ? "d3chaingun" : (variant == 3 ? "d3plasmagun" : (variant == 4 ? "d3rocketlauncher" : "d3supershotgun"))));
-		const char *defName = variant == 0 ? "weaponobj_d3shotgun" : (variant == 1 ? "weaponobj_d3machinegun" : (variant == 2 ? "weaponobj_d3chaingun" : (variant == 3 ? "weaponobj_d3plasmagun" : (variant == 4 ? "weaponobj_d3rocketlauncher" : "weaponobj_d3supershotgun"))));
+		const char *name = variant == 0 ? "d3shotgun" : (variant == 1 ? "d3machinegun" : (variant == 2 ? "d3chaingun" : (variant == 3 ? "d3plasmagun" : (variant == 4 ? "d3rocketlauncher" : (variant == 5 ? "d3supershotgun" : "d3bfg")))));
+		const char *defName = variant == 0 ? "weaponobj_d3shotgun" : (variant == 1 ? "weaponobj_d3machinegun" : (variant == 2 ? "weaponobj_d3chaingun" : (variant == 3 ? "weaponobj_d3plasmagun" : (variant == 4 ? "weaponobj_d3rocketlauncher" : (variant == 5 ? "weaponobj_d3supershotgun" : "weaponobj_d3bfg")))));
 		const idDict *definition = gameLocal.FindEntityDefDict(defName, false);
 		if (!definition || !definition->GetBool("rw_saveCompatible")) { continue; }
 		const bool enabled = g_doom3Shotgun.GetBool();
@@ -326,6 +326,10 @@ void hhPlayer::SynchronizeDoom3Shotgun() {
 			spawnArgs.SetBool( va("rw_weapon_%s_enabled", name), enabled );
 			if ( enabled && owned ) {
 				inventory.weapons |= bit;
+				if (slot == 16 && !spawnArgs.GetBool("rw_weapon_d3bfg_initial_ammo")) {
+					inventory.ammo[16] = Max(inventory.ammo[16], 4);
+					spawnArgs.SetBool("rw_weapon_d3bfg_initial_ammo", true);
+				}
 			} else {
 				inventory.weapons &= ~bit;
 			}
@@ -464,6 +468,7 @@ void hhPlayer::RestorePersistantInfo( void ) {
 	if (spawnArgs.FindKey("rw_weapon_d3supershotgun_clip")) {
 		inventory.clip[15] = spawnArgs.GetInt("rw_weapon_d3supershotgun_clip", "-1");
 	}
+    if (spawnArgs.FindKey("rw_weapon_d3bfg_clip")) inventory.clip[16]=spawnArgs.GetInt("rw_weapon_d3bfg_clip","-1");
 	SynchronizeDoom3Shotgun();
 
 	// Update persistent amoo maximums
@@ -6331,7 +6336,7 @@ void hhPlayer::WriteToSnapshot( idBitMsgDelta &msg ) const {
 	msg.WriteDir( lastDamageDir, 9 );
 	msg.WriteShort( lastDamageLocation );
 	msg.WriteBits( idealWeapon, idMath::BitsForInteger( MAX_WEAPONS ) );
-	msg.WriteBits( inventory.weapons, MAX_WEAPONS );
+	msg.WriteBits( inventory.weapons, LEGACY_MAX_WEAPONS );
 	msg.WriteBits( weapon.GetSpawnId(), 32 );
 	msg.WriteBits( spectator, idMath::BitsForInteger( MAX_CLIENTS ) );
 	msg.WriteBits( lastHitToggle, 1 );
@@ -6516,7 +6521,7 @@ void hhPlayer::ReadFromSnapshot( const idBitMsgDelta &msg ) {
 	lastDamageDir = msg.ReadDir( 9 );
 	lastDamageLocation = msg.ReadShort();
 	newIdealWeapon = msg.ReadBits( idMath::BitsForInteger( MAX_WEAPONS ) );
-	inventory.weapons = msg.ReadBits( MAX_WEAPONS );
+	inventory.weapons = msg.ReadBits( LEGACY_MAX_WEAPONS );
 	weaponSpawnId = msg.ReadBits( 32 );
 	spectator = msg.ReadBits( idMath::BitsForInteger( MAX_CLIENTS ) );
 	newHitToggle = msg.ReadBits( 1 ) != 0;

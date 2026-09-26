@@ -2135,6 +2135,7 @@ idWeapon::GetAmmoNumForName
 ================
 */
 ammo_t idWeapon::GetAmmoNumForName( const char *ammoname ) {
+	if (!gameLocal.isMultiplayer && !*cvarSystem->GetCVarString("fs_game") && !idStr::Icmp(ammoname, "ammo_d3bfg")) return (ammo_t)16;
 	// Stable unused inventory index; do not grow serialized ammo arrays.
 	if (!gameLocal.isMultiplayer && !*cvarSystem->GetCVarString("fs_game") &&
 		!idStr::Icmp(ammoname, "ammo_d3shells")) { return (ammo_t)10; }
@@ -2180,6 +2181,7 @@ idWeapon::GetAmmoNameForNum
 ================
 */
 const char *idWeapon::GetAmmoNameForNum( ammo_t ammonum ) {
+	if (!gameLocal.isMultiplayer && !*cvarSystem->GetCVarString("fs_game") && ammonum == 16) return "ammo_d3bfg";
 	if (!gameLocal.isMultiplayer && !*cvarSystem->GetCVarString("fs_game") && ammonum == 13) { return "ammo_d3cells"; }
 	if (!gameLocal.isMultiplayer && !*cvarSystem->GetCVarString("fs_game") && ammonum == 14) { return "ammo_d3rockets"; }
 	if (!gameLocal.isMultiplayer && !*cvarSystem->GetCVarString("fs_game") && ammonum == 15) { return "ammo_d3supershells"; }

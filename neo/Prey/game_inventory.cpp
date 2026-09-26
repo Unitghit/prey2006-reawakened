@@ -26,21 +26,23 @@ void hhInventory::Save(idSaveGame *savefile) const {
 	savefile->Write(&requirements, sizeof(requirements));
 	savefile->WriteInt( storedHealth );
 	savefile->WriteString( energyType.c_str() );
-	savefile->Write(&altMode, sizeof(altMode));
-	savefile->Write(&weaponRaised, sizeof(weaponRaised));
+	savefile->Write(&altMode, sizeof(altMode[0])*LEGACY_MAX_WEAPONS);
+	savefile->Write(&weaponRaised, sizeof(weaponRaised[0])*LEGACY_MAX_WEAPONS);
 	savefile->WriteInt( zoomFov );
 }
 
 void hhInventory::Restore( idRestoreGame *savefile ) {
 	idInventory::Restore( savefile );
+	altMode[16] = false;
+	weaponRaised[16] = false;
 
 	savefile->ReadBool(bHasDeathwalked);
 	savefile->Read(&maxSpirit, sizeof(maxSpirit));
 	savefile->Read(&requirements, sizeof(requirements));
 	savefile->ReadInt( storedHealth );
 	savefile->ReadString( energyType );
-	savefile->Read(&altMode, sizeof(altMode));
-	savefile->Read(&weaponRaised, sizeof(weaponRaised));
+	savefile->Read(&altMode, sizeof(altMode[0])*LEGACY_MAX_WEAPONS);
+	savefile->Read(&weaponRaised, sizeof(weaponRaised[0])*LEGACY_MAX_WEAPONS);
 	memset( lastShot, 0, sizeof( lastShot ) );		//HUMANHEAD bjk PATCH 7-27-06
 	savefile->ReadInt( zoomFov );
 }
@@ -482,6 +484,7 @@ int hhInventory::MaxAmmoForAmmoClass( idPlayer *owner, const char *ammo_classnam
 		if (!idStr::Icmp(ammo_classname, "ammo_d3shells")) {
 			return SharedShotgunAmmo(owner) ? 16 + Max(0, clip[8]) + Max(0, clip[15]) : 16;
 		}
+		if (!idStr::Icmp(ammo_classname, "ammo_d3bfg")) { return 12; }
 		if (!idStr::Icmp(ammo_classname, "ammo_d3bullets")) { return 180; }
 		if (!idStr::Icmp(ammo_classname, "ammo_d3belt")) { return 180; }
 		if (!idStr::Icmp(ammo_classname, "ammo_d3cells")) { return 150; }

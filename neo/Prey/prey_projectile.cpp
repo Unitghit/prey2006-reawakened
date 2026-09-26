@@ -1723,3 +1723,5 @@ idVec3 hhProjectile::GetBounceDirection( const idVec3 &incoming,
 	return( bounceDir );
 }
 
+
+#include "doom_bfg.inl"

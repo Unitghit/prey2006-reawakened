@@ -212,6 +212,11 @@ bool hhFireController::LaunchProjectiles( const idVec3& pushVelocity ) {
 	}
 
 	UseAmmo();
+	if (dict->GetBool("rw_bfgCharge") && GetSelf()->spawnArgs.GetBool("rw_bfg_overcharge")) {
+        GetSelf()->BroadcastFxInfo("fx/d3_bfgExplosion",GetSelf()->GetOrigin(),GetSelf()->GetAxis());
+        GetSelf()->StartSound("snd_overcharge",SND_CHANNEL_WEAPON,0,false,NULL);
+        return true;
+    }
 
 	// calculate the muzzle position
 	CalculateMuzzlePosition( muzzleOrigin, muzzleAxis );
@@ -334,7 +339,7 @@ void hhFireController::LaunchProjectiles( const idVec3& launchOrigin, const idMa
                 dir.Normalize();
                 pelletAxis = dir.ToMat3();
             }
-            projectile->Launch( launchOrigin, pelletAxis, pushVelocity, 0.0f, 1.0f );
+            projectile->Launch( launchOrigin, pelletAxis, pushVelocity, 0.0f, 1.0f, dict->GetBool("rw_bfgCharge") ? float(GetSelf()->spawnArgs.GetInt("rw_bfg_power","1")) : 1.0f );
 		}
 	}
 }

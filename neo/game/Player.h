@@ -52,7 +52,8 @@ const int	LAND_RETURN_TIME = 300;
 const int	FOCUS_TIME = 200;		//HUMANHEAD bjk
 const int	FOCUS_GUI_TIME = 300;	//HUMANHEAD bjk
 
-const int MAX_WEAPONS = 16;
+const int LEGACY_MAX_WEAPONS = 16;
+const int MAX_WEAPONS = 17;
 
 #define MP_PLAYERNOSHADOW_DEFAULT	true //HUMANEHAD rww - subject to (frequent) change
 

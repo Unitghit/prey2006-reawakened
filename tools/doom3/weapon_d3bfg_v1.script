@@ -1,0 +1,60 @@
+// Doom 3 BFG charging adapted to Prey's native firing controller.
+object weapon_d3bfg : weapon_base {
+    void init();
+    void Idle();
+    void Fire();
+    void Reload();
+};
+void weapon_d3bfg::init() { nextAttack=0; WEAPON_ALTMODE=false; }
+void weapon_d3bfg::Idle() {
+    weaponReady();
+    setGuiParm("powerlevel",0);
+    PlayCycle("idle");
+    while(1) {
+        CheckLower(2); CheckAside(2);
+        if(WEAPON_ATTACK && sys.getTime()>=nextAttack) {
+            if(ammoInClip()>0) PerformAction("Fire",0);
+            else if(ammoAvailable()>0) PerformAction("Reload",2);
+            else { StartSound("snd_empty",SND_CHANNEL_WEAPON,false); nextAttack=sys.getTime()+0.4; }
+        }
+        if(WEAPON_RELOAD && ammoInClip()<clipSize() && ammoAvailable()>ammoInClip()) PerformAction("Reload",2);
+        waitFrame();
+    }
+}
+void weapon_d3bfg::Fire() {
+    float chargeStart=sys.getTime();
+    float chargeElapsed=0;
+    float chargeCells=1;
+    PlayAnim("fire_begin");
+    while(WEAPON_ATTACK && chargeElapsed<2.5) {
+        CheckLower(2); CheckAside(2);
+        chargeElapsed=sys.getTime()-chargeStart;
+        setGuiParm("powerlevel",chargeElapsed/2);
+        waitFrame();
+    }
+    chargeCells=1;
+    if(chargeElapsed>=0.5) chargeCells=2;
+    if(chargeElapsed>=1.0) chargeCells=3;
+    if(chargeElapsed>=1.5) chargeCells=4;
+    if(chargeCells>ammoInClip()) chargeCells=ammoInClip();
+    setKey("rw_bfg_power",chargeCells);
+    if(chargeElapsed>=2.5) {
+        // The firing controller consumes the loaded chargeCells without spawning a shot.
+        setKey("rw_bfg_overcharge",1);
+        fireProjectiles();
+        setKey("rw_bfg_overcharge",0);
+        sys.radiusDamage(getOrigin(),self,getOwner(),$null_entity,"damage_d3bfg_overcharge",1);
+    } else {
+        PlayAnim("fire");
+        fireProjectiles();
+        while(!animDone(ANIMCHANNEL_ALL,0)) { CheckLower(2); CheckAside(2); waitFrame(); }
+    }
+    setGuiParm("powerlevel",0);
+    nextAttack=sys.getTime()+0.2;
+    PerformAction("Idle",0);
+}
+void weapon_d3bfg::Reload() {
+    weaponReloading(); PlayAnim("reload");
+    while(!animDone(ANIMCHANNEL_ALL,0)) { CheckLower(2); CheckAside(2); waitFrame(); }
+    addToClip(clipSize()); PerformAction("Idle",0);
+}

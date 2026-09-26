@@ -52,7 +52,8 @@ typedef enum {
 } weaponStatus_t;
 
 typedef int ammo_t;
-static const int AMMO_NUMTYPES = 16;
+static const int LEGACY_AMMO_NUMTYPES = 16;
+static const int AMMO_NUMTYPES = 17;
 
 class idPlayer;
 

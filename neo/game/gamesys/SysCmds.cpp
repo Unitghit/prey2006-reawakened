@@ -2544,6 +2544,17 @@ so it can perform tab completion
 */
 // Read-only by default; an optional slot exercises the normal selection path
 // without desktop input or temporary console scripts that cannot be saved.
+static void Cmd_BFGInfo_f(const idCmdArgs &args) {
+    hhPlayer *p=static_cast<hhPlayer *>(gameLocal.GetLocalPlayer());
+    if(!p || gameLocal.isMultiplayer) return;
+    if(cvarSystem->GetCVarBool("developer") && args.Argc()==3 && !idStr::Icmp(args.Argv(1),"seed")) p->inventory.ammo[16]=idMath::ClampInt(0,12,atoi(args.Argv(2)));
+    if(args.Argc()==3 && !idStr::Icmp(args.Argv(1),"target")) {
+        idEntity *ent=gameLocal.FindEntity(args.Argv(2));
+        if(ent) gameLocal.Printf("BFGTARGET name=%s health=%d\n",ent->GetName(),ent->health);
+    }
+    gameLocal.Printf("BFGSTATE held=%d ammo=%d clip=%d health=%d\n",(p->inventory.weapons&(1<<16))!=0,p->inventory.ammo[16],p->inventory.clip[16],p->health);
+}
+
 static void Cmd_WeaponPackInfo_f( const idCmdArgs &args ) {
 	hhPlayer *player = static_cast<hhPlayer *>(gameLocal.GetLocalPlayer());
 	if ( !player || gameLocal.isMultiplayer ) { return; }
@@ -2808,6 +2819,7 @@ void idGameLocal::InitConsoleCommands( void ) {
 	cmdSystem->AddCommand("rocketInfo", Cmd_RocketInfo_f, CMD_FL_GAME, "show independent slot-7 ammo; developer: seed, pickup");
 	cmdSystem->AddCommand("chaingunInfo", Cmd_ChaingunInfo_f, CMD_FL_GAME, "show independent slot-5 ammo; developer: seed, pickup, altpickup");
 	cmdSystem->AddCommand("weaponAmmoInfo", Cmd_WeaponAmmoInfo_f, CMD_FL_GAME, "show independent ammo pools; developer: seed, pickup, useRifle, useShells, reload");
+	cmdSystem->AddCommand("bfgInfo", Cmd_BFGInfo_f, CMD_FL_GAME, "BFG state; developer: seed total; target name");
 	cmdSystem->AddCommand( "weaponPackInfo", Cmd_WeaponPackInfo_f, CMD_FL_GAME, "show addon state; developer: slot, key1..7, next, prev, spirit" );
 	cmdSystem->AddCommand( "game_memory",			idClass::DisplayInfo_f,		CMD_FL_GAME,				"displays game class info" );
 	cmdSystem->AddCommand( "listClasses",			idClass::ListClasses_f,		CMD_FL_GAME,				"lists game classes" );
