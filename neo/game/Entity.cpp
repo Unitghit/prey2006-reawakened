@@ -709,6 +709,18 @@ void idEntity::Restore( idRestoreGame *savefile ) {
 	savefile->ReadDict( &spawnArgs );
 	savefile->ReadString( name );
 	SetName( name );
+	// The saved entityDefNumber is an index into the entityDef list, whose order
+	// depends on which decls were parsed first in this session. When the order
+	// differs from the session that saved, the index names an unrelated def (e.g.
+	// a shuttle restored as trigger_patternrelay, so docks rejected it and the
+	// player could not exit). Resolve it from the saved classname, as Spawn does.
+	{
+		const char *classname = spawnArgs.GetString( "classname" );
+		const idDeclEntityDef *def = classname[0] ? gameLocal.FindEntityDef( classname, false ) : NULL;
+		if ( def ) {
+			entityDefNumber = def->Index();
+		}
+	}
 
 	scriptObject.Restore( savefile );
 
