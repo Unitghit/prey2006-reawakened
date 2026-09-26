@@ -246,6 +246,7 @@ private:
 #endif
 	int						fileSize;		// size of the file
 	void *					z;				// unzip info
+	struct zipStreamPool_t *	streamPool;	// where to return the archive stream on close
 };
 
 #endif /* !__FILE_H__ */

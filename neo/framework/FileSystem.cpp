@@ -34,8 +34,10 @@ If you have questions concerning this license or the applicable additional terms
 #include "HitchTrace.h"
 
 #include <map>
+#include <mutex>
 #include <string>
 #include <unordered_set>
+#include <vector>
 #include "Session_local.h"
 
 #ifdef WIN32
@@ -278,7 +280,21 @@ typedef struct {
 	bool				isNew;						// for downloaded paks
 	fileInPack_t		*hashTable[FILE_HASH_SIZE];
 	fileInPack_t		*buildBuffer;
+	struct zipStreamPool_t	*streamPool;	// reusable open streams of this archive
 } pack_t;
+
+// Open filestreams of one archive, reused by later entry reads instead of
+// reopening the file (fs_zipStreamPool). Each open entry still owns its own
+// stream. Never freed: after its archive is unloaded the pool is marked
+// closed and files closed later simply close their streams.
+struct zipStreamPool_t {
+	std::mutex			lock;
+	std::vector<void *>	streams;
+	bool				closed = false;
+};
+static const size_t ZIP_STREAM_POOL_SIZE = 4;
+static idCVar fs_zipStreamPool( "fs_zipStreamPool", "1", CVAR_SYSTEM | CVAR_BOOL,
+	"reuse open archive filestreams instead of reopening the archive for every file" );
 
 typedef struct {
 	idStr				path;						// c:\doom
@@ -1593,6 +1609,7 @@ pack_t *idFileSystemLocal::LoadZipFile( const char *zipfile ) {
 
 	pack->pakFilename = zipfile;
 	pack->handle = uf;
+	pack->streamPool = new zipStreamPool_t;
 	pack->numfiles = gi.number_entry;
 	pack->buildBuffer = buildBuffer;
 	pack->referenced = false;
@@ -3248,6 +3265,14 @@ void idFileSystemLocal::Shutdown( bool reloading ) {
 			next = sp->next;
 
 			if ( sp->pack ) {
+				if ( sp->pack->streamPool ) {
+					std::lock_guard<std::mutex> guard( sp->pack->streamPool->lock );
+					for ( void *stream : sp->pack->streamPool->streams ) {
+						unzCloseStream( sp->pack->handle, stream );
+					}
+					sp->pack->streamPool->streams.clear();
+					sp->pack->streamPool->closed = true;
+				}
 				unzClose( sp->pack->handle );
 				delete [] sp->pack->buildBuffer;
 				if ( sp->pack->addon_info ) {
@@ -3410,8 +3435,17 @@ idFile_InZip * idFileSystemLocal::ReadFileFromZip( pack_t *pak, fileInPack_t *pa
 	// set position in pk4 file to the file (in the zip/pk4) we want a handle on
 	unzSetOffset64( pak->handle, pakFile->pos );
 
-	// clone handle and assign a new internal filestream to zip file to it
-	unzFile uf = unzReOpen( pak->pakFilename, pak->handle );
+	// clone handle and give it an open filestream of the zip file: a pooled
+	// one when available, otherwise a newly opened one
+	void *pooled = NULL;
+	if ( fs_zipStreamPool.GetBool() && pak->streamPool ) {
+		std::lock_guard<std::mutex> guard( pak->streamPool->lock );
+		if ( !pak->streamPool->streams.empty() ) {
+			pooled = pak->streamPool->streams.back();
+			pak->streamPool->streams.pop_back();
+		}
+	}
+	unzFile uf = pooled ? unzReOpenStream( pak->handle, pooled ) : unzReOpen( pak->pakFilename, pak->handle );
 	if ( uf == NULL ) {
 		common->FatalError( "Couldn't reopen %s", pak->pakFilename.c_str() );
 	}
@@ -3431,8 +3465,29 @@ idFile_InZip * idFileSystemLocal::ReadFileFromZip( pack_t *pak, fileInPack_t *pa
 	file->fullPath = pak->pakFilename + "/" + relativePath;
 	file->zipFilePos = pakFile->pos;
 	file->fileSize = file_info.uncompressed_size;
+	file->streamPool = pak->streamPool;
 
 	return file;
+}
+
+/*
+===========
+FS_ReleaseZipStream
+
+Called when an idFile_InZip closes: keeps its archive filestream for reuse,
+or closes it as unzClose would when the pool is full, disabled or closed.
+===========
+*/
+void FS_ReleaseZipStream( zipStreamPool_t *pool, void *z ) {
+	if ( pool && fs_zipStreamPool.GetBool() ) {
+		std::lock_guard<std::mutex> guard( pool->lock );
+		if ( !pool->closed && pool->streams.size() < ZIP_STREAM_POOL_SIZE ) {
+			pool->streams.push_back( unzCloseKeepStream( z ) );
+			return;
+		}
+	}
+	unzCloseCurrentFile( z );
+	unzClose( z );
 }
 
 /*

@@ -1282,7 +1282,10 @@ idFile_InZip::idFile_InZip( void ) {
 	zipFilePos = 0;
 	fileSize = 0;
 	memset( &z, 0, sizeof( z ) );
+	streamPool = NULL;
 }
+
+void FS_ReleaseZipStream( zipStreamPool_t *pool, void *z );	// FileSystem.cpp
 
 /*
 =================
@@ -1290,6 +1293,11 @@ idFile_InZip::~idFile_InZip
 =================
 */
 idFile_InZip::~idFile_InZip( void ) {
+	if ( streamPool ) {
+		// keeps the archive filestream open for the next file when possible
+		FS_ReleaseZipStream( streamPool, z );
+		return;
+	}
 	unzCloseCurrentFile( z );
 	unzClose( z );
 }

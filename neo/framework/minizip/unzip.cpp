@@ -2049,3 +2049,51 @@ extern unzFile unzReOpen (const char* path, unzFile file)
 
 	return (unzFile)s;
 }
+
+// Prey: unzReOpen with an already open filestream of the same archive (for
+// example one kept by unzCloseKeepStream). Every entry open and read seeks to
+// its own position first, so a reused stream's position does not matter.
+extern unzFile unzReOpenStream (unzFile file, voidpf stream)
+{
+	unz64_s* s;
+	unz64_s* zFile = (unz64_s*)file;
+
+	if(zFile == NULL || stream == NULL)
+		return NULL;
+
+	s=(unz64_s*)ALLOC(sizeof(unz64_s));
+	if(s == NULL)
+		return NULL;
+
+	memcpy(s, zFile, sizeof(unz64_s));
+	s->filestream = stream;
+
+	unzOpenCurrentFile( s );
+
+	return (unzFile)s;
+}
+
+// Prey: unzClose, but hands back the filestream instead of closing it.
+extern voidpf unzCloseKeepStream (unzFile file)
+{
+	unz64_s* s;
+	voidpf stream;
+	if (file==NULL)
+		return NULL;
+	s=(unz64_s*)file;
+
+	if (s->pfile_in_zip_read!=NULL)
+		unzCloseCurrentFile(file);
+
+	stream = s->filestream;
+	TRYFREE(s);
+	return stream;
+}
+
+// Prey: closes a stream kept by unzCloseKeepStream, using the file functions
+// of any handle to the same archive.
+extern void unzCloseStream (unzFile like, voidpf stream)
+{
+	if (like != NULL && stream != NULL)
+		ZCLOSE64(((unz64_s*)like)->z_filefunc, stream);
+}

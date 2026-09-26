@@ -439,6 +439,10 @@ extern int ZEXPORT unzSetOffset (unzFile file, uLong pos);
 // the following function was added for doom3 by id Software
 
 extern unzFile unzReOpen( const char* path, unzFile file );
+/* Prey: reuse archive filestreams instead of reopening the file each time */
+extern unzFile unzReOpenStream( unzFile file, voidpf stream );
+extern voidpf unzCloseKeepStream( unzFile file );
+extern void unzCloseStream( unzFile like, voidpf stream );
 
 /*
   Re-Open a Zip file, i.e. clone an existing one and give it a new file descriptor.
