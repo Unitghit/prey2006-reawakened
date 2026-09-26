@@ -150,7 +150,7 @@ void hhShuttleTransport::AttachShuttle(hhShuttle *shuttle) {
 		StartSound("snd_getin", SND_CHANNEL_ANY);
 		StartSound("snd_looper", SND_CHANNEL_DOCKED);
 
-		if (bLockOnEntry) {
+		if (bLockOnEntry || bLocked) {
 			Lock();
 		}
 		ActivateTargets( shuttle );		// Fire triggers
@@ -210,6 +210,11 @@ void hhShuttleTransport::UpdateAxis( const idMat3 &newAxis ) {
 
 void hhShuttleTransport::Lock() {
 	bLocked = true;
+	// A script can lock an empty dock (the shuttle was destroyed or just left).
+	// Keep the lock; AttachShuttle applies it to the next shuttle that docks.
+	if ( dockedShuttle == NULL ) {
+		return;
+	}
 	dockedShuttle->SetOrigin(GetOrigin() + offsetShuttlePoint * GetAxis());
 	dockingForce.SetRestoreFactor(spawnArgs.GetFloat("dockingforce_locked"));
 	dockedShuttle->Bind(this, false);
