@@ -165,6 +165,54 @@ typedef enum {
 
 #define	MAX_IMAGE_NAME	256
 
+// Settings that decide an image's upload format, size and mip content.
+// Snapshotted on the main thread so worker threads never read cvars.
+struct imageBuildSettings_t {
+	int		useCompression;
+	int		useNormalCompression;
+	bool	useAllFormats;
+	bool	compressionAvailable;
+	bool	bptcAvailable;
+	bool	palettesAvailable;
+	int		downSize;
+	int		downSizeLimit;
+	bool	forceDownSize;
+	int		downSizeSpecular;
+	int		downSizeSpecularLimit;
+	int		downSizeBump;
+	int		downSizeBumpLimit;
+	int		maxTextureSize;
+	bool	colorMipLevels;
+
+	static imageBuildSettings_t	Current();
+};
+
+// Pure forms of idImage::SelectInternalFormat and GetDownsize; thread-safe.
+GLenum	R_SelectInternalFormat( const imageBuildSettings_t &settings, const byte **dataPtrs, int numDataPtrs,
+								int width, int height, textureDepth_t minimumDepth );
+void	R_ImageDownsize( const imageBuildSettings_t &settings, textureDepth_t depth, bool allowDownSize,
+						 int &scaled_width, int &scaled_height );
+
+// A 2D image's complete upload, built off the main thread: the format and
+// every mip level exactly as GenerateImage would upload them. Levels are
+// malloc-owned; call Free when done.
+struct preparedImage_t {
+	GLenum	internalFormat;
+	int		width;
+	int		height;
+	int		levelCount;
+	byte *	levels[MAX_TEXTURE_LEVELS];
+
+			preparedImage_t() : internalFormat( 0 ), width( 0 ), height( 0 ), levelCount( 0 ) {}
+	void	Free() { for ( int i = 0; i < levelCount; i++ ) { free( levels[i] ); } levelCount = 0; }
+};
+
+// Thread-safe. False when the image needs the normal path (for example
+// palette-compressed normal maps); prepared is then empty.
+bool	R_PrepareImageUpload( const imageBuildSettings_t &settings, const byte *pic, int width, int height,
+							  textureDepth_t depth, textureRepeat_t repeat, bool allowDownSize,
+							  preparedImage_t &prepared );
+
 class idImage {
 public:
 				idImage();
@@ -225,10 +273,18 @@ public:
 	bool		CheckPrecompressedImage( bool fullLoad );
 	void		UploadPrecompressedImage( byte *data, int len );
 	void		ActuallyLoadImage( bool checkForPrecompressed, bool fromBackEnd );
-	// True when ActuallyLoadImage would load exactly one plain .tga file.
-	bool		CanDecodeDetached( idStr &fileName ) const;
-	// Completes ActuallyLoadImage( true, false ) from pixels decoded on a worker.
-	void		FinishDetachedLoad( byte *pic, int width, int height, ID_TIME_T fileTimestamp, unsigned int pixelHash );
+	// True when ActuallyLoadImage would load exactly one plain .tga file, or
+	// the program addnormals( A, heightmap( B [, scale] ) ) of two .tga files;
+	// heightName is empty for a plain file.
+	bool		CanDecodeDetached( idStr &fileName, idStr &heightName, float &heightScale ) const;
+	// Completes ActuallyLoadImage( true, false ) from work done on a worker:
+	// decoded pixels (pic, malloc-owned), or a prepared upload when given.
+	void		FinishDetachedLoad( byte *pic, int width, int height, ID_TIME_T fileTimestamp, unsigned int pixelHash,
+									preparedImage_t *prepared = NULL );
+	// The GL half of GenerateImage for a prepared upload.
+	void		UploadPrepared( const preparedImage_t &prepared );
+	// Diagnostic: every mip level read back as RGBA bytes, with format and size.
+	void		ReadBackLevels( idList<byte> &bytes );
 	// Texture cache (image_textureCache): finished GPU-compressed mip chains
 	// stored in the profile, keyed by source, settings and driver.
 	bool		TextureCacheValid() const;
@@ -490,6 +546,11 @@ byte *R_ResampleTexture( const byte *in, int inwidth, int inheight,
 							int& outwidth, int& outheight );
 byte *R_MipMapWithAlphaSpecularity( const byte *in, int width, int height );
 byte *R_MipMap( const byte *in, int width, int height, bool preserveBorder );
+// Same filtering into a caller buffer; thread-safe (no allocation or engine state).
+void R_MipMapInto( const byte *in, int width, int height, bool preserveBorder, byte *out );
+// Thread-safe cores of the heightmap and addnormals image program operations.
+void R_HeightmapToNormalMapInto( byte *data, int width, int height, float scale, byte *scratch );
+void R_AddNormalMapsSameSize( byte *data1, int width1, int height1, const byte *data2 );
 byte *R_MipMap3D( const byte *in, int width, int height, int depth, bool preserveBorder );
 
 // these operate in-place on the provided pixels

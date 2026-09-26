@@ -2041,36 +2041,78 @@ struct detachedImageJob_t {
 	idImage *			image = NULL;
 	fsDetachedSource_t	source;
 	std::string			fileName;
+	// addnormals( fileName, heightmap( heightName, heightScale ) ) when set
+	bool				normalProgram = false;
+	fsDetachedSource_t	heightSource;
+	std::string			heightName;
+	float				heightScale = 1.0f;
+	// captured on the main thread for building the upload
+	textureDepth_t		depth = TD_DEFAULT;
+	textureRepeat_t		repeat = TR_REPEAT;
+	bool				allowDownSize = false;
 	byte *				pic = NULL;		// malloc-owned
 	int					width = 0;
 	int					height = 0;
 	unsigned int		hash = 0;
+	preparedImage_t		prepared;		// empty unless the upload was built too
 	std::atomic<int>	state{ 0 };		// 0 pending, 1 decoded, 2 use normal path
 };
 
 static byte *Detached_Alloc( int bytes ) { return (byte *)malloc( bytes ); }
 static void Detached_Free( byte *data ) { free( data ); }
 
-static void DecodeDetachedJob( detachedImageJob_t &job ) {
+// Reads and decodes one .tga the way R_LoadImage would, or returns NULL when
+// the normal path is needed (missing, malformed, or resampled on load).
+static byte *DecodeDetachedFile( const fsDetachedSource_t &source, const std::string &name, int &width, int &height ) {
 	std::vector<unsigned char> bytes;
-	if ( !FS_ReadDetached( job.source, bytes ) ) {
-		return;
+	if ( !FS_ReadDetached( source, bytes ) ) {
+		return NULL;
 	}
 	// ReadFile appends a terminating zero; keep the decoder's input identical.
 	bytes.push_back( 0 );
 	char error[256];
 	byte *pic = NULL;
-	int width = 0, height = 0;
-	if ( !R_DecodeTGA( bytes.data(), job.source.length, job.fileName.c_str(), Detached_Alloc, Detached_Free,
+	width = height = 0;
+	if ( !R_DecodeTGA( bytes.data(), source.length, name.c_str(), Detached_Alloc, Detached_Free,
 			&pic, &width, &height, error, sizeof( error ) ) ) {
-		return;
+		return NULL;
 	}
 	// Sizes R_LoadImage would reject or resample take the normal path.
 	if ( width < 1 || height < 1 || ( width & ( width - 1 ) ) || ( height & ( height - 1 ) ) ) {
 		free( pic );
+		return NULL;
+	}
+	return pic;
+}
+
+static void DecodeDetachedJob( detachedImageJob_t &job, const imageBuildSettings_t *uploadSettings ) {
+	int width, height;
+	byte *pic = DecodeDetachedFile( job.source, job.fileName, width, height );
+	if ( !pic ) {
 		return;
 	}
+	if ( job.normalProgram ) {
+		// addnormals( pic, heightmap( heightPic, scale ) ), as R_ParseImageProgram_r
+		// runs it. Different sizes would be resampled there: use the normal path.
+		int heightWidth, heightHeight;
+		byte *heightPic = DecodeDetachedFile( job.heightSource, job.heightName, heightWidth, heightHeight );
+		byte *scratch = heightPic && heightWidth == width && heightHeight == height ?
+			(byte *)malloc( width * height ) : NULL;
+		if ( !scratch ) {
+			free( heightPic );
+			free( pic );
+			return;
+		}
+		R_HeightmapToNormalMapInto( heightPic, heightWidth, heightHeight, job.heightScale, scratch );
+		R_AddNormalMapsSameSize( pic, width, height, heightPic );
+		free( scratch );
+		free( heightPic );
+	}
 	job.hash = MD4_BlockChecksum( pic, width * height * 4 );
+	// Build every mip level too; GenerateImage then only has the GL upload left.
+	if ( uploadSettings ) {
+		R_PrepareImageUpload( *uploadSettings, pic, width, height, job.depth, job.repeat, job.allowDownSize, job.prepared );
+	}
 	job.pic = pic;
 	job.width = width;
 	job.height = height;
@@ -2079,6 +2121,10 @@ static void DecodeDetachedJob( detachedImageJob_t &job ) {
 class detachedDecoder_t {
 public:
 	std::vector<std::unique_ptr<detachedImageJob_t> > jobs;
+	// Snapshot taken on the main thread before workers start; when set,
+	// workers also build each image's complete upload.
+	bool					buildUploads = false;
+	imageBuildSettings_t	uploadSettings;
 
 	~detachedDecoder_t() { Stop(); }
 
@@ -2131,6 +2177,7 @@ public:
 				free( job->pic );
 				job->pic = NULL;
 			}
+			job->prepared.Free();
 		}
 	}
 
@@ -2155,12 +2202,13 @@ private:
 			}
 			detachedImageJob_t &job = *jobs[index];
 			try {
-				DecodeDetachedJob( job );
+				DecodeDetachedJob( job, buildUploads ? &uploadSettings : NULL );
 			} catch ( ... ) {
 				if ( job.pic ) {
 					free( job.pic );
 					job.pic = NULL;
 				}
+				job.prepared.Free();
 			}
 			{
 				std::lock_guard<std::mutex> lock( mutex );
@@ -2172,20 +2220,51 @@ private:
 	}
 };
 
-// Diagnostic: decode the same image the original way and compare.
+// Diagnostic: load the same image program the original way and compare.
 static bool VerifyDetachedJob( const detachedImageJob_t &job ) {
 	byte *pic = NULL;
 	int width = 0, height = 0;
 	ID_TIME_T timestamp;
-	R_LoadImage( job.fileName.c_str(), &pic, &width, &height, &timestamp, true );
+	textureDepth_t depth = job.image->depth;
+	R_LoadImageProgram( job.image->imgName.c_str(), &pic, &width, &height, &timestamp, &depth );
+	ID_TIME_T expectedTime = job.source.timestamp > 0 ? job.source.timestamp : 0;
+	if ( job.normalProgram && job.heightSource.timestamp > expectedTime ) {
+		expectedTime = job.heightSource.timestamp;
+	}
 	bool match = pic && width == job.width && height == job.height &&
 		!memcmp( pic, job.pic, width * height * 4 ) &&
 		MD4_BlockChecksum( pic, width * height * 4 ) == job.hash &&
-		timestamp == job.source.timestamp;
+		timestamp == expectedTime && depth == job.depth;
 	if ( pic ) {
 		R_StaticFree( pic );
 	}
 	return match;
+}
+
+// Diagnostic: compare what the GPU holds after a prepared upload with the
+// original GenerateImage result for the same file. Leaves the original result.
+static bool VerifyPreparedUpload( idImage *image, const char *fileName ) {
+	idList<byte> prepared, original;
+	image->ReadBackLevels( prepared );
+
+	byte *pic = NULL;
+	int width = 0, height = 0;
+	ID_TIME_T timestamp;
+	textureDepth_t depth = image->depth;
+	R_LoadImageProgram( image->imgName.c_str(), &pic, &width, &height, &timestamp, &depth );
+	if ( !pic ) {
+		return false;
+	}
+	const ID_TIME_T keepTimestamp = image->timestamp;
+	const int keepHash = image->imageHash;
+	image->GenerateImage( pic, width, height, image->filter, image->allowDownSize, image->repeat, image->depth );
+	R_StaticFree( pic );
+	image->timestamp = keepTimestamp;
+	image->imageHash = keepHash;
+	image->ReadBackLevels( original );
+
+	return prepared.Num() > 0 && prepared.Num() == original.Num() &&
+		!memcmp( prepared.Ptr(), original.Ptr(), prepared.Num() );
 }
 }
 
@@ -2243,10 +2322,11 @@ void idImageManager::EndLevelLoad() {
 		for ( int i = 0 ; i < images.Num() ; i++ ) {
 			jobForImage[i] = -1;
 			idImage	*image = images[ i ];
-			idStr fileName;
+			idStr fileName, heightName;
+			float heightScale;
 			if ( image->generatorFunction || !image->levelLoadReferenced ||
 				image->texnum != idImage::TEXTURE_NOT_LOADED || image->partialImage ||
-				!image->CanDecodeDetached( fileName ) ) {
+				!image->CanDecodeDetached( fileName, heightName, heightScale ) ) {
 				continue;
 			}
 			// cached images upload their stored mip chain in ActuallyLoadImage
@@ -2257,14 +2337,30 @@ void idImageManager::EndLevelLoad() {
 			if ( !FS_ResolveDetached( fileName.c_str(), job->source ) ) {
 				continue;
 			}
+			if ( heightName.Length() ) {
+				if ( !FS_ResolveDetached( heightName.c_str(), job->heightSource ) ) {
+					continue;
+				}
+				job->normalProgram = true;
+				job->heightName = heightName.c_str();
+				job->heightScale = heightScale;
+			}
 			job->image = image;
 			job->fileName = fileName.c_str();
+			// heightmap and addnormals mark the image as a normal map while loading
+			job->depth = job->normalProgram ? TD_BUMP : image->depth;
+			job->repeat = image->repeat;
+			job->allowDownSize = image->allowDownSize;
 			jobForImage[i] = (int)decoder.jobs.size();
 			decoder.jobs.push_back( std::move( job ) );
 		}
+		// Debug TGA dumps happen inside GenerateImage, so keep that path for them.
+		decoder.buildUploads = glConfig.isInitialized && !image_writeTGA.GetBool() && !image_writeNormalTGA.GetBool();
+		decoder.uploadSettings = imageBuildSettings_t::Current();
 		decoder.Start();
 	}
-	int threadedCount = 0, verifyMismatch = 0;
+	int threadedCount = 0, verifyMismatch = 0, preparedCount = 0, uploadMismatch = 0;
+	int waitMsec = 0, workerFinishMsec = 0, mainLoadMsec = 0, mainLoadCount = 0;
 
 	// load the ones we do need, if we are preloading
 	for ( int i = 0 ; i < images.Num() ; i++ ) {
@@ -2277,19 +2373,42 @@ void idImageManager::EndLevelLoad() {
 //			common->Printf( "Loading %s\n", image->imgName.c_str() );
 			loadCount++;
 			const int jobIndex = i < jobForImage.Num() ? jobForImage[i] : -1;
+			const int waitStart = Sys_Milliseconds();
 			detachedImageJob_t *job = jobIndex >= 0 ? &decoder.Take( jobIndex ) : NULL;
+			const int loadStart = Sys_Milliseconds();
+			waitMsec += loadStart - waitStart;
 			if ( job && job->state == 1 && job->pic ) {
 				if ( image_verifyThreadedDecode.GetBool() && !VerifyDetachedJob( *job ) ) {
 					verifyMismatch++;
 					common->Printf( "THREADED_DECODE_VERIFY MISMATCH %s\n", job->fileName.c_str() );
 				}
 				fileSystem->AddToReadCount( job->source.length );
+				// R_LoadImageProgram keeps the newest source timestamp.
+				ID_TIME_T sourceTime = job->source.timestamp;
+				if ( job->normalProgram ) {
+					fileSystem->AddToReadCount( job->heightSource.length );
+					if ( job->heightSource.timestamp > sourceTime ) {
+						sourceTime = job->heightSource.timestamp;
+					}
+					image->depth = TD_BUMP;	// as the program sets it while loading
+				}
 				byte *pic = job->pic;
 				job->pic = NULL;	// ownership passes to FinishDetachedLoad
-				image->FinishDetachedLoad( pic, job->width, job->height, job->source.timestamp, job->hash );
+				const bool preparedUpload = job->prepared.levelCount > 0;
+				image->FinishDetachedLoad( pic, job->width, job->height, sourceTime, job->hash, &job->prepared );
+				workerFinishMsec += Sys_Milliseconds() - loadStart;
 				threadedCount++;
+				if ( preparedUpload ) {
+					preparedCount++;
+					if ( image_verifyThreadedDecode.GetBool() && !VerifyPreparedUpload( image, job->fileName.c_str() ) ) {
+						uploadMismatch++;
+						common->Printf( "THREADED_UPLOAD_VERIFY MISMATCH %s\n", job->fileName.c_str() );
+					}
+				}
 			} else {
 				image->ActuallyLoadImage( true, false );
+				mainLoadMsec += Sys_Milliseconds() - loadStart;
+				mainLoadCount++;
 			}
 
 			if ( ( loadCount & 15 ) == 0 ) {
@@ -2305,9 +2424,12 @@ void idImageManager::EndLevelLoad() {
 	common->Printf( "%5i new loaded\n", loadCount );
 	R_TextureCacheReport();
 	if ( image_threadedDecode.GetBool() ) {
-		common->Printf( "%5i decoded on worker threads\n", threadedCount );
+		common->Printf( "%5i decoded on worker threads (%i with mipmaps built there)\n", threadedCount, preparedCount );
+		common->Printf( "IMAGE_STAGE wait=%d worker_finish=%d main_load=%d main_count=%d\n",
+			waitMsec, workerFinishMsec, mainLoadMsec, mainLoadCount );
 		if ( image_verifyThreadedDecode.GetBool() ) {
 			common->Printf( "THREADED_DECODE_VERIFY checked=%d mismatches=%d\n", threadedCount, verifyMismatch );
+			common->Printf( "THREADED_UPLOAD_VERIFY checked=%d mismatches=%d\n", preparedCount, uploadMismatch );
 		}
 	}
 	common->Printf( "all images loaded in %5.1f seconds\n", (end-start) * 0.001 );

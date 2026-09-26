@@ -393,16 +393,38 @@ smeared clamps...
 ================
 */
 byte *R_MipMap( const byte *in, int width, int height, bool preserveBorder ) {
-	int		i, j;
-	const byte	*in_p;
-	byte	*out, *out_p;
-	int		row;
-	byte	border[4];
-	int		newWidth, newHeight;
-
 	if ( width < 1 || height < 1 || ( width + height == 2 ) ) {
 		common->FatalError( "R_MipMap called with size %i,%i", width, height );
 	}
+
+	int newWidth = width >> 1;
+	int newHeight = height >> 1;
+	if ( !newWidth ) {
+		newWidth = 1;
+	}
+	if ( !newHeight ) {
+		newHeight = 1;
+	}
+	byte *out = (byte *)R_StaticAlloc( newWidth * newHeight * 4 );
+	R_MipMapInto( in, width, height, preserveBorder, out );
+	return out;
+}
+
+/*
+================
+R_MipMapInto
+
+The filtering of R_MipMap, written into a caller-provided buffer of the next
+level's size. Uses no engine state, so worker threads may call it. The caller
+must not pass a 1x1 or empty image.
+================
+*/
+void R_MipMapInto( const byte *in, int width, int height, bool preserveBorder, byte *out ) {
+	int		i, j;
+	const byte	*in_p;
+	byte	*out_p;
+	int		row;
+	byte	border[4];
 
 	border[0] = in[0];
 	border[1] = in[1];
@@ -411,15 +433,6 @@ byte *R_MipMap( const byte *in, int width, int height, bool preserveBorder ) {
 
 	row = width * 4;
 
-	newWidth = width >> 1;
-	newHeight = height >> 1;
-	if ( !newWidth ) {
-		newWidth = 1;
-	}
-	if ( !newHeight ) {
-		newHeight = 1;
-	}
-	out = (byte *)R_StaticAlloc( newWidth * newHeight * 4 );
 	out_p = out;
 
 	in_p = in;
@@ -444,7 +457,7 @@ byte *R_MipMap( const byte *in, int width, int height, bool preserveBorder ) {
 				out_p[3] = ( in_p[3] + in_p[7] )>>1;
 			}
 		}
-		return out;
+		return;
 	}
 
 	for (i=0 ; i<height ; i++, in_p+=row) {
@@ -460,8 +473,6 @@ byte *R_MipMap( const byte *in, int width, int height, bool preserveBorder ) {
 	if ( preserveBorder ) {
 		R_SetBorderTexels( out, width, height, border );
 	}
-
-	return out;
 }
 
 /*

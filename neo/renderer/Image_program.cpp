@@ -71,14 +71,26 @@ We can assume constant and equal ST vectors for walls, but not for characters.
 =================
 */
 static void R_HeightmapToNormalMap( byte *data, int width, int height, float scale ) {
+	byte *depth = (byte *)R_StaticAlloc( width * height );
+	R_HeightmapToNormalMapInto( data, width, height, scale, depth );
+	R_StaticFree( depth );
+}
+
+/*
+=================
+R_HeightmapToNormalMapInto
+
+R_HeightmapToNormalMap with a caller-provided width*height scratch buffer.
+Uses no engine state, so worker threads may call it.
+=================
+*/
+void R_HeightmapToNormalMapInto( byte *data, int width, int height, float scale, byte *depth ) {
 	int		i, j;
-	byte	*depth;
 
 	scale = scale / 256;
 
 	// copy and convert to grey scale
 	j = width * height;
-	depth = (byte *)R_StaticAlloc( j );
 	for ( i = 0 ; i < j ; i++ ) {
 		depth[i] = ( data[i*4] + data[i*4+1] + data[i*4+2] ) / 3;
 	}
@@ -123,9 +135,6 @@ static void R_HeightmapToNormalMap( byte *data, int width, int height, float sca
 			data[ a1 + 3 ] = 255;
 		}
 	}
-
-
-	R_StaticFree( depth );
 }
 
 
@@ -193,7 +202,6 @@ R_AddNormalMaps
 ===================
 */
 static void R_AddNormalMaps( byte *data1, int width1, int height1, byte *data2, int width2, int height2 ) {
-	int		i, j;
 	byte	*newMap;
 
 	// resample pic2 to the same size as pic1
@@ -204,10 +212,29 @@ static void R_AddNormalMaps( byte *data1, int width1, int height1, byte *data2, 
 		newMap = NULL;
 	}
 
+	R_AddNormalMapsSameSize( data1, width1, height1, data2 );
+
+	if ( newMap ) {
+		R_StaticFree( newMap );
+	}
+}
+
+/*
+===================
+R_AddNormalMapsSameSize
+
+The per-pixel part of R_AddNormalMaps for two maps of equal size. Uses no
+engine state, so worker threads may call it.
+===================
+*/
+void R_AddNormalMapsSameSize( byte *data1, int width1, int height1, const byte *data2 ) {
+	int		i, j;
+
 	// add the normal change from the second and renormalize
 	for ( i = 0 ; i < height1 ; i++ ) {
 		for ( j = 0 ; j < width1 ; j++ ) {
-			byte	*d1, *d2;
+			byte	*d1;
+			const byte	*d2;
 			idVec3	n;
 			float   len;
 
@@ -234,10 +261,6 @@ static void R_AddNormalMaps( byte *data1, int width1, int height1, byte *data2, 
 			d1[2] = (byte)(n[2] * 127 + 128);
 			d1[3] = 255;
 		}
-	}
-
-	if ( newMap ) {
-		R_StaticFree( newMap );
 	}
 }
 

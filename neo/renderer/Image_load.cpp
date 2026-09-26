@@ -208,8 +208,34 @@ SelectInternalFormat
 This may need to scan six cube map images
 ===============
 */
+imageBuildSettings_t imageBuildSettings_t::Current() {
+	const idImageManager *m = globalImages;
+	imageBuildSettings_t s;
+	s.useCompression = m->image_useCompression.GetInteger();
+	s.useNormalCompression = m->image_useNormalCompression.GetInteger();
+	s.useAllFormats = m->image_useAllFormats.GetBool();
+	s.compressionAvailable = glConfig.textureCompressionAvailable;
+	s.bptcAvailable = glConfig.bptcTextureCompressionAvailable;
+	s.palettesAvailable = glConfig.sharedTexturePaletteAvailable;
+	s.downSize = m->image_downSize.GetInteger();
+	s.downSizeLimit = m->image_downSizeLimit.GetInteger();
+	s.forceDownSize = m->image_forceDownSize.GetBool();
+	s.downSizeSpecular = m->image_downSizeSpecular.GetInteger();
+	s.downSizeSpecularLimit = m->image_downSizeSpecularLimit.GetInteger();
+	s.downSizeBump = m->image_downSizeBump.GetInteger();
+	s.downSizeBumpLimit = m->image_downSizeBumpLimit.GetInteger();
+	s.maxTextureSize = glConfig.maxTextureSize;
+	s.colorMipLevels = m->image_colorMipLevels.GetBool();
+	return s;
+}
+
 GLenum idImage::SelectInternalFormat( const byte **dataPtrs, int numDataPtrs, int width, int height,
 									 textureDepth_t minimumDepth ) const {
+	return R_SelectInternalFormat( imageBuildSettings_t::Current(), dataPtrs, numDataPtrs, width, height, minimumDepth );
+}
+
+GLenum R_SelectInternalFormat( const imageBuildSettings_t &settings, const byte **dataPtrs, int numDataPtrs,
+							   int width, int height, textureDepth_t minimumDepth ) {
 	int		i, c;
 	const byte	*scan;
 	int		rgbOr, rgbAnd, aOr, aAnd;
@@ -217,8 +243,8 @@ GLenum idImage::SelectInternalFormat( const byte **dataPtrs, int numDataPtrs, in
 
 	// TODO: or always use BC7 if available? do textures take longer to load then?
 	//       would look better at least...
-	const bool useBC7compression = glConfig.bptcTextureCompressionAvailable
-						&& globalImages->image_useCompression.GetInteger() == 2;
+	const bool useBC7compression = settings.bptcAvailable
+						&& settings.useCompression == 2;
 
 	// determine if the rgb channels are all the same
 	// and if either all rgb or all alpha are 255
@@ -268,10 +294,10 @@ GLenum idImage::SelectInternalFormat( const byte **dataPtrs, int numDataPtrs, in
 	// catch normal maps first
 	if ( minimumDepth == TD_BUMP ) {
 		// DG: put the glConfig.sharedTexturePaletteAvailable check first because nowadays it's usually false
-		if ( glConfig.sharedTexturePaletteAvailable && globalImages->image_useCompression.GetBool() && globalImages->image_useNormalCompression.GetInteger() == 1 ) {
+		if ( settings.palettesAvailable && settings.useCompression != 0 && settings.useNormalCompression == 1 ) {
 			// image_useNormalCompression should only be set to 1 on nv_10 and nv_20 paths
 			return GL_COLOR_INDEX8_EXT;
-		} else if ( globalImages->image_useCompression.GetBool() && globalImages->image_useNormalCompression.GetInteger() && glConfig.textureCompressionAvailable ) {
+		} else if ( settings.useCompression != 0 && settings.useNormalCompression != 0 && settings.compressionAvailable ) {
 			if ( useBC7compression ) {
 				return GL_COMPRESSED_RGBA_BPTC_UNORM;
 			} else {
@@ -285,13 +311,13 @@ GLenum idImage::SelectInternalFormat( const byte **dataPtrs, int numDataPtrs, in
 	}
 
 	// allow a complete override of image compression with a cvar
-	if ( !globalImages->image_useCompression.GetBool() ) {
+	if ( settings.useCompression == 0 ) {
 		minimumDepth = TD_HIGH_QUALITY;
 	}
 
 	if ( minimumDepth == TD_SPECULAR ) {
 		// we are assuming that any alpha channel is unintentional
-		if ( glConfig.textureCompressionAvailable ) {
+		if ( settings.compressionAvailable ) {
 			return useBC7compression ? GL_COMPRESSED_RGBA_BPTC_UNORM : GL_COMPRESSED_RGB_S3TC_DXT1_EXT;
 		} else {
 			return GL_RGB5;
@@ -299,7 +325,7 @@ GLenum idImage::SelectInternalFormat( const byte **dataPtrs, int numDataPtrs, in
 	}
 	if ( minimumDepth == TD_DIFFUSE ) {
 		// we might intentionally have an alpha channel for alpha tested textures
-		if ( glConfig.textureCompressionAvailable ) {
+		if ( settings.compressionAvailable ) {
 			if ( useBC7compression ) {
 				return GL_COMPRESSED_RGBA_BPTC_UNORM;
 			}
@@ -318,7 +344,7 @@ GLenum idImage::SelectInternalFormat( const byte **dataPtrs, int numDataPtrs, in
 	// there will probably be some drivers that don't
 	// correctly handle the intensity/alpha/luminance/luminance+alpha
 	// formats, so provide a fallback that only uses the rgb/rgba formats
-	if ( !globalImages->image_useAllFormats.GetBool() ) {
+	if ( !settings.useAllFormats ) {
 		// pretend rgb is varying and inconsistant, which
 		// prevents any of the more compact forms
 		rgbDiffer = 1;
@@ -331,7 +357,7 @@ GLenum idImage::SelectInternalFormat( const byte **dataPtrs, int numDataPtrs, in
 		if ( minimumDepth == TD_HIGH_QUALITY ) {
 			return GL_RGB8;			// four bytes
 		}
-		if ( glConfig.textureCompressionAvailable ) {
+		if ( settings.compressionAvailable ) {
 			return useBC7compression ? GL_COMPRESSED_RGBA_BPTC_UNORM    // 1byte/pixel
 			                         : GL_COMPRESSED_RGB_S3TC_DXT1_EXT; // half byte
 		}
@@ -340,7 +366,7 @@ GLenum idImage::SelectInternalFormat( const byte **dataPtrs, int numDataPtrs, in
 
 	// cases with alpha
 	if ( !rgbaDiffer ) {
-		if ( minimumDepth != TD_HIGH_QUALITY && glConfig.textureCompressionAvailable ) {
+		if ( minimumDepth != TD_HIGH_QUALITY && settings.compressionAvailable ) {
 			return useBC7compression ? GL_COMPRESSED_RGBA_BPTC_UNORM : GL_COMPRESSED_RGBA_S3TC_DXT3_EXT; // one byte
 		}
 		return GL_INTENSITY8;	// single byte for all channels
@@ -359,7 +385,7 @@ GLenum idImage::SelectInternalFormat( const byte **dataPtrs, int numDataPtrs, in
 	if ( minimumDepth == TD_HIGH_QUALITY ) {
 		return GL_RGBA8;	// four bytes
 	}
-	if ( glConfig.textureCompressionAvailable ) {
+	if ( settings.compressionAvailable ) {
 		return useBC7compression ? GL_COMPRESSED_RGBA_BPTC_UNORM : GL_COMPRESSED_RGBA_S3TC_DXT3_EXT; // one byte
 	}
 	if ( !rgbDiffer ) {
@@ -432,21 +458,26 @@ helper function that takes the current width/height and might make them smaller
 ================
 */
 void idImage::GetDownsize( int &scaled_width, int &scaled_height ) const {
+	R_ImageDownsize( imageBuildSettings_t::Current(), depth, allowDownSize, scaled_width, scaled_height );
+}
+
+void R_ImageDownsize( const imageBuildSettings_t &settings, textureDepth_t depth, bool allowDownSize,
+					  int &scaled_width, int &scaled_height ) {
 	int size = 0;
 
 	// perform optional picmip operation to save texture memory
-	if ( depth == TD_SPECULAR && globalImages->image_downSizeSpecular.GetInteger() ) {
-		size = globalImages->image_downSizeSpecularLimit.GetInteger();
+	if ( depth == TD_SPECULAR && settings.downSizeSpecular ) {
+		size = settings.downSizeSpecularLimit;
 		if ( size == 0 ) {
 			size = 64;
 		}
-	} else if ( depth == TD_BUMP && globalImages->image_downSizeBump.GetInteger() ) {
-		size = globalImages->image_downSizeBumpLimit.GetInteger();
+	} else if ( depth == TD_BUMP && settings.downSizeBump ) {
+		size = settings.downSizeBumpLimit;
 		if ( size == 0 ) {
 			size = 64;
 		}
-	} else if ( ( allowDownSize || globalImages->image_forceDownSize.GetBool() ) && globalImages->image_downSize.GetInteger() ) {
-		size = globalImages->image_downSizeLimit.GetInteger();
+	} else if ( ( allowDownSize || settings.forceDownSize ) && settings.downSize ) {
+		size = settings.downSizeLimit;
 		if ( size == 0 ) {
 			size = 256;
 		}
@@ -476,8 +507,8 @@ void idImage::GetDownsize( int &scaled_width, int &scaled_height ) const {
 	// deal with a half mip resampling
 	// This causes a 512*256 texture to sample down to
 	// 256*128 on a voodoo3, even though it could be 256*256
-	while ( scaled_width > glConfig.maxTextureSize
-		|| scaled_height > glConfig.maxTextureSize ) {
+	while ( scaled_width > settings.maxTextureSize
+		|| scaled_height > settings.maxTextureSize ) {
 		scaled_width >>= 1;
 		scaled_height >>= 1;
 	}
@@ -725,6 +756,180 @@ void idImage::GenerateImage( const byte *pic, int width, int height,
 
 	// see if we messed anything up
 	GL_CheckErrors();
+}
+
+/*
+================
+R_PrepareImageUpload
+
+The CPU half of GenerateImage for a power-of-two 2D image, step for step:
+format selection, downsizing, border zeroing, the normal map red/alpha swap
+and every mip level. Uses only malloc and pure pixel code.
+================
+*/
+static byte *Prepared_MipMap( const byte *in, int width, int height, bool preserveBorder ) {
+	const int newWidth = Max( 1, width >> 1 );
+	const int newHeight = Max( 1, height >> 1 );
+	byte *out = (byte *)malloc( newWidth * newHeight * 4 );
+	if ( out ) {
+		R_MipMapInto( in, width, height, preserveBorder, out );
+	}
+	return out;
+}
+
+bool R_PrepareImageUpload( const imageBuildSettings_t &settings, const byte *pic, int width, int height,
+						   textureDepth_t depth, textureRepeat_t repeat, bool allowDownSize,
+						   preparedImage_t &prepared ) {
+	prepared = preparedImage_t();
+	if ( width < 1 || height < 1 || ( width & ( width - 1 ) ) || ( height & ( height - 1 ) ) ) {
+		return false;
+	}
+
+	// don't let mip mapping smear the texture into the clamped border
+	const bool preserveBorder = repeat == TR_CLAMP_TO_ZERO;
+
+	int scaled_width = width;
+	int scaled_height = height;
+	R_ImageDownsize( settings, depth, allowDownSize, scaled_width, scaled_height );
+
+	const GLenum internalFormat = R_SelectInternalFormat( settings, &pic, 1, width, height, depth );
+	if ( internalFormat == GL_COLOR_INDEX8_EXT ) {
+		return false;	// palette upload stays on the normal path
+	}
+
+	// copy or resample data as appropriate for first MIP level
+	byte *scaledBuffer;
+	if ( scaled_width == width && scaled_height == height ) {
+		scaledBuffer = (byte *)malloc( width * height * 4 );
+		if ( !scaledBuffer ) {
+			return false;
+		}
+		memcpy( scaledBuffer, pic, width * height * 4 );
+	} else {
+		scaledBuffer = Prepared_MipMap( pic, width, height, preserveBorder );
+		width = Max( 1, width >> 1 );
+		height = Max( 1, height >> 1 );
+		while ( scaledBuffer && ( width > scaled_width || height > scaled_height ) ) {
+			byte *shrunk = Prepared_MipMap( scaledBuffer, width, height, preserveBorder );
+			free( scaledBuffer );
+			scaledBuffer = shrunk;
+			width = Max( 1, width >> 1 );
+			height = Max( 1, height >> 1 );
+		}
+		if ( !scaledBuffer ) {
+			return false;
+		}
+		// one might have shrunk down below the target size
+		scaled_width = width;
+		scaled_height = height;
+	}
+
+	// zero the border if desired, allowing clamped projection textures
+	if ( repeat == TR_CLAMP_TO_ZERO ) {
+		const byte rgba[4] = { 0, 0, 0, 255 };
+		R_SetBorderTexels( scaledBuffer, width, height, rgba );
+	}
+	if ( repeat == TR_CLAMP_TO_ZERO_ALPHA ) {
+		const byte rgba[4] = { 255, 255, 255, 0 };
+		R_SetBorderTexels( scaledBuffer, width, height, rgba );
+	}
+
+	// swap the red and alpha for rxgb support
+	if ( depth == TD_BUMP && settings.useNormalCompression != 1 ) {
+		for ( int i = 0; i < scaled_width * scaled_height * 4; i += 4 ) {
+			scaledBuffer[ i + 3 ] = scaledBuffer[ i ];
+			scaledBuffer[ i ] = 0;
+		}
+	}
+
+	prepared.internalFormat = internalFormat;
+	prepared.width = scaled_width;
+	prepared.height = scaled_height;
+	prepared.levels[0] = scaledBuffer;
+	prepared.levelCount = 1;
+
+	// every mip level, each filtered from the previous one as uploaded
+	int miplevel = 0;
+	while ( scaled_width > 1 || scaled_height > 1 ) {
+		if ( prepared.levelCount >= MAX_TEXTURE_LEVELS ) {
+			prepared.Free();
+			return false;
+		}
+		byte *shrunk = Prepared_MipMap( prepared.levels[miplevel], scaled_width, scaled_height, preserveBorder );
+		if ( !shrunk ) {
+			prepared.Free();
+			return false;
+		}
+		scaled_width = Max( 1, scaled_width >> 1 );
+		scaled_height = Max( 1, scaled_height >> 1 );
+		miplevel++;
+
+		if ( depth == TD_DIFFUSE && settings.colorMipLevels ) {
+			R_BlendOverTexture( shrunk, scaled_width * scaled_height, mipBlendColors[miplevel] );
+		}
+		prepared.levels[prepared.levelCount++] = shrunk;
+	}
+	return true;
+}
+
+/*
+================
+UploadPrepared
+
+The GL half of GenerateImage, for a preparedImage_t.
+================
+*/
+void idImage::UploadPrepared( const preparedImage_t &prepared ) {
+	PurgeImage();
+
+	if ( !glConfig.isInitialized ) {
+		return;
+	}
+
+	qglGenTextures( 1, &texnum );
+	internalFormat = prepared.internalFormat;
+	uploadWidth = prepared.width;
+	uploadHeight = prepared.height;
+	type = TT_2D;
+
+	Bind();
+	int width = prepared.width, height = prepared.height;
+	for ( int level = 0; level < prepared.levelCount; level++ ) {
+		qglTexImage2D( GL_TEXTURE_2D, level, internalFormat, width, height, 0, GL_RGBA, GL_UNSIGNED_BYTE, prepared.levels[level] );
+		width = Max( 1, width >> 1 );
+		height = Max( 1, height >> 1 );
+	}
+
+	SetImageFilterAndRepeat();
+
+	// see if we messed anything up
+	GL_CheckErrors();
+}
+
+/*
+================
+ReadBackLevels
+================
+*/
+void idImage::ReadBackLevels( idList<byte> &bytes ) {
+	bytes.Clear();
+	if ( texnum == TEXTURE_NOT_LOADED || type != TT_2D ) {
+		return;
+	}
+	const int header[3] = { (int)internalFormat, uploadWidth, uploadHeight };
+	bytes.SetNum( sizeof( header ) );
+	memcpy( bytes.Ptr(), header, sizeof( header ) );
+	Bind();
+	qglPixelStorei( GL_PACK_ALIGNMENT, 1 );
+	const int levels = NumLevelsForImageSize( uploadWidth, uploadHeight );
+	int width = uploadWidth, height = uploadHeight;
+	for ( int level = 0; level < levels; level++ ) {
+		const int offset = bytes.Num();
+		bytes.SetNum( offset + width * height * 4 );
+		qglGetTexImage( GL_TEXTURE_2D, level, GL_RGBA, GL_UNSIGNED_BYTE, bytes.Ptr() + offset );
+		width = Max( 1, width >> 1 );
+		height = Max( 1, height >> 1 );
+	}
 }
 
 
@@ -1757,16 +1962,15 @@ using the same lexer settings, and accepts only a single plain .tga name.
 Image programs, cube maps, partial and generated images use the normal path.
 ===============
 */
-bool idImage::CanDecodeDetached( idStr &fileName ) const {
-	if ( generatorFunction || isPartialImage || cubeFiles != CF_2D ) {
-		return false;
-	}
-	idLexer src;
-	src.LoadMemory( imgName.c_str(), imgName.Length(), imgName.c_str() );
-	src.SetFlags( LEXFL_NOFATALERRORS | LEXFL_NOSTRINGCONCAT | LEXFL_NOSTRINGESCAPECHARS | LEXFL_ALLOWPATHNAMES );
-	idToken token, extra;
-	if ( !src.ReadToken( &token ) || src.ReadToken( &extra ) ) {
-		return false;
+// The file R_LoadImage would try first for an image program leaf token,
+// accepted only when it is a .tga and not a program keyword.
+static bool DetachedLeafName( const idToken &token, idStr &fileName ) {
+	static const char *keywords[] = { "heightmap", "addnormals", "smoothnormals", "add", "scale",
+		"invertAlpha", "invertColor", "makeIntensity", "makeAlpha", NULL };
+	for ( int i = 0; keywords[i]; i++ ) {
+		if ( !token.Icmp( keywords[i] ) ) {
+			return false;
+		}
 	}
 	fileName = token;
 	fileName.DefaultFileExtension( ".tga" );
@@ -1779,6 +1983,47 @@ bool idImage::CanDecodeDetached( idStr &fileName ) const {
 	return !ext.Icmp( "tga" );
 }
 
+bool idImage::CanDecodeDetached( idStr &fileName, idStr &heightName, float &heightScale ) const {
+	heightName.Clear();
+	heightScale = 1.0f;
+	if ( generatorFunction || isPartialImage || cubeFiles != CF_2D ) {
+		return false;
+	}
+	// Same lexer settings as R_LoadImageProgram.
+	idLexer src;
+	src.LoadMemory( imgName.c_str(), imgName.Length(), imgName.c_str() );
+	src.SetFlags( LEXFL_NOFATALERRORS | LEXFL_NOSTRINGCONCAT | LEXFL_NOSTRINGESCAPECHARS | LEXFL_ALLOWPATHNAMES );
+	idToken token, extra;
+	if ( !src.ReadToken( &token ) ) {
+		return false;
+	}
+	if ( token.Icmp( "addnormals" ) ) {
+		// a single plain file
+		return !src.ReadToken( &extra ) && DetachedLeafName( token, fileName );
+	}
+
+	// exactly: addnormals ( A , heightmap ( B [, number] ) )
+	idToken a, b, scale;
+	if ( !src.CheckTokenString( "(" ) || !src.ReadToken( &a ) || !DetachedLeafName( a, fileName ) ||
+		!src.CheckTokenString( "," ) || !src.ReadToken( &token ) || token.Icmp( "heightmap" ) ||
+		!src.CheckTokenString( "(" ) || !src.ReadToken( &b ) || !DetachedLeafName( b, heightName ) ) {
+		heightName.Clear();
+		return false;
+	}
+	if ( src.CheckTokenString( "," ) ) {
+		if ( !src.ReadToken( &scale ) || scale.type != TT_NUMBER ) {
+			heightName.Clear();
+			return false;
+		}
+		heightScale = scale.GetFloatValue();
+	}
+	if ( !src.CheckTokenString( ")" ) || !src.CheckTokenString( ")" ) || src.ReadToken( &extra ) ) {
+		heightName.Clear();
+		return false;
+	}
+	return true;
+}
+
 /*
 ===============
 FinishDetachedLoad
@@ -1787,13 +2032,17 @@ The same steps as the 2D branch of ActuallyLoadImage( true, false ), with the
 file read, TGA decode and pixel hash already done. pic is malloc-owned.
 ===============
 */
-void idImage::FinishDetachedLoad( byte *pic, int width, int height, ID_TIME_T fileTimestamp, unsigned int pixelHash ) {
+void idImage::FinishDetachedLoad( byte *pic, int width, int height, ID_TIME_T fileTimestamp, unsigned int pixelHash,
+								  preparedImage_t *prepared ) {
 	idHitchScope hitch("load_image", imgName.c_str());
 
 	if ( globalImages->image_usePrecompressedTextures.GetBool() ) {
 		idHitchScope ddsHitch( "image_dds", imgName.c_str(), true, 0.0 );
 		if ( CheckPrecompressedImage( true ) ) {
 			free( pic );
+			if ( prepared ) {
+				prepared->Free();
+			}
 			return;
 		}
 	}
@@ -1808,7 +2057,13 @@ void idImage::FinishDetachedLoad( byte *pic, int width, int height, ID_TIME_T fi
 
 	{
 		idHitchScope generateHitch( "image_generate", imgName.c_str(), true, 0.0 );
-		GenerateImage( pic, width, height, filter, allowDownSize, repeat, depth );
+		if ( prepared && prepared->levelCount > 0 ) {
+			// GenerateImage assigns these parameters from the same values.
+			UploadPrepared( *prepared );
+			prepared->Free();
+		} else {
+			GenerateImage( pic, width, height, filter, allowDownSize, repeat, depth );
+		}
 	}
 	precompressedFile = false;
 
