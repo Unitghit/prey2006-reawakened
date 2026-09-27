@@ -386,6 +386,29 @@ void idMD5Mesh::UpdateSurface( const struct renderEntity_s *ent, const idJointMa
 		idVec3 bitangent;
 		bitangent.Cross(normal, tangent);
 		if (bitangent * vertex.tangents[1] < 0) bitangent = -bitangent;
+		// Match the along-seam direction on both mirrored UV halves.
+		int below = -1, above = -1;
+		float belowDistance = 1e10f, aboveDistance = 1e10f;
+		for (int k = 0; k < jenChestSeamVerts.Num(); ++k) {
+			const int index = jenChestSeamVerts[k];
+			const float delta = tri->verts[index].st.y - vertex.st.y;
+			if (delta < -0.0001f && -delta < belowDistance) { below = index; belowDistance = -delta; }
+			if (delta > 0.0001f && delta < aboveDistance) { above = index; aboveDistance = delta; }
+		}
+		if (below >= 0 || above >= 0) {
+			const idDrawVert &lo = below >= 0 ? tri->verts[below] : vertex;
+			const idDrawVert &hi = above >= 0 ? tri->verts[above] : vertex;
+			idVec3 along = hi.xyz - lo.xyz;
+			along -= normal * (along * normal);
+			idVec2 uv = hi.st - lo.st;
+			if (along.Normalize() > 0 && uv.Normalize() > 0) {
+				idVec3 across;
+				across.Cross(normal, along);
+				if (across * (tangent * uv.y - bitangent * uv.x) < 0) across = -across;
+				tangent = along * uv.x + across * uv.y;
+				bitangent = along * uv.y - across * uv.x;
+			}
+		}
 		vertex.normal = normal;
 		vertex.tangents[0] = tangent;
 		vertex.tangents[1] = bitangent;
