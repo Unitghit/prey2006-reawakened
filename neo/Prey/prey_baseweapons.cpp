@@ -31,6 +31,7 @@ const idEventDef EV_Weapon_AltClipSize( "altClipSize", "", 'f' );
 
 const idEventDef EV_Weapon_FireAltProjectiles( "fireAltProjectiles" );
 const idEventDef EV_Weapon_FireProjectiles( "fireProjectiles" );
+const idEventDef EV_Weapon_FireSingleBarrel("fireSingleBarrel");
 
 const idEventDef EV_Weapon_WeaponAside( "weaponAside" );	// nla
 const idEventDef EV_Weapon_WeaponPuttingAside( "weaponPuttingAside" ); // nla
@@ -48,6 +49,7 @@ const idEventDef EV_Weapon_Show( "showWeapon" );
 CLASS_DECLARATION( hhAnimatedEntity, hhWeapon )
 	EVENT( EV_Weapon_FireAltProjectiles,	hhWeapon::Event_FireAltProjectiles )
 	EVENT( EV_Weapon_FireProjectiles,		hhWeapon::Event_FireProjectiles )
+    EVENT( EV_Weapon_FireSingleBarrel, hhWeapon::Event_FireSingleBarrel )
 	EVENT( EV_PlayAnimWhenReady,			hhWeapon::Event_PlayAnimWhenReady )
 	EVENT( EV_SpawnFxAlongBone,				hhWeapon::Event_SpawnFXAlongBone )
 	EVENT( EV_Weapon_EjectAltBrass,			hhWeapon::Event_EjectAltBrass )
@@ -1218,6 +1220,17 @@ hhWeapon::PresentWeapon
 ================
 */
 void hhWeapon::PresentWeapon( bool showViewModel ) {
+    // Keep v1 bytecode available for old saves, including suspended reloads.
+    // Upgrade only after its current action finishes; the controllers and
+    // shared magazine remain untouched, so no shell is granted or discarded.
+    if (gameLocal.GameState() == GAMESTATE_ACTIVE && dict && state == "Idle" &&
+        !idStr::Icmp(scriptObject.GetTypeName(), "weapon_d3supershotgun") &&
+        !idStr::Icmp(dict->GetString("scriptobject"), "weapon_d3supershotgun_v2")) {
+        const float cooldown = WEAPON_NEXTATTACK;
+        InitScriptObject("weapon_d3supershotgun_v2");
+        WEAPON_NEXTATTACK = cooldown;
+        SetState("Idle", 0);
+    }
     // Older saves can contain the previously empty Portal world entity.
     // Rebuild once, after restore, without replacing inventory or view animations.
     if (gameLocal.GameState() == GAMESTATE_ACTIVE && dict && worldModel.IsValid() && dict->GetString("rw_worldModelRevision")[0] &&
@@ -1782,6 +1795,13 @@ void hhWeapon::Event_FireProjectiles() {
 	//HUMANHEAD: aob - moved logic to this helper function
 	LaunchProjectiles( fireController );
 	//HUMANHEAD END
+}
+
+void hhWeapon::Event_FireSingleBarrel() {
+    if (!fireController || idStr::Icmp(spawnArgs.GetString("classname"), "weaponobj_d3supershotgun")) return;
+    fireController->SetSingleBarrelShot(true);
+    LaunchProjectiles(fireController);
+    fireController->SetSingleBarrelShot(false);
 }
 
 /*

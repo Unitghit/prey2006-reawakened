@@ -47,6 +47,7 @@ public:
 	void				AddToClip( int amount );
 	int SharedShotgunSlot() const;
 	void PublishShotgunClip();
+    void SetSingleBarrelShot(bool enabled);
 	static ammo_t		GetAmmoType( const char *ammoname );
 	ID_INLINE ammo_t	GetAmmoType() const;
 	ID_INLINE int		AmmoInClip() const;

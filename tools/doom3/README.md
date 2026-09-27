@@ -347,13 +347,17 @@ without the Super Shotgun. Keep imported assets installed for saves using them.
 
 The shotguns share 16 reserve shells, plus eight private loaded shells in the
 Shotgun and two in the Super Shotgun (26 combined when full). The Super Shotgun
-consumes two per blast. It automatically reloads after firing when sufficient shells remain;
-R also reloads. One remaining shell cannot fire. Its 20 pellets deal 16 base
-damage each, with the expansion's eight-pellet narrow and twelve-pellet wide
-elliptical spread. The ellipse sampling follows id Software's released
+consumes two shells and fires 20 pellets with primary fire. Secondary fire
+consumes one shell and fires 10 pellets, leaving the other barrel loaded.
+Both use the same per-pellet damage and elliptical spread angles: primary has
+eight narrow and twelve wide pellets; secondary has four narrow and six wide.
+R tops up the missing shell after secondary fire. An empty weapon can reload
+and fire a single remaining reserve shell with secondary fire. Loaded shells
+in the regular Shotgun remain private. The existing firing/reload animations
+and cooldown are retained, including the two-shell reload animation.
+The ellipse sampling follows id Software's released
 [Weapon.cpp](https://github.com/id-Software/DOOM-3-BFG/blob/master/neo/d3xp/Weapon.cpp).
 Concentrated lethal hits use the existing protected close-range gib behavior.
-There is no invented alternate attack.
 
 Both shotguns draw from rifle-group pickups without dividing that pickup share
 again. A standard original 30-round rifle pickup adds two shells once to the
@@ -371,7 +375,7 @@ layout is expanded. The versioned Super Shotgun script is now a save ABI.
 
 Hidden/muted tests cover two-shell consumption, reloading, fractional pickup
 allocation, full pools, equipped/disabled saves, a save during reload, refusal to
-fire with one shell, real ammo/weapon pickups, slot-key and wheel cycling, purple
+fire primary with one shell, real ammo/weapon pickups, slot-key and wheel cycling, purple
 HUD rendering, and concentrated Hunter gibs. `test_supershotgun_ammo.ps1` tests
 shared reserves and private magazines; `test_plasma_ammo.ps1` supports both expansion and base-only
 installations. Developer diagnostics: `superShotgunInfo` and
@@ -426,3 +430,12 @@ both loaded clips and show their common 16-shell reserve. Other reserve gauges
 use total capacity minus magazine capacity. Retail weapons keep their original secondary
 ammo display. No GUI window hierarchy, save layout, or ammo accounting changes.
 Validated with an existing shotgun save and hidden, muted firing captures.
+
+### Super Shotgun single-barrel save compatibility
+
+The immutable v1 script remains installed for existing saves. New weapons use
+v2; restored v1 weapons finish their current action before upgrading at idle,
+preserving the magazine and cooldown. Hidden, muted tests cover secondary
+pellet/shell counts, primary fire, one-shell top-up, the last reserve shell,
+saving with one loaded shell, and legacy saves during idle and reload.
+`tests/supershotgun_single.cfg` exercises both triggers and save/reload.

@@ -95,3 +95,4 @@ def import_supershotgun(index, read, text, block, files):
     files['def/player.def'] = player.encode()
     files['def/doom3_supershotgun.def'] = Path(__file__).with_name('supershotgun.def').read_bytes()
     files['script/reawakened/weapon_d3supershotgun_v1.script'] = Path(__file__).with_name('weapon_d3supershotgun_v1.script').read_bytes()
+    files['script/reawakened/weapon_d3supershotgun_v2.script'] = Path(__file__).with_name('weapon_d3supershotgun_v2.script').read_bytes()

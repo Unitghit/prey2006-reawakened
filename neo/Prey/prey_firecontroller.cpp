@@ -312,6 +312,9 @@ void hhFireController::LaunchProjectiles( const idVec3& launchOrigin, const idMa
         }
         hhProjectile* projectile = NULL;
         bool clientProjectiles = dict->GetBool("net_clientProjectiles", "1");
+        if (dict->GetBool("rw_doubleShotgunSpread") && cvarSystem->GetCVarBool("d3_supershotgunTrace"))
+            gameLocal.Printf("D3SSG_SHOT pellets=%d narrow=%d wide=%d shells=%d\n", numProjectiles,
+                numProjectiles*2/5, numProjectiles-numProjectiles*2/5, AmmoRequired());
 		for( int ix = 0; ix < numProjectiles; ++ix ) {
 			if (clientProjectiles) { //HUMANHEAD rww - clientside projectiles!
 				projectile = hhProjectile::SpawnClientProjectile( GetProjectileDict() );
@@ -329,9 +332,10 @@ void hhFireController::LaunchProjectiles( const idVec3& launchOrigin, const idMa
             }
             idMat3 pelletAxis = DetermineProjectileAxis(aimAxis);
             if (dict->GetBool("rw_doubleShotgunSpread")) {
-                // Resurrection of Evil: eight narrow pellets plus twelve wide.
-                const float width = ix < 8 ? 5.0f : 22.0f;
-                const float height = ix < 8 ? 10.0f : 15.0f;
+                // Preserve RoE's 8/12 mix, including 4/6 for a single barrel.
+                const int narrowPellets = numProjectiles * 2 / 5;
+                const float width = ix < narrowPellets ? 5.0f : 22.0f;
+                const float height = ix < narrowPellets ? 10.0f : 15.0f;
                 const float spin = idMath::TWO_PI * gameLocal.random.RandomFloat();
                 const float x = idMath::Sin(DEG2RAD(width) * gameLocal.random.RandomFloat());
                 const float y = idMath::Sin(DEG2RAD(height) * gameLocal.random.RandomFloat());

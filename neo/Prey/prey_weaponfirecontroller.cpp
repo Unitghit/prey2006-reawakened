@@ -413,6 +413,14 @@ void hhWeaponFireController::AddToClip( int amount ) {
     if (dict->GetBool("rw_bfgCharge") && owner.IsValid() && self->IsPrimaryFireController(this)) owner->inventory.clip[16] = Max(0, ammoClip);
 }
 
+void hhWeaponFireController::SetSingleBarrelShot(bool enabled) {
+    if (!dict || !dict->GetBool("rw_doubleShotgunSpread")) return;
+    // Both triggers use the primary controller's one authoritative magazine.
+    // This override lasts only for the synchronous shot, never across a save.
+    ammoRequired = enabled ? 1 : dict->GetInt("ammoRequired", "2");
+    numProjectiles = dict->GetInt("numProjectiles", "20") / (enabled ? 2 : 1);
+}
+
 /*
 ================
 hhWeaponFireController::GetAmmoType
