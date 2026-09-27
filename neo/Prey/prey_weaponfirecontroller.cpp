@@ -7,6 +7,19 @@
 CLASS_DECLARATION( hhFireController, hhWeaponFireController )
 END_CLASS
 
+// Reawakened: the player's muzzle flashes cast Doom 3 style shadows, but only while
+// the lighter is off, so there is never more than one shadowing light in the
+// player's hands (and no doubled shadows from two nearby lights). The flash uses
+// the lighter's light id, so the player's body, head and world weapon already
+// suppress their shadows for it.
+static idCVar g_muzzleFlashShadows( "g_muzzleFlashShadows", "1", CVAR_GAME | CVAR_BOOL | CVAR_ARCHIVE,
+	"player muzzle flashes cast shadows while the lighter is off (single player)" );
+
+bool hhWeaponFireController::MuzzleFlashCastsShadows() const {
+	return g_muzzleFlashShadows.GetBool() && !gameLocal.isMultiplayer &&
+		owner.IsValid() && !owner->IsLighterOn();
+}
+
 /*
 ================
 hhWeaponFireController::Clear

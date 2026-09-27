@@ -229,7 +229,7 @@ void Launch(const fs::path& exe, const std::vector<std::wstring>& args) {
 void VerifyConfiguration(const fs::path& output) {
     fs::create_directories(output);
     auto require = [](bool ok) { if (!ok) throw std::runtime_error("Configuration verification failed"); };
-    auto defaults = Defaults(); require(defaults.size()==24 && defaults.at(L"g_noSpiritResurrections")==L"0" && defaults.at(L"image_threadedDecode")==L"1" && defaults.at(L"g_portalGun")==L"0" && defaults.at(L"g_portalGunReticle")==L"1" && defaults.at(L"g_bunnyHop")==L"0" && defaults.at(L"g_halfLifeAutoHop")==L"0" && defaults.at(L"com_maxFPS")==L"-1");
+    auto defaults = Defaults(); require(defaults.size()==25 && defaults.at(L"g_muzzleFlashShadows")==L"1" && defaults.at(L"g_noSpiritResurrections")==L"0" && defaults.at(L"image_threadedDecode")==L"1" && defaults.at(L"g_portalGun")==L"0" && defaults.at(L"g_portalGunReticle")==L"1" && defaults.at(L"g_bunnyHop")==L"0" && defaults.at(L"g_halfLifeAutoHop")==L"0" && defaults.at(L"com_maxFPS")==L"-1");
     Save(output,defaults); require(Load(output)==defaults);
     Atomic(output/L"default-launcher.bat",Launcher(defaults));
     for (const auto& s : Options()) for (const auto& c : s.choices) {

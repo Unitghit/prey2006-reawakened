@@ -1,0 +1,15 @@
+// Retail player muzzle flash light with shadow casting enabled, used for shots
+// fired while the lighter is off (g_muzzleFlashShadows). Keep the retail
+// texture, rotation, flicker and color unchanged; only noshadows is removed.
+lights/defaultMuzzleFlash_shadows
+{
+	{
+		forceHighQuality
+		map lights/circlelight11.tga
+		rotate		random[time * .3 ] * -1
+		red			parm0 * 2.0 * flicker_on1[ time * 0.5 ]
+		green		parm1 * 2.0 * flicker_on1[ time * 0.5 ]
+		blue		parm2 * 2.0 * flicker_on1[ time * 0.5 ]
+		zeroclamp
+	}
+}

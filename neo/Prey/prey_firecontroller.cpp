@@ -419,6 +419,30 @@ void hhFireController::UpdateMuzzleFlashPosition() {
 hhFireController::MuzzleFlash
 ================
 */
+// Retail flash materials such as lights/defaultMuzzleFlash declare noshadows,
+// which overrides the light's own flag. Shots that should cast shadows use a
+// "<material>_shadows" copy when one exists (base/materials/muzzleflash_shadows.mtr);
+// other shots use the base material. The saved light may hold either, so the
+// base is recovered from the current name rather than stored separately.
+static const idMaterial *MuzzleFlashMaterial( const idMaterial *current, bool castShadows ) {
+	if ( !current ) {
+		return current;
+	}
+	const idMaterial *base = current;
+	idStr name = current->GetName();
+	if ( name.Length() > 8 && !name.Right( 8 ).Icmp( "_shadows" ) ) {
+		const idMaterial *stripped = declManager->FindMaterial( name.Left( name.Length() - 8 ), false );
+		if ( stripped ) {
+			base = stripped;
+		}
+	}
+	if ( !castShadows || base->LightCastsShadows() ) {
+		return base;
+	}
+	const idMaterial *shadowed = declManager->FindMaterial( va( "%s_shadows", base->GetName() ), false );
+	return shadowed ? shadowed : base;
+}
+
 void hhFireController::MuzzleFlash() {
 	if (!g_muzzleFlash.GetBool()) {
 		return;
@@ -433,6 +457,9 @@ void hhFireController::MuzzleFlash() {
 	// these will be different each fire
 	muzzleFlash.shaderParms[ SHADERPARM_TIMEOFFSET ]	= -MS2SEC( gameLocal.GetTime() );
 	muzzleFlash.shaderParms[ SHADERPARM_DIVERSITY ]		= gameLocal.random.RandomFloat();
+	// decided per shot, so toggling the lighter mid-burst applies to the next shot
+	muzzleFlash.noShadows = !MuzzleFlashCastsShadows();
+	muzzleFlash.shader = MuzzleFlashMaterial( muzzleFlash.shader, !muzzleFlash.noShadows );
 
 	//info.worldMuzzleFlash.shaderParms[ SHADERPARM_TIMEOFFSET ]	= -MS2SEC( gameLocal.GetTime() );
 	//info.worldMuzzleFlash.shaderParms[ SHADERPARM_DIVERSITY ]	= renderEntity.shaderParms[ SHADERPARM_DIVERSITY ];

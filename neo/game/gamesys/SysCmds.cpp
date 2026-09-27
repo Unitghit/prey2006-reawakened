@@ -2561,6 +2561,10 @@ static void Cmd_WeaponPackInfo_f( const idCmdArgs &args ) {
 	if ( args.Argc() == 2 && cvarSystem->GetCVarBool("developer") ) {
 		if ( !idStr::Icmp(args.Argv(1), "spirit") ) {
 			player->ToggleSpiritWalk();
+		} else if ( !idStr::Icmp(args.Argv(1), "lighter") ) {
+			player->ToggleLighter();
+			gameLocal.Printf( "LIGHTER on=%d muzzleFlashShadows=%d\n", player->IsLighterOn(),
+				cvarSystem->GetCVarBool( "g_muzzleFlashShadows" ) && !player->IsLighterOn() );
 		} else if (!idStr::Icmp(args.Argv(1), "next")) {
 			player->PerformImpulse(IMPULSE_14);
 		} else if (!idStr::Icmp(args.Argv(1), "prev")) {

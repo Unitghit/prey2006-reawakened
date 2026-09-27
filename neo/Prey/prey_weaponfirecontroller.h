@@ -38,6 +38,11 @@ public:
 
 	ID_INLINE virtual bool		HasAmmo() const;
 	virtual void		UseAmmo();
+
+protected:
+	virtual bool		MuzzleFlashCastsShadows() const;
+
+public:
 	virtual int			AmmoAvailable() const;
 	void				AddToClip( int amount );
 	int SharedShotgunSlot() const;
