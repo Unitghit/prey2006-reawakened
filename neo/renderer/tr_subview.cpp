@@ -530,6 +530,13 @@ static void R_RemoteRender( drawSurf_t *surf, textureStage_t *stage ) {
 	parms->isMirror = false;
 
 	parms->renderView = *surf->space->entityDef->parms.remoteRenderView;
+    // Remote cameras may be republished only when their screen/entity changes.
+    // Their stored time is not a playback clock: particles must advance with
+    // the current view, just like material expressions (inherited floatTime).
+    const int cameraTime = parms->renderView.time;
+    parms->renderView.time = tr.viewDef->renderView.time;
+    if (r_portalTrace.GetBool()) common->Printf("REMOTE_CLOCK frame=%d parent=%d camera=%d used=%d\n",
+        tr.frameCount, tr.viewDef->renderView.time, cameraTime, parms->renderView.time);
 	parms->renderView.viewID = 0;	// clear to allow player bodies to show up, and suppress view weapons
 	parms->initialViewAreaOrigin = parms->renderView.vieworg;
 
