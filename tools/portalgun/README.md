@@ -70,6 +70,23 @@ The `tests/worldmodel.cfg` fixture covers third-person aiming, both colors,
 switching and save/reload. Legacy portal-gun saves and screen interaction were
 also checked with an isolated muted profile.
 
+### Dense world-model portal splitting
+
+The body splitter reserves output space and grows geometrically, reusing its
+small clipping buffers instead of repeatedly reallocating/copying a dense gun
+mesh. Undeformed cut surfaces retain the intact model's tangent basis; only
+transient portal pieces opt into skipping the redundant tangent reconstruction.
+Eye/sprite deformation, clipping planes, seam overlap, triangle count and shadow
+silhouette construction retain their existing paths. No lower-detail model is
+substituted. This also benefits other weapons and NPCs using the same splitter.
+
+In the isolated `gunmodelslaggy` save at 1280x720/MSAA off, median frame time
+fell from 29 ms to 8 ms; the body split itself fell from roughly 24 ms to 3-4 ms.
+These are scene-specific measurements. `g_portalBodyTrace 1` reports per-model
+clipping and finalization costs for diagnosis; leave it off for normal play and
+frame-time comparisons. Movement, firing, save/reload and NPC portal traversal
+were checked after the change.
+
 The converter inserts a stationary root so Prey's removal of root motion does not
 erase Source's camera-relative offsets. The recovered bind pose was checked to
 within 0.001 game units. The optional `viewmodel` regression case requires imported

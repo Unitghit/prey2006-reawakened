@@ -2159,7 +2159,7 @@ R_CleanupTriangles
 FIXME: allow createFlat and createSmooth normals, as well as explicit
 =================
 */
-void R_CleanupTriangles( srfTriangles_t *tri, bool createNormals, bool identifySilEdges, bool useUnsmoothedTangents, bool reportWarnings ) {
+void R_CleanupTriangles( srfTriangles_t *tri, bool createNormals, bool identifySilEdges, bool useUnsmoothedTangents, bool reportWarnings, bool preserveTangents ) {
 	R_RangeCheckIndexes( tri );
 
 	R_CreateSilIndexes( tri );
@@ -2186,7 +2186,10 @@ void R_CleanupTriangles( srfTriangles_t *tri, bool createNormals, bool identifyS
 
 	R_BoundTriSurf( tri );
 
-	if ( useUnsmoothedTangents ) {
+	if ( preserveTangents && !createNormals ) {
+        R_DeriveFacePlanes(tri);
+        tri->tangentsCalculated = true;
+	} else if ( useUnsmoothedTangents ) {
 		R_BuildDominantTris( tri );
 		R_DeriveUnsmoothedTangents( tri );
 	} else if ( !createNormals ) {

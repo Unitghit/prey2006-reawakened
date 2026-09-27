@@ -79,6 +79,13 @@ static portalBodyPart_t &PortalBodyPart(idEntity *entity, idRenderModel *model) 
     return *part;
 }
 static void PortalBodyTriangles(const idList<idDrawVert> &polygon, idList<idDrawVert> &triangles) {
+    // idList grows by only 16 elements by default. Recopying a dense weapon's
+    // accumulated mesh on every small growth makes portal clipping quadratic.
+    const int needed = triangles.Num() + (polygon.Num() > 2 ? (polygon.Num()-2)*3 : 0);
+    if (needed > triangles.NumAllocated()) {
+        const int doubled = triangles.NumAllocated()*2;
+        triangles.Resize(needed > doubled ? needed : doubled);
+    }
     for (int i = 1; i + 1 < polygon.Num(); ++i) {
         if ((polygon[i].xyz - polygon[0].xyz).Cross(polygon[i+1].xyz - polygon[0].xyz).LengthSqr() < 1e-10f) continue;
         triangles.Append(polygon[0]); triangles.Append(polygon[i]); triangles.Append(polygon[i+1]);
@@ -86,7 +93,7 @@ static void PortalBodyTriangles(const idList<idDrawVert> &polygon, idList<idDraw
 }
 static void PortalBodySplitPolygon(const idList<idDrawVert> &polygon, const idPlane &plane,
     idList<idDrawVert> &inside, idList<idDrawVert> &outside) {
-    inside.Clear(); outside.Clear();
+    inside.SetNum(0, false); outside.SetNum(0, false);
     for (int i = 0; i < polygon.Num(); ++i) {
         const idDrawVert &a = polygon[i], &b = polygon[(i+1)%polygon.Num()];
         const float da = plane.Distance(a.xyz), db = plane.Distance(b.xyz);
@@ -105,6 +112,10 @@ static void PortalBodySurface(idRenderModel *model, const modelSurface_t &source
     tri->numVerts = tri->numIndexes = vertices.Num(); tri->bounds.Clear();
     tri->eyeballDeformed = source.shader->Deform() == DFRM_EYEBALL;
     tri->portalBodyDepthBias = depthBias;
+    // The intact skinned pose already supplies its lighting basis. Clipping
+    // interpolates that basis; rebuilding it separately on each half is costly
+    // and can change highlights along the seam. Deformed eyes keep their path.
+    tri->tangentsCalculated = source.shader->Deform() == DFRM_NONE;
     for (int i = 0; i < vertices.Num(); ++i) {
         tri->verts[i] = vertices[i]; tri->indexes[i] = i; tri->bounds.AddPoint(vertices[i].xyz);
     }
@@ -146,6 +157,7 @@ static int PortalBodyEffectQuads(portalBodyPart_t &part, const modelSurface_t &s
     return farQuads.Num()*2;
 }
 static int SplitPortalBodyModel(portalBodyPart_t &part, const renderEntity_t &pose, const idPlane *planes, int count, bool depthBias) {
+    idTimer splitTimer; if (g_portalBodyTrace.GetBool()) splitTimer.Start();
     idRenderModel *model = pose.hModel;
     if (model->IsDynamicModel() != DM_STATIC) {
         part.snapshot = pose.hModel->InstantiateDynamicModel(&pose, NULL, part.snapshot);
@@ -177,22 +189,23 @@ static int SplitPortalBodyModel(portalBodyPart_t &part, const renderEntity_t &po
             mesh.numVerts = eyeVertices.Num(); mesh.numIndexes = eyeIndexes.Num();
         }
         idList<idDrawVert> nearVerts, farVerts, polygon, inside, outside;
+        nearVerts.Resize(mesh.numIndexes); farVerts.Resize(mesh.numIndexes);
         for (int t = 0; t < mesh.numIndexes; t += 3) {
-            polygon.Clear(); for (int k = 0; k < 3; ++k) polygon.Append(mesh.verts[mesh.indexes[t+k]]);
+            polygon.SetNum(3, false); for (int k = 0; k < 3; ++k) polygon[k] = mesh.verts[mesh.indexes[t+k]];
             for (int i = 0; i < count && polygon.Num() >= 3; ++i) {
                 idPlane plane = local[i];
                 if (depthBias && i == 0) plane[3] -= PORTAL_BODY_SEAM_OVERLAP;
                 PortalBodySplitPolygon(polygon, plane, inside, outside);
-                PortalBodyTriangles(outside, nearVerts); polygon = inside;
+                PortalBodyTriangles(outside, nearVerts); polygon.Swap(inside);
             }
             if (depthBias) {
                 // The two rooms resolve MSAA separately. Retain a narrow common
                 // band so resolving one half cannot expose background at the seam.
-                polygon.Clear(); for (int k = 0; k < 3; ++k) polygon.Append(mesh.verts[mesh.indexes[t+k]]);
+                polygon.SetNum(3, false); for (int k = 0; k < 3; ++k) polygon[k] = mesh.verts[mesh.indexes[t+k]];
                 for (int i = 0; i < count && polygon.Num() >= 3; ++i) {
                     idPlane plane = local[i];
                     if (i == 0) plane[3] += PORTAL_BODY_SEAM_OVERLAP;
-                    PortalBodySplitPolygon(polygon, plane, inside, outside); polygon = inside;
+                    PortalBodySplitPolygon(polygon, plane, inside, outside); polygon.Swap(inside);
                 }
             }
             PortalBodyTriangles(polygon, farVerts);
@@ -201,7 +214,13 @@ static int SplitPortalBodyModel(portalBodyPart_t &part, const renderEntity_t &po
         PortalBodySurface(part.nearModel, *surface, nearVerts, depthBias);
         PortalBodySurface(part.farModel, *surface, farVerts, depthBias);
     }
+    unsigned int clipMs = 0;
+    if (g_portalBodyTrace.GetBool()) { splitTimer.Stop(); clipMs = splitTimer.Milliseconds(); splitTimer.Clear(); splitTimer.Start(); }
     part.nearModel->FinishSurfaces(); part.farModel->FinishSurfaces();
+    if (g_portalBodyTrace.GetBool()) {
+        splitTimer.Stop();
+        gameLocal.Printf("PORTAL_BODY_COST %s clip %u finish %u\n", pose.hModel->Name(), clipMs, splitTimer.Milliseconds());
+    }
     return farTriangles;
 }
 struct portalBodyPose_t { idEntity *entity; renderEntity_t original, pose; };
