@@ -353,8 +353,10 @@ Both use the same per-pellet damage and elliptical spread angles: primary has
 eight narrow and twelve wide pellets; secondary has four narrow and six wide.
 R tops up the missing shell after secondary fire. An empty weapon can reload
 and fire a single remaining reserve shell with secondary fire. Loaded shells
-in the regular Shotgun remain private. The existing firing/reload animations
-and cooldown are retained, including the two-shell reload animation.
+in the regular Shotgun remain private. The existing firing/reload animations are retained, including the two-shell
+reload animation. Single-barrel fire permits the next shot after 0.25 seconds
+instead of waiting for the full firing animation. Primary fire with one loaded
+shell also fires that shell using the single-barrel pellet count.
 The ellipse sampling follows id Software's released
 [Weapon.cpp](https://github.com/id-Software/DOOM-3-BFG/blob/master/neo/d3xp/Weapon.cpp).
 Concentrated lethal hits use the existing protected close-range gib behavior.
@@ -433,8 +435,8 @@ Validated with an existing shotgun save and hidden, muted firing captures.
 
 ### Super Shotgun single-barrel save compatibility
 
-The immutable v1 script remains installed for existing saves. New weapons use
-v2; restored v1 weapons finish their current action before upgrading at idle,
+The immutable v1 and v2 scripts remain installed for existing saves. New weapons
+use v3; restored weapons finish their current action before upgrading at idle,
 preserving the magazine and cooldown. Hidden, muted tests cover secondary
 pellet/shell counts, primary fire, one-shell top-up, the last reserve shell,
 saving with one loaded shell, and legacy saves during idle and reload.

@@ -1224,10 +1224,11 @@ void hhWeapon::PresentWeapon( bool showViewModel ) {
     // Upgrade only after its current action finishes; the controllers and
     // shared magazine remain untouched, so no shell is granted or discarded.
     if (gameLocal.GameState() == GAMESTATE_ACTIVE && dict && state == "Idle" &&
-        !idStr::Icmp(scriptObject.GetTypeName(), "weapon_d3supershotgun") &&
-        !idStr::Icmp(dict->GetString("scriptobject"), "weapon_d3supershotgun_v2")) {
+        (!idStr::Icmp(scriptObject.GetTypeName(), "weapon_d3supershotgun") ||
+         !idStr::Icmp(scriptObject.GetTypeName(), "weapon_d3supershotgun_v2")) &&
+        !idStr::Icmp(dict->GetString("scriptobject"), "weapon_d3supershotgun_v3")) {
         const float cooldown = WEAPON_NEXTATTACK;
-        InitScriptObject("weapon_d3supershotgun_v2");
+        InitScriptObject("weapon_d3supershotgun_v3");
         WEAPON_NEXTATTACK = cooldown;
         SetState("Idle", 0);
     }
