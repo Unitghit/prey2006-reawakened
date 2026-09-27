@@ -381,21 +381,21 @@ The Super Shotgun also passed Spirit Walk and real level-transition/save tests.
 
 ### Screen interaction poses
 
-Imported Doom weapons now keep their idle pose during Prey's `put_aside`,
-`aside`, and `upright` states. Previously the importer aliased the looping
-`aside` state to a one-shot holster animation, repeatedly lowering the weapon.
-Tommy's separate GUI hand, click handling, and weapon-switch holstering are
-unchanged. This is a model-declaration fix, so existing saves and script
-checksums are preserved. Regenerate the imported assets to apply it.
+The Shotgun, Machine Gun and Super Shotgun fully lower at interactive screens,
+using their original holster animation (about 0.21 to 0.25 seconds). The held
+`aside` pose repeats only the final holstered frame. `upright` reverses the same
+motion to restore the gun smoothly. This keeps the Doom model's support hand
+out of view while Tommy's independent GUI hand operates the screen.
 
-Validated with the `screenbug` campaign save in a hidden, muted test, plus
-validation of all six weapons' generated animation paths.
+Other imported weapons retain stationary two-frame entry/exit transitions and
+an idle held pose. No weapon scripts, ammo logic or save layouts change. The
+importer generates these animations from the user's local retail assets;
+regenerate the imported assets to apply it.
 
-GUI entry/exit use generated two-frame stationary poses (about 42 ms), while
-only the held-aside state cycles the original idle. Using the full idle for
-`upright` delayed weapon readiness for several seconds and could block firing
-or switching after leaving a screen. Animation generation retains the original
-skeleton, first-frame pose, and bounds; existing weapon scripts remain unchanged.
+Hidden, muted `screenbug` tests check all three lowered models, GUI clicks,
+firing afterward and slot switching. `test_gui_lowering.py` checks generated
+frame counts, held/reversed endpoints, bounds and the three model aliases
+without requiring retail assets.
 
 ### Magazine HUD
 

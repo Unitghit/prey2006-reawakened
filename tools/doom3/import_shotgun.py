@@ -43,12 +43,43 @@ def resolve_weapon_gui_strings(files, read):
         files[name] = re.sub(r'"(#str_\d+)"', replace, gui).encode()
 
 
+def gui_lowering_animations(source):
+    """Reuse the retail holster motion and hold its endpoint without looping it."""
+    frames = re.findall(r'frame\s+\d+\s*\{(.*?)\}', source, re.S)
+    bounds = re.search(r'bounds\s*\{(.*?)\}', source, re.S)
+    boxes = re.findall(r'\([^)]*\)\s*\([^)]*\)', bounds[1])
+    count = int(re.search(r'numFrames\s+(\d+)', source)[1])
+    if len(frames) != count or len(boxes) != count or count < 2:
+        raise ValueError('Invalid Doom weapon lowering animation')
+    def make(indices):
+        text = re.sub(r'numFrames\s+\d+', f'numFrames {len(indices)}', source)
+        text = re.sub(r'bounds\s*\{.*?\}',
+                      'bounds {\n'+'\n'.join(boxes[i] for i in indices)+'\n}', text, flags=re.S)
+        text = re.sub(r'frame\s+\d+\s*\{.*?\}', '', text, flags=re.S)
+        return text + ''.join(f'\nframe {n} {{'+frames[i]+'}\n' for n, i in enumerate(indices))
+    return source, make([count-1, count-1]), make(list(reversed(range(count))))
+
+
 def fix_gui_transitions(files):
     """Keep GUI transitions short without altering the weapon script/save layout."""
     for name in list(files):
         if not re.fullmatch(r'def/doom3_\w+_models.def', name):
             continue
         text = files[name].decode()
+        if name in ('def/doom3_shotgun_models.def', 'def/doom3_machinegun_models.def',
+                    'def/doom3_supershotgun_models.def'):
+            lower = re.search(r'anim\s+down\s+(\S+)', text)
+            if not lower:
+                raise ValueError('Missing weapon lowering animation: '+name)
+            directory = lower[1].rsplit('/', 1)[0]
+            poses = gui_lowering_animations(files[lower[1]].decode())
+            for alias, suffix, pose in zip(('put_aside', 'aside', 'upright'),
+                                          ('lower', 'held', 'raise'), poses):
+                target = directory+'/gui_'+suffix+'.md5anim'
+                files[target] = pose.encode()
+                text = re.sub(r'(anim\s+'+alias+r'\s+)\S+', lambda m: m[1]+target, text)
+            files[name] = text.encode()
+            continue
         idle = re.search(r'anim\s+aside\s+(\S+)', text)
         if not idle:
             continue
