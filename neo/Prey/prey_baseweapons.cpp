@@ -1229,6 +1229,7 @@ void hhWeapon::PresentWeapon( bool showViewModel ) {
 
 	// crunch the depth range so it never pokes into walls this breaks the machine gun gui
 	renderEntity.weaponDepthHack = true;
+	renderEntity.viewModelFov = dict ? dict->GetFloat("viewmodel_fov", "0") : 0.0f;
 
 	// present the model
 	if ( showViewModel ) {

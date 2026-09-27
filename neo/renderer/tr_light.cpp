@@ -286,6 +286,7 @@ viewEntity_t *R_SetEntityDefViewEntity( idRenderEntityLocal *def ) {
 	// copy the model and weapon depth hack for back-end use
 	vModel->modelDepthHack = def->parms.modelDepthHack;
 	vModel->weaponDepthHack = def->parms.weaponDepthHack;
+	vModel->viewModelFov = def->parms.viewModelFov;
 	vModel->xrayIndex = def->parms.xrayIndex;
 
 	R_AxisToModelMatrix( def->parms.axis, def->parms.origin, vModel->modelMatrix );
@@ -570,7 +571,9 @@ void R_LinkLightSurf( const drawSurf_t **link, const srfTriangles_t *tri, const 
 	drawSurf->geo = tri;
 	drawSurf->space = space;
 	drawSurf->material = shader;
-	drawSurf->scissorRect = scissor;
+	// Viewmodel projection differs from world-space light/entity scissors.
+	// Keep these few weapon surfaces conservatively unclipped in screen space.
+	drawSurf->scissorRect = space->weaponDepthHack && space->viewModelFov > 0.0f ? tr.viewDef->scissor : scissor;
 	drawSurf->dsFlags = 0;
 	if ( viewInsideShadow ) {
 		drawSurf->dsFlags |= DSF_VIEW_INSIDE_SHADOW;
@@ -1087,7 +1090,9 @@ void R_AddDrawSurf( const srfTriangles_t *tri, const viewEntity_t *space, const 
 	drawSurf->geo = tri;
 	drawSurf->space = space;
 	drawSurf->material = shader;
-	drawSurf->scissorRect = scissor;
+	// Viewmodel projection differs from world-space light/entity scissors.
+	// Keep these few weapon surfaces conservatively unclipped in screen space.
+	drawSurf->scissorRect = space->weaponDepthHack && space->viewModelFov > 0.0f ? tr.viewDef->scissor : scissor;
 	drawSurf->sort = shader->GetSort() + tr.sortOffset;
 	drawSurf->dsFlags = 0;
 

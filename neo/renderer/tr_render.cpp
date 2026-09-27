@@ -203,13 +203,21 @@ void RB_SetMaterialPolygonOffset( const idMaterial *material, bool portalBody ) 
 	qglPolygonOffset( factor, units );
 }
 
-void RB_EnterWeaponDepthHack() {
+void RB_EnterWeaponDepthHack( float viewModelFov ) {
 	qglDepthRange( 0, backEnd.worldDepthNear > 0.0f ? backEnd.worldDepthNear : 0.5f );
 
 	float	matrix[16];
 
 	memcpy( matrix, backEnd.viewDef->projectionMatrix, sizeof( matrix ) );
 
+	// Source-style viewmodel FOV is horizontal at 4:3, with fixed vertical
+	// coverage on wider displays. Preserve all world and depth-hack settings.
+	if (viewModelFov > 1.0f && viewModelFov < 179.0f) {
+		const float aspect = float(backEnd.viewDef->viewport.x2 - backEnd.viewDef->viewport.x1 + 1) /
+			Max(1, backEnd.viewDef->viewport.y2 - backEnd.viewDef->viewport.y1 + 1);
+		matrix[5] = (4.0f / 3.0f) / idMath::Tan(DEG2RAD(viewModelFov * 0.5f));
+		matrix[0] = matrix[5] / aspect;
+	}
 	matrix[14] *= 0.25;
 
 	qglMatrixMode(GL_PROJECTION);
@@ -275,7 +283,7 @@ void RB_RenderDrawSurfListWithFunction( drawSurf_t **drawSurfs, int numDrawSurfs
 		}
 
 		if ( drawSurf->space->weaponDepthHack ) {
-			RB_EnterWeaponDepthHack();
+			RB_EnterWeaponDepthHack(drawSurf->space->viewModelFov);
 		}
 
 		if ( drawSurf->space->modelDepthHack != 0.0f ) {
@@ -324,7 +332,7 @@ void RB_RenderDrawSurfChainWithFunction( const drawSurf_t *drawSurfs,
 		}
 
 		if ( drawSurf->space->weaponDepthHack ) {
-			RB_EnterWeaponDepthHack();
+			RB_EnterWeaponDepthHack(drawSurf->space->viewModelFov);
 		}
 
 		if ( drawSurf->space->modelDepthHack ) {
@@ -787,7 +795,7 @@ void RB_CreateSingleDrawInteractions( const drawSurf_t *surf, void (*DrawInterac
 
 	// hack depth range if needed
 	if ( surf->space->weaponDepthHack ) {
-		RB_EnterWeaponDepthHack();
+		RB_EnterWeaponDepthHack(surf->space->viewModelFov);
 	}
 
 	if ( surf->space->modelDepthHack ) {

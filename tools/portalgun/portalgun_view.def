@@ -4,6 +4,7 @@ entityDef weaponobj_portalgun {
     "scriptobject" "weapon_rwportalgun"
     "rw_addonScript" "script/reawakened/weapon_portalgun_v1.script"
     "model" "rw_portalgun_view"
+    "viewmodel_fov" "54"
     "model_world" ""
     "def_fireInfo" "fireinfo_rwportalgun"
     "def_altFireInfo" "fireinfo_rwportalgun"

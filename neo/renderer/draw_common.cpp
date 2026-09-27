@@ -707,7 +707,7 @@ void RB_STD_T_RenderShaderPasses( const drawSurf_t *surf ) {
 	}
 
 	if ( surf->space->weaponDepthHack ) {
-		RB_EnterWeaponDepthHack();
+		RB_EnterWeaponDepthHack(surf->space->viewModelFov);
 	}
 
 	if ( surf->space->modelDepthHack != 0.0f ) {

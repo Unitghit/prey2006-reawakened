@@ -209,6 +209,7 @@ typedef struct renderEntity_s {
 	//HUMANHEAD rww - changed to a bool to fit with our added bools, and moved in with others. considering automatic compiler alignment i don't see a real point to making this an int initially anyway.
 	bool					forceUpdate;			// force an update (NOTE: not a bool to keep this struct a multiple of 4 bytes)
 
+	float viewModelFov; // Transient 4:3 horizontal FOV; zero uses the world projection.
 	int						timeGroup;
 	int						xrayIndex;
 } renderEntity_t;

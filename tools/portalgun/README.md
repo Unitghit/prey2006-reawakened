@@ -39,6 +39,25 @@ or third-person world model is imported. Keep imported files
 installed when loading saves that contain the model; disabling the launcher option
 is supported and restores the wrench without changing weapon inventory slots.
 
+The portal gun uses a separate 54-degree viewmodel projection (horizontal at
+4:3), with fixed vertical coverage as the display widens. Its framing stays
+consistent when changing the world FOV. Imported animation coordinates are
+unchanged. Depth, ambient, lighting and emissive passes share the projection.
+Weapon surfaces use conservative scissors because world-space scissors do not
+describe the enlarged projection. Visual shots reproject their muzzle start into
+the world camera, while aiming still traces from the eye. Other weapons retain
+their previous projection. Save layouts are unchanged.
+
+Reference: Portal-Base revision c4584551916acfb1e9583d54587ac84be48c9768,
+sp/src/game/client/view.cpp (viewmodel_fov and aspect scaling),
+clientmode_shared.cpp (GetViewModelFOV), and viewrender.cpp (DrawViewModels).
+This is a community Source SDK adaptation, not a direct measurement of the retail
+executable. The Prey implementation is independent.
+
+Hidden muted tests compare world FOV 90/110 and 16:9/4:3 framing, both fire inputs,
+save/reload, campaign screen interaction and the sloped portal-exit regression.
+Update the engine, game DLL and imported portal gun definition together.
+
 The converter inserts a stationary root so Prey's removal of root motion does not
 erase Source's camera-relative offsets. The recovered bind pose was checked to
 within 0.001 game units. The optional `viewmodel` regression case requires imported

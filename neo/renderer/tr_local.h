@@ -365,6 +365,7 @@ typedef struct viewEntity_s {
 	idScreenRect		scissorRect;
 
 	bool				weaponDepthHack;
+	float viewModelFov;
 	float				modelDepthHack;
 	int                 xrayIndex; // Frame-owned copy; entityDef can be freed before submission.
 
@@ -1316,7 +1317,7 @@ RENDER
 ============================================================
 */
 
-void RB_EnterWeaponDepthHack();
+void RB_EnterWeaponDepthHack( float viewModelFov = 0.0f );
 bool RB_PortalBodyDepthBias( const drawSurf_t *surf );
 float RB_PortalBodyClipCorrection( const drawSurf_t *surf );
 void RB_SetMaterialPolygonOffset( const idMaterial *material, bool portalBody = false );

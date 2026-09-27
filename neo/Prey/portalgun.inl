@@ -1041,8 +1041,20 @@ void hhPlayer::FireGunPortal(int color) {
     if (weapon.IsValid() && PortalGunViewAvailable()) {
         const jointHandle_t joint = weapon->GetAnimator()->GetJointHandle("ValveBiped.Front_Cover");
         idMat3 axis;
-        if (joint != INVALID_JOINT && weapon->idAnimatedEntity::GetJointWorldTransform(joint, gameLocal.time, muzzle, axis))
+        if (joint != INVALID_JOINT && weapon->idAnimatedEntity::GetJointWorldTransform(joint, gameLocal.time, muzzle, axis)) {
             muzzle += idVec3(0,2.2f,2.8f)*axis;
+            // The flight is drawn in the world projection. Reproject its visual
+            // starting point to meet the barrel drawn with the viewmodel FOV.
+            // The eye/crosshair trace above remains the authoritative aim.
+            const float modelFov = weapon->GetRenderEntity()->viewModelFov;
+            if (modelFov > 1.0f && modelFov < 179.0f && renderView) {
+                const float scale = idMath::Tan(DEG2RAD(renderView->fov_y * 0.5f)) /
+                    (0.75f * idMath::Tan(DEG2RAD(modelFov * 0.5f)));
+                const idVec3 relative = muzzle - eye;
+                const idVec3 lateral = relative - firstPersonViewAxis[0] * (relative * firstPersonViewAxis[0]);
+                muzzle += lateral * (scale - 1.0f);
+            }
+        }
     }
     trace_t clearance;
     gameLocal.clip.TracePoint(clearance, eye, muzzle, MASK_SOLID, this);
