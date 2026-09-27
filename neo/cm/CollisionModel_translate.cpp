@@ -277,8 +277,8 @@ void idCollisionModelManagerLocal::TranslateTrmEdgeThroughPolygon( cm_traceWork_
 		}
 
 		// pluecker coordinate for epsilon expanded edge
-		epsPl.FromLine( tw->model->vertices[edge->vertexNum[0]].p + edge->normal * CM_CLIP_EPSILON,
-						tw->model->vertices[edge->vertexNum[1]].p + edge->normal * CM_CLIP_EPSILON );
+		epsPl.FromLine( tw->model->vertices[edge->vertexNum[0]].p - tw->start + edge->normal * CM_CLIP_EPSILON,
+						tw->model->vertices[edge->vertexNum[1]].p - tw->start + edge->normal * CM_CLIP_EPSILON );
 		// calculate collision fraction with epsilon expanded edge
 		if ( !idCollisionModelManagerLocal::TranslateEdgeThroughEdge( trmEdge->cross, trmEdge->pl, epsPl, &f2 ) ) {
 			continue;
@@ -465,7 +465,7 @@ void idCollisionModelManagerLocal::TranslatePointThroughPolygon( cm_traceWork_t 
 			if ( edge->checkcount != idCollisionModelManagerLocal::checkCount ) {
 				float fl;
 				edge->checkcount = idCollisionModelManagerLocal::checkCount;
-				pl.FromLine(tw->model->vertices[edge->vertexNum[0]].p, tw->model->vertices[edge->vertexNum[1]].p);
+				pl.FromLine(tw->model->vertices[edge->vertexNum[0]].p - tw->start, tw->model->vertices[edge->vertexNum[1]].p - tw->start);
 				fl = v->pl.PermutedInnerProduct( pl );
 				edge->side = FLOATSIGNBITSET(fl);
 			}
@@ -631,6 +631,9 @@ bool idCollisionModelManagerLocal::TranslateTrmThroughPolygon( cm_traceWork_t *t
 				return false;
 		}
 
+		// Keep all Pluecker lines relative to the trace start. World-space
+		// cross products lose precision on small features far from the origin.
+		// Positions, planes and returned contacts remain in model space.
 		// calculate pluecker coordinates for the polygon edges and polygon vertices
 		for ( i = 0; i < p->numEdges; i++ ) {
 			edgeNum = p->edges[i];
@@ -640,8 +643,8 @@ bool idCollisionModelManagerLocal::TranslateTrmThroughPolygon( cm_traceWork_t *t
 				e->sideSet = 0;
 			}
 			// pluecker coordinate for edge
-			tw->polygonEdgePlueckerCache[i].FromLine( tw->model->vertices[e->vertexNum[0]].p,
-														tw->model->vertices[e->vertexNum[1]].p );
+			tw->polygonEdgePlueckerCache[i].FromLine( tw->model->vertices[e->vertexNum[0]].p - tw->start,
+														tw->model->vertices[e->vertexNum[1]].p - tw->start );
 
 			v = &tw->model->vertices[e->vertexNum[INTSIGNBITSET(edgeNum)]];
 			// reset sidedness cache if this is the first time we encounter this vertex during this trace
@@ -649,7 +652,7 @@ bool idCollisionModelManagerLocal::TranslateTrmThroughPolygon( cm_traceWork_t *t
 				v->sideSet = 0;
 			}
 			// pluecker coordinate for vertex movement vector
-			tw->polygonVertexPlueckerCache[i].FromRay( v->p, -tw->dir );
+			tw->polygonVertexPlueckerCache[i].FromRay( v->p - tw->start, -tw->dir );
 		}
 		// copy first to last so we can easily cycle through for the edges
 		tw->polygonVertexPlueckerCache[p->numEdges] = tw->polygonVertexPlueckerCache[0];
@@ -888,7 +891,7 @@ void idCollisionModelManagerLocal::Translation( trace_t *results, const idVec3 &
 		tw.numVerts = 1;
 		tw.vertices[0].p = tw.start;
 		tw.vertices[0].endp = tw.vertices[0].p + tw.dir;
-		tw.vertices[0].pl.FromRay( tw.vertices[0].p, tw.dir );
+		tw.vertices[0].pl.FromRay( tw.vertices[0].p - tw.start, tw.dir );
 		tw.numEdges = tw.numPolys = 0;
 		tw.pointTrace = true;
 		// trace through the model
@@ -1011,7 +1014,7 @@ void idCollisionModelManagerLocal::Translation( trace_t *results, const idVec3 &
 		// calculate the end position of each vertex for a full trace
 		vert->endp = vert->p + tw.dir;
 		// pluecker coordinate for vertex movement line
-		vert->pl.FromRay( vert->p, tw.dir );
+		vert->pl.FromRay( vert->p - tw.start, tw.dir );
 	}
 
 	// setup trm edges
@@ -1022,7 +1025,7 @@ void idCollisionModelManagerLocal::Translation( trace_t *results, const idVec3 &
 		// edge start, end and pluecker coordinate
 		edge->start = tw.vertices[edge->vertexNum[0]].p;
 		edge->end = tw.vertices[edge->vertexNum[1]].p;
-		edge->pl.FromLine( edge->start, edge->end );
+		edge->pl.FromLine( edge->start - tw.start, edge->end - tw.start );
 		// calculate normal of plane through movement plane created by the edge
 		dir = edge->start - edge->end;
 		edge->cross[0] = dir[0] * tw.dir[1] - dir[1] * tw.dir[0];

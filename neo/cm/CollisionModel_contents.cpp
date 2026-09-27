@@ -249,8 +249,8 @@ bool idCollisionModelManagerLocal::TestTrmInPolygon( cm_traceWork_t *tw, cm_poly
 			edge->sideSet = 0;
 		}
 		// pluecker coordinate for edge
-		tw->polygonEdgePlueckerCache[i].FromLine( tw->model->vertices[edge->vertexNum[0]].p,
-													tw->model->vertices[edge->vertexNum[1]].p );
+		tw->polygonEdgePlueckerCache[i].FromLine( tw->model->vertices[edge->vertexNum[0]].p - tw->start,
+													tw->model->vertices[edge->vertexNum[1]].p - tw->start );
 		v = &tw->model->vertices[edge->vertexNum[INTSIGNBITSET(edgeNum)]];
 		// reset sidedness cache if this is the first time we encounter this vertex
 		if ( v->checkcount != idCollisionModelManagerLocal::checkCount ) {
@@ -593,7 +593,9 @@ int idCollisionModelManagerLocal::ContentsTrm( trace_t *results, const idVec3 &s
 		// edge start, end and pluecker coordinate
 		tw.edges[i].start = tw.vertices[tw.edges[i].vertexNum[0]].p;
 		tw.edges[i].end = tw.vertices[tw.edges[i].vertexNum[1]].p;
-		tw.edges[i].pl.FromLine( tw.edges[i].start, tw.edges[i].end );
+		// Use the same local origin for both sets of Pluecker lines. At large
+		// map coordinates, world-space cross products lose edge-side precision.
+		tw.edges[i].pl.FromLine( tw.edges[i].start - tw.start, tw.edges[i].end - tw.start );
 	}
 
 	// setup trm polygons
