@@ -771,8 +771,9 @@ bool hhPhysics_Player::RecoverGroundPenetration() {
             reverse.c.entityNum != ENTITYNUM_WORLD || reverse.c.normal * up < MIN_WALK_NORMAL ||
             (reverse.endpos - current.origin).LengthSqr() > 0.75f * 0.75f) continue;
         current.origin = candidate;
-        const float intoFloor = current.velocity * reverse.c.normal;
-        if (intoFloor < 0.0f) current.velocity -= reverse.c.normal * intoFloor;
+        // Embedded hulls can accumulate gravity and the legacy steep-slope
+        // escape impulse without moving. Do not release that stored impulse.
+        current.velocity.Zero();
         clipModel->SetPosition(current.origin, clipModelAxis);
         if (p_playerPhysicsDebug.GetInteger()) gameLocal.Printf("PLAYER_FLOOR_RECOVERY lift=%.2f\n", lift);
         return true;
@@ -802,6 +803,19 @@ void hhPhysics_Player::CheckGround( void ) {
 			groundTrace.c.normal += contacts[i].normal;
 		}
 		groundTrace.c.normal.Normalize();
+        // Rail bevels contribute lateral contacts alongside their flat top.
+        // Averaging those makes a valid standing surface look too steep.
+        if (!IsWallWalking() && !RW_PortalHoldPlayerAxis(self)) {
+            int support = -1;
+            float best = MIN_WALK_NORMAL;
+            for (int j = 0; j < contacts.Num(); ++j) {
+                const float facing = contacts[j].normal * -gravityNormal;
+                if (facing > best && (contacts[j].point-current.origin) * -gravityNormal <= 2.0f) {
+                    best = facing; support = j;
+                }
+            }
+            if (support >= 0) groundTrace.c = contacts[support];
+        }
 	}
 	else {
 		groundTrace.fraction = 1.0f;
