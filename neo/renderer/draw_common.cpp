@@ -767,6 +767,15 @@ void RB_STD_T_RenderShaderPasses( const drawSurf_t *surf ) {
 		}
 
 		// see if we are a new-style stage
+		// Equal-depth stages already inherit the portal cut from the depth
+		// prepass (which uses the alpha-notch texture). Clipping their triangles
+		// again with a hardware plane changes rasterized depth at the new edges,
+		// so coplanar glow can fail GL_EQUAL as the camera turns. Keep geometric
+		// clipping for translucent / postprocess stages that cannot rely on depth.
+		if ( backEnd.viewDef->numClipPlanes ) {
+			RB_SetSubviewClipPlane( !( pStage->drawStateBits & GLS_DEPTHFUNC_EQUAL ), surf );
+		}
+
 		newShaderStage_t *newStage = pStage->newStage;
 		if ( newStage ) {
 			//--------------------------
