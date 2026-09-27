@@ -4770,6 +4770,59 @@ void idAI::GetMuzzle( const char *jointname, idVec3 &muzzle, idMat3 &axis ) {
 
 /*
 ================
+idAI::SetMuzzleFlashShadows
+
+Reawakened: enemy muzzle flashes cast Doom 3 style shadows (retail forced them
+shadowless). Each monster's flash gets its own light id, and the monster, its
+head and attachments suppress their shadows for it, so the shooter never casts
+its own arm and gun across the room. Materials that declare noshadows use a
+"<material>_shadows" copy when one exists. Decided per shot.
+================
+*/
+static idCVar g_npcMuzzleFlashShadows( "g_npcMuzzleFlashShadows", "1", CVAR_GAME | CVAR_BOOL | CVAR_ARCHIVE,
+	"enemy muzzle flashes cast shadows (single player)" );
+static const int LIGHTID_NPC_MUZZLE_FLASH = 0x40000;	// + entityNumber; clear of the player/world ids
+// Retail hunter flashes are 50x35x50 units for 0.02 s (about one frame), too
+// small and brief to show shadows. With enemy flash shadows on, flashes are
+// raised to at least the player's rifle flash; larger flashes are unchanged.
+static const float NPC_MUZZLE_FLASH_MIN_RADIUS = 120.0f;
+static const int NPC_MUZZLE_FLASH_MIN_MSEC = 70;
+
+void idAI::SetMuzzleFlashShadows( void ) {
+	const bool shadows = g_npcMuzzleFlashShadows.GetBool() && !gameLocal.isMultiplayer;
+	worldMuzzleFlash.noShadows = !shadows;
+	worldMuzzleFlash.lightRadius = spawnArgs.GetVector( "flashRadius", "10 10 10" );	// retail size
+	if ( !shadows || !worldMuzzleFlash.shader ) {
+		return;
+	}
+	for ( int i = 0; i < 3; i++ ) {
+		worldMuzzleFlash.lightRadius[i] = Max( worldMuzzleFlash.lightRadius[i], NPC_MUZZLE_FLASH_MIN_RADIUS );
+	}
+	if ( !worldMuzzleFlash.shader->LightCastsShadows() ) {
+		const idMaterial *shadowed = declManager->FindMaterial( va( "%s_shadows", worldMuzzleFlash.shader->GetName() ), false );
+		if ( shadowed ) {
+			worldMuzzleFlash.shader = shadowed;
+		}
+	}
+	const int id = LIGHTID_NPC_MUZZLE_FLASH + entityNumber;
+	worldMuzzleFlash.lightId = id;
+	renderEntity.suppressShadowInLightID = id;
+	idEntity *head = GetHead();
+	if ( head && head->GetRenderEntity()->suppressShadowInLightID != id ) {
+		head->GetRenderEntity()->suppressShadowInLightID = id;
+		head->UpdateVisuals();
+	}
+	for ( int i = 0; i < attachments.Num(); i++ ) {
+		idEntity *ent = attachments[i].ent.GetEntity();
+		if ( ent && ent->GetRenderEntity()->suppressShadowInLightID != id ) {
+			ent->GetRenderEntity()->suppressShadowInLightID = id;
+			ent->UpdateVisuals();
+		}
+	}
+}
+
+/*
+================
 idAI::TriggerWeaponEffects
 ================
 */
@@ -4788,12 +4841,13 @@ void idAI::TriggerWeaponEffects( const idVec3 &muzzle, const idMat3 &axis ) {
 	worldMuzzleFlash.origin = muzzle - axis*worldMuzzleFlash.lightCenter;
 	worldMuzzleFlash.axis = axis;
 	worldMuzzleFlash.shaderParms[SHADERPARM_TIMEOFFSET] = -MS2SEC( gameLocal.time );
+	SetMuzzleFlashShadows();
 	if ( worldMuzzleFlashHandle != - 1 ) {
 		gameRenderWorld->UpdateLightDef( worldMuzzleFlashHandle, &worldMuzzleFlash );
 	} else {
 		worldMuzzleFlashHandle = gameRenderWorld->AddLightDef( &worldMuzzleFlash );
 	}
-	muzzleFlashEnd = gameLocal.time + flashTime;
+	muzzleFlashEnd = gameLocal.time + ( worldMuzzleFlash.noShadows ? flashTime : Max( flashTime, NPC_MUZZLE_FLASH_MIN_MSEC ) );
 	UpdateVisuals();
 }
 

@@ -614,6 +614,7 @@ protected:
 	void					GetMuzzle( const char *jointname, idVec3 &muzzle, idMat3 &axis );
 	void					InitMuzzleFlash( void );
 	void					TriggerWeaponEffects( const idVec3 &muzzle, const idMat3 &axis );
+	void					SetMuzzleFlashShadows( void );
 	virtual // HUMANHEAD JRM
 	void					UpdateMuzzleFlash( void );
 	virtual bool			UpdateAnimationControllers( void );
