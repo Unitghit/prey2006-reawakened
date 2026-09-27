@@ -25,6 +25,13 @@ Cherokee. New saves should be played with the updated build. Session state is
 retained across level transitions and cleared on fresh map startup with no
 persistent player information, before applying the launcher override.
 
+Campaign transitions explicitly carry `rw_campaignDifficulty` in persistent
+player information. The destination restores both adaptive mode and g_wicked
+before map entities spawn, even with the launcher returned to respect-save.
+The target_endLevel regression covers a saved Adaptive Cherokee transition and
+an Adaptive Hard transition: scales remain 0.75/0.5, and health spore/basin
+entities are respectively removed/retained.
+
 `difficultyInfo` reports the active flags and effective scale. In developer mode
 its optional numeric argument injects a DDA test value; ordinary gameplay
 recalculates adaptive difficulty on the next update.

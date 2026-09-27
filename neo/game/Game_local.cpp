@@ -710,6 +710,9 @@ const idDict &idGameLocal::GetPersistentPlayerInfo( int clientNum ) {
 	ent = entities[ clientNum ];
 	if ( ent && ent->IsType( idPlayer::Type ) ) {
 		static_cast<idPlayer *>(ent)->SavePersistantInfo();
+		// Carry the selected save difficulty explicitly through campaign loads.
+		persistentPlayerInfo[clientNum].SetInt("rw_campaignDifficulty",
+			g_adaptiveDifficulty.GetInteger() ? 2 + g_adaptiveDifficulty.GetInteger() : g_wicked.GetInteger());
 	}
 
 	return persistentPlayerInfo[ clientNum ];
@@ -1404,7 +1407,11 @@ void idGameLocal::InitFromNewMap( const char *mapName, idRenderWorld *renderWorl
 	LoadMap( mapName, randseed );
 
     if (!isMultiplayer) {
-        if (!persistentPlayerInfo[0].GetNumKeyVals()) g_adaptiveDifficulty.SetInteger(0);
+        const int carriedMode = persistentPlayerInfo[0].GetInt("rw_campaignDifficulty", "-1");
+        if (carriedMode >= 0) {
+            g_adaptiveDifficulty.SetInteger(carriedMode == 3 ? 1 : carriedMode == 4 ? 2 : 0);
+            g_wicked.SetBool(carriedMode == 1 || carriedMode == 4);
+        } else if (!persistentPlayerInfo[0].GetNumKeyVals()) g_adaptiveDifficulty.SetInteger(0);
         const int mode = g_forceCherokee.GetInteger();
         if (mode) {
             g_adaptiveDifficulty.SetInteger(mode >= 3 ? mode - 2 : 0);
