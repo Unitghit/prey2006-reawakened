@@ -177,6 +177,63 @@ void	RB_ARB2_DrawInteraction( const drawInteraction_t *din ) {
 }
 
 
+void RB_ARB2_DrawCustomInteraction(const drawInteraction_t *inter, const shaderStage_t *stage, const float *lightColor) {
+	const newShaderStage_t *program = stage->newStage;
+	const float *regs = inter->surf->shaderRegisters;
+	qglBindProgramARB(GL_VERTEX_PROGRAM_ARB, program->vertexProgram);
+	qglBindProgramARB(GL_FRAGMENT_PROGRAM_ARB, program->fragmentProgram);
+	qglProgramEnvParameter4fvARB(GL_VERTEX_PROGRAM_ARB, PP_LIGHT_ORIGIN, inter->localLightOrigin.ToFloatPtr());
+	qglProgramEnvParameter4fvARB(GL_VERTEX_PROGRAM_ARB, PP_VIEW_ORIGIN, inter->localViewOrigin.ToFloatPtr());
+	for (int i = 0; i < 4; ++i)
+		qglProgramEnvParameter4fvARB(GL_VERTEX_PROGRAM_ARB, PP_LIGHT_PROJECT_S + i, inter->lightProjection[i].ToFloatPtr());
+	idImage *unusedImage;
+	idVec4 textureMatrix[2];
+	R_SetDrawInteraction(stage, regs, &unusedImage, textureMatrix, NULL);
+	for (int i = 0; i < 6; ++i)
+		qglProgramEnvParameter4fvARB(GL_VERTEX_PROGRAM_ARB, PP_BUMP_MATRIX_S + i, textureMatrix[i & 1].ToFloatPtr());
+	const float packed[4] = {stage->vertexColor == SVC_IGNORE ? 0.0f : (stage->vertexColor == SVC_MODULATE ? 1.0f : -1.0f), stage->vertexColor == SVC_MODULATE ? 0.0f : 1.0f, 0, 0}, zero[4] = {0,0,0,0};
+	qglProgramEnvParameter4fvARB(GL_VERTEX_PROGRAM_ARB, PP_COLOR_MODULATE, packed);
+	qglProgramEnvParameter4fvARB(GL_VERTEX_PROGRAM_ARB, PP_COLOR_ADD, zero);
+	float color[4];
+	for (int i = 0; i < 4; ++i) color[i] = lightColor[i] * idMath::ClampFloat(0, 1, regs[stage->color.registers[i]]);
+	qglProgramEnvParameter4fvARB(GL_FRAGMENT_PROGRAM_ARB, 0, color);
+	qglProgramEnvParameter4fvARB(GL_FRAGMENT_PROGRAM_ARB, 1, color);
+	const float gamma[4] = {r_brightness.GetFloat(),r_brightness.GetFloat(),r_brightness.GetFloat(),1.0f/r_gamma.GetFloat()};
+	qglProgramEnvParameter4fvARB(GL_FRAGMENT_PROGRAM_ARB, PP_GAMMA_BRIGHTNESS, gamma);
+	for (int i = 0; i < 5; ++i) {
+		idPlane plane(0,0,0,1);
+		if (i < backEnd.vLight->portalLightClipCount)
+			R_GlobalPlaneToLocal(inter->surf->space->modelMatrix, backEnd.vLight->portalLightClipPlanes[i], plane);
+		qglProgramEnvParameter4fvARB(GL_FRAGMENT_PROGRAM_ARB, 22+i, plane.ToFloatPtr());
+	}
+	for (int i = 0; i < MAX_VERTEX_PARMS; ++i) {
+		float parm[4] = {0,0,0,0};
+		if (i < program->numVertexParms)
+			for (int j = 0; j < 4; ++j) parm[j] = regs[program->vertexParms[i][j]];
+		qglProgramLocalParameter4fvARB(GL_VERTEX_PROGRAM_ARB, i, parm);
+	}
+	for (int i = 0; i < MAX_FRAGMENT_PARMS; ++i) {
+		float parm[4] = {0,0,0,0};
+		if (i < program->numFragmentParms)
+			for (int j = 0; j < 4; ++j) parm[j] = regs[program->fragmentParms[i][j]];
+		qglProgramLocalParameter4fvARB(GL_FRAGMENT_PROGRAM_ARB, i, parm);
+	}
+	for (int i = 0; i < MAX_FRAGMENT_IMAGES; ++i) {
+		GL_SelectTextureNoClient(i);
+		idImage *image = program->fragmentProgramImages[i];
+		if (i == 2) image = inter->lightFalloffImage;
+		if (i == 3) image = inter->lightImage;
+		if (!image) image = i == 0 ? globalImages->normalCubeMapImage : globalImages->blackImage;
+		image->Bind();
+	}
+	RB_DrawElementsWithCounters(inter->surf->geo);
+	GL_SelectTextureNoClient(7); globalImages->BindNull();
+	GL_SelectTextureNoClient(6); globalImages->specularTableImage->Bind();
+	GL_SelectTextureNoClient(0); globalImages->normalCubeMapImage->Bind();
+	qglBindProgramARB(GL_VERTEX_PROGRAM_ARB, interactionVP);
+	qglBindProgramARB(GL_FRAGMENT_PROGRAM_ARB, interactionFP);
+}
+
 /*
 =============
 RB_ARB2_CreateDrawInteractions
@@ -391,6 +448,14 @@ typedef struct {
 
 static	const int	MAX_GLPROGS = 200;
 
+static bool programLoaded[MAX_GLPROGS];
+static bool RetailInteractionName(const char *name) {
+	return !idStr::Icmp(name, "skin.vfp") || !idStr::Icmp(name, "cloth.vfp")
+		|| !idStr::Icmp(name, "hair.vfp") || !idStr::Icmp(name, "interactionMasked.vfp")
+		|| !idStr::Icmp(name, "parallax.vfp") || !idStr::Icmp(name, "interactionexp.vfp")
+		|| !idStr::Icmp(name, "interactionLiquid.vfp") || !idStr::Icmp(name, "atmosphere.vfp");
+}
+
 // a single file can have both a vertex program and a fragment program
 static progDef_t	progs[MAX_GLPROGS] = {
 	{ GL_VERTEX_PROGRAM_ARB, VPROG_INTERACTION, "interaction.vfp" },
@@ -473,6 +538,7 @@ static ID_INLINE bool isARBidentifierChar( int c ) {
 }
 
 void R_LoadARBProgram( int progIndex ) {
+	programLoaded[progIndex] = false;
 	int		ofs;
 	int		err;
 	idStr	fullPath = "glprogs/";
@@ -653,7 +719,7 @@ void R_LoadARBProgram( int progIndex ) {
     // The six stock interaction variants leave texcoord 7 unused. Keep the
     // position local to avoid precision loss far from the world origin.
     idStr apertureProgram;
-    if (progs[progIndex].ident >= VPROG_PORTAL_BASE && progs[progIndex].ident <= FPROG_PORTAL_ALL) {
+    if ((progs[progIndex].ident >= VPROG_PORTAL_BASE && progs[progIndex].ident <= FPROG_PORTAL_ALL) || RetailInteractionName(progs[progIndex].name)) {
         apertureProgram = start;
         const char *instructions = progs[progIndex].target == GL_VERTEX_PROGRAM_ARB ?
             "MOV result.texcoord[7], vertex.position;\nEND" :
@@ -693,6 +759,7 @@ void R_LoadARBProgram( int progIndex ) {
 		return;
 	}
 
+	programLoaded[progIndex] = true;
 	common->Printf( "\n" );
 }
 
@@ -704,6 +771,18 @@ Returns a GL identifier that can be bound to the given target, parsing
 a text file if it hasn't already been loaded.
 ==================
 */
+bool RB_ARB2_CustomInteractionSupported(const shaderStage_t *stage) {
+	if (!stage->newStage || stage->lighting != SL_SHADER || r_skipNewAmbient.GetBool()
+		|| stage->shaderLevel > r_shaderlevel.GetInteger()) return false;
+	if (globalImages->image_useNormalCompression.GetInteger() == 1) return false;
+	const int vertex = stage->newStage->vertexProgram - PROG_USER;
+	const int fragment = stage->newStage->fragmentProgram - PROG_USER;
+	return vertex >= 0 && vertex < MAX_GLPROGS && fragment >= 0 && fragment < MAX_GLPROGS
+		&& programLoaded[vertex] && programLoaded[fragment]
+		&& progs[vertex].target == GL_VERTEX_PROGRAM_ARB && progs[fragment].target == GL_FRAGMENT_PROGRAM_ARB
+		&& RetailInteractionName(progs[vertex].name) && RetailInteractionName(progs[fragment].name);
+}
+
 int R_FindARBProgram( GLenum target, const char *program ) {
 	int		i;
 	idStr	stripped = program;

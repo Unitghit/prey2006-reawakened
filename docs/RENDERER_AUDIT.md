@@ -157,3 +157,39 @@ retail-matched corona/jitter deformation, full custom lighting programs and
 quality-stage selection, and verified highres semantics. Existing lighting
 fallbacks remain active. No claim is made that all missing renderer features
 identified in this audit are implemented.
+
+## Custom-lighting and deformation implementation
+
+The ARB2 per-light path now binds the authored skin, cloth, hair,
+interactionMasked, parallax, interactionexp, interactionLiquid, and atmosphere
+programs. These are all eight `blend shader` program families in the audited
+retail set (the liquid reflection/refraction program is a separate ambient pass).
+Each draw supplies local light/view origins, projected-light planes, light
+textures, authored maps and local parameters, stage colors and texture matrices.
+The existing stencil shadow pass applies. Injected aperture tests keep projected
+portal lights within their five clip planes; program state and extra texture
+bindings are restored after each draw. The normal-map path uses the renderer's
+existing RXGB loading policy. Palette normal maps retain conventional fallbacks.
+
+Per-light shaderLevel / shaderFallback selection is now functional. A complete
+active custom group must compile successfully before its fallback group is
+suppressed. Ambient lights, unsupported programs and diagnostic light overrides
+retain the conventional light stages. Custom-only atmosphere now participates
+in lighting rather than drawing an ambient overlay with stale state. This does
+not change the separate ambient-program quality-selection implementation.
+
+Corona and jitter now parse and evaluate their material expressions and dispatch
+to real deformations. Behavior was reconstructed from a local retail capture:
+corona routine at 0x4db380, jitter at 0x4d7d50 (capture base 0x400000). Corona
+checks a radius-1 visibility trace to the authored center and builds a view-facing
+quad 10 local units from the viewer, with half-size twice the expression. Jitter
+uses paired +/- translation bits, three 1.1 scale bits, and bit 4096 to double
+the translation. It is deterministic and copies all vertex attributes. No retail
+binary, disassembly or shader source is included in this commit.
+
+Authored fixtures and validation details: `tools/tests/material_effects/README.md`.
+Release engine and game module build, all eight shader fixtures, corona size and
+distance measurements, jitter axis measurement, quality fallback, private
+save/reload, nested projected lighter views and the sun scene passed. No claim
+of pixel-perfect comparison across every retail material or a performance gain.
+Malformed ASE validation and highres semantics remain separate audit work.

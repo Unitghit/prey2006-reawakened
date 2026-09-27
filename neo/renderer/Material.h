@@ -227,6 +227,8 @@ typedef struct {
 
 typedef struct {
 	int					conditionRegister;	// if registers[conditionRegister] == 0, skip stage
+	int shaderLevel;
+	int shaderFallback;
 	stageLighting_t		lighting;			// determines which passes interact with lights
 	int					drawStateBits;
 	colorStage_t		color;

@@ -748,6 +748,8 @@ idMaterial::ClearStage
 ===============
 */
 void idMaterial::ClearStage( shaderStage_t *ss ) {
+	ss->shaderLevel = 0;
+	ss->shaderFallback = 0;
 	ss->drawStateBits = 0;
 	// Retail Prey ClearStage defaults (22, 1.4).
 	ss->specular.exponent = 22.0f;
@@ -876,8 +878,8 @@ void idMaterial::ParseBlend( idLexer &src, shaderStage_t *stage ) {
 		// Retail per-light programs (skin, cloth, masked interactions) consume
 		// light origins, projections and texture units supplied by an interaction
 		// pass. They must never run as ambient overlays with stale light state.
-		// Until custom interactions are supported, the authored shaderFallback
-		// bump/diffuse/specular stages provide the lit surface.
+		// Custom interactions run in the per-light backend; authored shaderFallback
+		// stages remain available for lower quality and unsupported programs.
 		stage->lighting = SL_SHADER;
 		stage->drawStateBits = GLS_SRCBLEND_ONE | GLS_DSTBLEND_ONE;
 		return;
@@ -1636,14 +1638,17 @@ void idMaterial::ParseStage( idLexer &src, const textureRepeat_t trpDefault ) {
 		}
 
 		if ( !token.Icmp( "shaderFallback3" ) ) {
+			ss->shaderFallback = 3;
 			continue;
 		}
 
 		if ( !token.Icmp( "shaderFallback2" ) ) {
+			ss->shaderFallback = 2;
 			continue;
 		}
 
 		if ( !token.Icmp( "shaderFallback1" ) ) {
+			ss->shaderFallback = 1;
 			continue;
 		}
 
@@ -1664,20 +1669,20 @@ void idMaterial::ParseStage( idLexer &src, const textureRepeat_t trpDefault ) {
 		}
 
 		if ( !token.Icmp( "shaderLevel1" ) ) {
+			ss->shaderLevel = 1;
 			continue;
 		}
 
 		if ( !token.Icmp( "shaderLevel2" ) ) {
+			ss->shaderLevel = 2;
 			continue;
 		}
 
 		if ( !token.Icmp( "shaderLevel3" ) ) {
+			ss->shaderLevel = 3;
 			continue;
 		}
 
-		if ( !token.Icmp( "shaderLevel1" ) ) {
-			continue;
-		}
 
 		if ( !token.Icmp( "shuttleView" ) ) {
 			ss->isShuttleView = true;
@@ -1831,15 +1836,15 @@ void idMaterial::ParseDeform( idLexer &src ) {
 		return;
 	}
 	if ( !token.Icmp( "corona" ) ) {
+		deform = DFRM_CORONA;
+		deformRegisters[0] = ParseExpression( src );
 		cullType = CT_TWO_SIDED;
-		src.SkipRestOfLine();
 		SetMaterialFlag( MF_NOSHADOWS );
 		return;
 	}
 	if ( !token.Icmp( "jitter" ) ) {
-		cullType = CT_TWO_SIDED;
-		src.SkipRestOfLine();
-		SetMaterialFlag( MF_NOSHADOWS );
+		deform = DFRM_JITTER;
+		deformRegisters[0] = ParseExpression( src );
 		return;
 	}
 	if ( !token.Icmp( "beam" ) ) {
@@ -2428,23 +2433,6 @@ bool idMaterial::Parse( const char *text, const int textLength ) {
 
 	// parse it
 	ParseMaterial( src );
-
-	// This renderer has no custom per-light program backend yet. Suppress
-	// unsupported interaction overlays only when the material has its own lit
-	// fallback. Preserve legacy rendering for program-only effects (for example
-	// the outro atmosphere) rather than making them disappear in this fix.
-	bool hasLitFallback = false;
-	for ( int stage = 0; stage < numStages; ++stage ) {
-		const stageLighting_t lighting = pd->parseStages[stage].lighting;
-		hasLitFallback |= lighting == SL_DIFFUSE || lighting == SL_SPECULAR;
-	}
-	if ( !hasLitFallback ) {
-		for ( int stage = 0; stage < numStages; ++stage ) {
-			if ( pd->parseStages[stage].lighting == SL_SHADER ) {
-				pd->parseStages[stage].lighting = SL_AMBIENT;
-			}
-		}
-	}
 
 	// if we are doing an fs_copyfiles, also reference the editorImage
 	if ( cvarSystem->GetCVarInteger( "fs_copyFiles" ) ) {

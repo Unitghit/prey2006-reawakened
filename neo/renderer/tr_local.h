@@ -1820,4 +1820,11 @@ void R_DoneFreeType();
 // Invalidate temporal portal images on map/save reloads and GL restart.
 void R_ClearPortalHistory();
 
+void R_SetDrawInteraction(const shaderStage_t *stage, const float *regs, idImage **image, idVec4 matrix[2], float color[4]);
+
+// Validated retail interaction programs, rendered only by the ARB2 light pass.
+bool RB_ARB2_CustomInteractionSupported(const shaderStage_t *stage);
+void RB_ARB2_DrawCustomInteraction(const drawInteraction_t *inter, const shaderStage_t *stage, const float *lightColor);
+void RB_ARB2_DrawInteraction(const drawInteraction_t *inter);
+
 #endif /* !__TR_LOCAL_H__ */

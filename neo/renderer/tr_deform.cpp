@@ -64,6 +64,78 @@ static void R_FinishDeform( drawSurf_t *drawSurf, srfTriangles_t *newTri, idDraw
 	}
 }
 
+// Retail jitter encodes axis offsets/scales as bits in the material expression.
+// It is a rigid model-space change, not independently randomized vertices.
+static void R_JitterDeform( drawSurf_t *surf ) {
+	const srfTriangles_t *tri = surf->geo;
+	const int bits = (int)surf->shaderRegisters[surf->material->GetDeformRegister(0)];
+	idVec3 offset(0, 0, 0), scale(1, 1, 1);
+	for (int axis = 0; axis < 3; ++axis) {
+		if (bits & (1 << (axis * 2))) offset[axis] = 1;
+		if (bits & (2 << (axis * 2))) offset[axis] = -1;
+		if (bits & (64 << axis)) scale[axis] = 1.1f;
+	}
+	if (bits & 4096) offset *= 2.0f;
+	srfTriangles_t *newTri = (srfTriangles_t *)R_ClearedFrameAlloc(sizeof(*newTri));
+	newTri->numVerts = tri->numVerts;
+	newTri->numIndexes = tri->numIndexes;
+	newTri->indexes = tri->indexes;
+	idDrawVert *ac = (idDrawVert *)R_FrameAlloc(tri->numVerts * sizeof(idDrawVert));
+	for (int i = 0; i < tri->numVerts; ++i) {
+		ac[i] = tri->verts[i];
+		for (int axis = 0; axis < 3; ++axis)
+			ac[i].xyz[axis] = ac[i].xyz[axis] * scale[axis] + offset[axis];
+	}
+	R_FinishDeform(surf, newTri, ac);
+}
+
+// Retail coronas occupy a fixed viewing distance, with expression-controlled
+// angular size. Test occlusion at the authored position before relocating them.
+static void R_CoronaDeform( drawSurf_t *surf ) {
+	const srfTriangles_t *tri = surf->geo;
+	if (!tri->numVerts || (tri->numVerts & 3) ||
+		tri->numIndexes != (tri->numVerts / 4) * 6) return;
+	idVec3 center(0, 0, 0), worldCenter, localViewer, left, up;
+	for (int i = 0; i < tri->numVerts; ++i) center += tri->verts[i].xyz;
+	center /= (float)tri->numVerts;
+	R_LocalPointToGlobal(surf->space->modelMatrix, center, worldCenter);
+	modelTrace_t trace;
+	tr.viewDef->renderWorld->Trace(trace, tr.viewDef->renderView.vieworg, worldCenter, 1.0f, true, false);
+	if (trace.fraction < 1.0f) return;
+	R_GlobalPointToLocal(surf->space->modelMatrix, tr.viewDef->renderView.vieworg, localViewer);
+	R_GlobalVectorToLocal(surf->space->modelMatrix, tr.viewDef->renderView.viewaxis[1], left);
+	R_GlobalVectorToLocal(surf->space->modelMatrix, tr.viewDef->renderView.viewaxis[2], up);
+	if (tr.viewDef->isMirror) left = -left;
+	const float size = 2.0f * surf->shaderRegisters[surf->material->GetDeformRegister(0)];
+	left *= size;
+	up *= size;
+	srfTriangles_t *newTri = (srfTriangles_t *)R_ClearedFrameAlloc(sizeof(*newTri));
+	newTri->numVerts = tri->numVerts;
+	newTri->numIndexes = tri->numIndexes;
+	newTri->indexes = (glIndex_t *)R_FrameAlloc(tri->numIndexes * sizeof(glIndex_t));
+	idDrawVert *ac = (idDrawVert *)R_FrameAlloc(tri->numVerts * sizeof(idDrawVert));
+	for (int i = 0; i < tri->numVerts; i += 4) {
+		idVec3 mid(0, 0, 0);
+		for (int j = 0; j < 4; ++j) mid += tri->verts[i+j].xyz;
+		idVec3 direction = mid * 0.25f - localViewer;
+		direction.Normalize();
+		mid = localViewer + direction * 10.0f;
+		for (int j = 0; j < 4; ++j) {
+			ac[i+j].Clear();
+			memset(ac[i+j].color, 255, sizeof(ac[i+j].color));
+		}
+		ac[i+0].xyz = mid + left + up; ac[i+0].st.Set(0, 0);
+		ac[i+1].xyz = mid - left + up; ac[i+1].st.Set(1, 0);
+		ac[i+2].xyz = mid - left - up; ac[i+2].st.Set(1, 1);
+		ac[i+3].xyz = mid + left - up; ac[i+3].st.Set(0, 1);
+		const int first = (i / 4) * 6;
+		newTri->indexes[first+0] = i; newTri->indexes[first+1] = i+1;
+		newTri->indexes[first+2] = i+2; newTri->indexes[first+3] = i;
+		newTri->indexes[first+4] = i+2; newTri->indexes[first+5] = i+3;
+	}
+	R_FinishDeform(surf, newTri, ac);
+}
+
 /*
 =====================
 R_AutospriteDeform
@@ -1084,6 +1156,12 @@ void R_DeformDrawSurf( drawSurf_t *drawSurf ) {
 	switch ( drawSurf->material->Deform() ) {
 	case DFRM_NONE:
 		return;
+	case DFRM_CORONA:
+		R_CoronaDeform(drawSurf);
+		break;
+	case DFRM_JITTER:
+		R_JitterDeform(drawSurf);
+		break;
 	case DFRM_SPRITE:
 		R_AutospriteDeform( drawSurf );
 		break;

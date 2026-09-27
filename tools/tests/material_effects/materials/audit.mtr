@@ -1,0 +1,163 @@
+textures/audit/deform { twosided noshadows { map _white color 0, 1, 0, 1 } }
+audit/jitter { twosided noshadows deform jitter parm4 { map _white color 0, 1, 0, 1 } }
+audit/corona { deform corona parm4 { map _white color 0, 1, 0, 1 } }
+
+audit/skin {
+ twosided noshadows
+ { shaderFallback3 blend diffusemap map _white }
+ { shaderFallback3 blend bumpmap map _flat }
+ { shaderLevel3 blend shader program skin.vfp
+ fragmentparm 0 1, 0, 0, 0
+ fragmentparm 1 0.2, 0.4, 0.6, 1
+ fragmentparm 2 0.5, 0.5, 0.5, 1
+ fragmentparm 3 1
+ fragmentparm 4 0.2, 0.2, 0.2, 8
+ fragmentparm 5 0.1, 0.1, 0.1, 4
+ fragmentparm 6 0
+ fragmentmap 1 _flat
+ fragmentmap 4 _white
+ fragmentmap 5 _white
+ fragmentmap 6 _white
+ fragmentmap 7 _white
+ }
+}
+
+audit/cloth {
+ twosided noshadows
+ { shaderFallback3 blend diffusemap map _white }
+ { shaderFallback3 blend bumpmap map _flat }
+ { shaderLevel3 blend shader program cloth.vfp
+ fragmentparm 0 1, 0, 0, 0
+ fragmentparm 1 0.2, 0.4, 0.6, 1
+ fragmentparm 2 0.5, 0.5, 0.5, 1
+ fragmentparm 3 1
+ fragmentparm 4 0.2, 0.2, 0.2, 8
+ fragmentparm 5 0.1, 0.1, 0.1, 4
+ fragmentparm 6 0
+ fragmentmap 1 _flat
+ fragmentmap 4 _white
+ fragmentmap 5 _white
+ fragmentmap 6 _white
+ fragmentmap 7 _white
+ }
+}
+
+audit/hair {
+ twosided noshadows
+ { shaderFallback3 blend diffusemap map _white }
+ { shaderFallback3 blend bumpmap map _flat }
+ { shaderLevel3 blend shader program hair.vfp
+ fragmentparm 0 1, 0, 0, 0
+ fragmentparm 1 0.2, 0.4, 0.6, 1
+ fragmentparm 2 0.5, 0.5, 0.5, 1
+ fragmentparm 3 1
+ fragmentparm 4 0.2, 0.2, 0.2, 8
+ fragmentparm 5 0.1, 0.1, 0.1, 4
+ fragmentparm 6 0
+ fragmentmap 1 _flat
+ fragmentmap 4 _white
+ fragmentmap 5 _white
+ fragmentmap 6 _white
+ fragmentmap 7 _white
+ }
+}
+
+audit/interactionMasked {
+ twosided noshadows
+ { shaderFallback3 blend diffusemap map _white }
+ { shaderFallback3 blend bumpmap map _flat }
+ { shaderLevel3 blend shader program interactionMasked.vfp
+ fragmentparm 0 1, 0, 0, 0
+ fragmentparm 1 0.2, 0.4, 0.6, 1
+ fragmentparm 2 0.5, 0.5, 0.5, 1
+ fragmentparm 3 1
+ fragmentparm 4 0.2, 0.2, 0.2, 8
+ fragmentparm 5 0.1, 0.1, 0.1, 4
+ fragmentparm 6 0
+ fragmentmap 1 _flat
+ fragmentmap 4 _white
+ fragmentmap 5 _white
+ fragmentmap 6 _white
+ fragmentmap 7 _white
+ }
+}
+
+audit/parallax {
+ twosided noshadows
+ { shaderFallback3 blend diffusemap map _white }
+ { shaderFallback3 blend bumpmap map _flat }
+ { shaderLevel3 blend shader program parallax.vfp
+ fragmentparm 0 1, 0, 0, 0
+ fragmentparm 1 0.2, 0.4, 0.6, 1
+ fragmentparm 2 0.5, 0.5, 0.5, 1
+ fragmentparm 3 1
+ fragmentparm 4 0.2, 0.2, 0.2, 8
+ fragmentparm 5 0.1, 0.1, 0.1, 4
+ fragmentparm 6 0
+ fragmentmap 1 _flat
+ fragmentmap 4 _white
+ fragmentmap 5 _white
+ fragmentmap 6 _white
+ fragmentmap 7 _white
+ }
+}
+
+audit/interactionexp {
+ twosided noshadows
+ { shaderFallback3 blend diffusemap map _white }
+ { shaderFallback3 blend bumpmap map _flat }
+ { shaderLevel3 blend shader program interactionexp.vfp
+ fragmentparm 0 1, 0, 0, 0
+ fragmentparm 1 0.2, 0.4, 0.6, 1
+ fragmentparm 2 0.5, 0.5, 0.5, 1
+ fragmentparm 3 1
+ fragmentparm 4 0.2, 0.2, 0.2, 8
+ fragmentparm 5 0.1, 0.1, 0.1, 4
+ fragmentparm 6 0
+ fragmentmap 1 _flat
+ fragmentmap 4 _white
+ fragmentmap 5 _white
+ fragmentmap 6 _white
+ fragmentmap 7 _white
+ }
+}
+
+audit/interactionLiquid {
+ twosided noshadows
+ { shaderFallback3 blend diffusemap map _white }
+ { shaderFallback3 blend bumpmap map _flat }
+ { shaderLevel3 blend shader program interactionLiquid.vfp
+ fragmentparm 0 1, 0, 0, 0
+ fragmentparm 1 0.2, 0.4, 0.6, 1
+ fragmentparm 2 0.5, 0.5, 0.5, 1
+ fragmentparm 3 1
+ fragmentparm 4 0.2, 0.2, 0.2, 8
+ fragmentparm 5 0.1, 0.1, 0.1, 4
+ fragmentparm 6 0
+ fragmentmap 1 _flat
+ fragmentmap 4 _white
+ fragmentmap 5 _white
+ fragmentmap 6 _white
+ fragmentmap 7 _white
+ }
+}
+
+audit/atmosphere {
+ twosided noshadows
+ { shaderFallback3 blend diffusemap map _white }
+ { shaderFallback3 blend bumpmap map _flat }
+ { shaderLevel3 blend shader program atmosphere.vfp
+ fragmentparm 0 1, 0, 0, 0
+ fragmentparm 1 0.2, 0.4, 0.6, 1
+ fragmentparm 2 0.5, 0.5, 0.5, 1
+ fragmentparm 3 1
+ fragmentparm 4 0.2, 0.2, 0.2, 8
+ fragmentparm 5 0.1, 0.1, 0.1, 4
+ fragmentparm 6 0
+ fragmentmap 1 _flat
+ fragmentmap 4 _white
+ fragmentmap 5 _white
+ fragmentmap 6 _white
+ fragmentmap 7 _white
+ }
+}

@@ -855,12 +855,36 @@ void RB_CreateSingleDrawInteractions( const drawSurf_t *surf, void (*DrawInterac
             for (int c = 0; c < 3; ++c) lightColor[c] *= weight;
         }
 
+		// Select custom programs as a group: incomplete groups retain all authored
+		// fallbacks. Ambient lights use the conventional ambient-normal path.
+		bool custom = DrawInteraction == RB_ARB2_DrawInteraction && !inter.ambientLight
+			&& !r_skipDiffuse.GetBool() && !r_skipSpecular.GetBool() && !r_skipBump.GetBool()
+			&& !vLight->noSpecular;
+		bool foundCustom = false;
+		for (int n = 0; n < surfaceShader->GetNumStages(); ++n) {
+			const shaderStage_t *stage = surfaceShader->GetStage(n);
+			if (stage->lighting != SL_SHADER || !surfaceRegs[stage->conditionRegister]) continue;
+			foundCustom = true;
+			custom &= RB_ARB2_CustomInteractionSupported(stage);
+		}
+		custom &= foundCustom;
+		if (custom) {
+			for (int n = 0; n < surfaceShader->GetNumStages(); ++n) {
+				const shaderStage_t *stage = surfaceShader->GetStage(n);
+				if (stage->lighting == SL_SHADER && surfaceRegs[stage->conditionRegister])
+					RB_ARB2_DrawCustomInteraction(&inter, stage, lightColor);
+			}
+		}
+
 		// go through the individual stages
 		for ( int surfaceStageNum = 0 ; surfaceStageNum < surfaceShader->GetNumStages() ; surfaceStageNum++ ) {
 			const shaderStage_t	*surfaceStage = surfaceShader->GetStage( surfaceStageNum );
 
+			if (surfaceStage->shaderLevel > r_shaderlevel.GetInteger()) continue;
+			if (custom && surfaceStage->shaderFallback > 0 && surfaceStage->shaderFallback <= r_shaderlevel.GetInteger()) continue;
+
 			switch( surfaceStage->lighting ) {
-				case SL_SHADER: // Use authored fallback stages until custom interactions are supported.
+				case SL_SHADER: // Already submitted above, or replaced by authored fallbacks.
 				case SL_AMBIENT: {
 					// ignore ambient stages while drawing interactions
 					break;

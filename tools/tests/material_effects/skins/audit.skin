@@ -1,0 +1,10 @@
+audit/jitter { textures/audit/deform audit/jitter }
+audit/corona { textures/audit/deform audit/corona }
+audit/skin { textures/audit/deform audit/skin }
+audit/cloth { textures/audit/deform audit/cloth }
+audit/hair { textures/audit/deform audit/hair }
+audit/interactionMasked { textures/audit/deform audit/interactionMasked }
+audit/parallax { textures/audit/deform audit/parallax }
+audit/interactionexp { textures/audit/deform audit/interactionexp }
+audit/interactionLiquid { textures/audit/deform audit/interactionLiquid }
+audit/atmosphere { textures/audit/deform audit/atmosphere }
