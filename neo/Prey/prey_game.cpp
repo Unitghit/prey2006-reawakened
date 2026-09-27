@@ -1336,6 +1336,7 @@ bool hhGameLocal::Draw( int clientNum ) {
     ApplyNPCPortalBodies(*view, bodyRestore);
     ApplyPortalWeaponLighting(player, *view, adjustedLights);
     ApplyPortalLighter(player, stalePortalView ? savedView : authoritativeView, *view, adjustedLights);
+    ApplyPortalMuzzleFlash(player, *view);
 	// render the scene
 	// HUMANHEAD pdm: added case of vehicle determining the player hud
 	if (player->InVehicle()) {

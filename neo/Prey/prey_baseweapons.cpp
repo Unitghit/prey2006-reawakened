@@ -2586,6 +2586,14 @@ void hhWeapon::FillDebugVars(idDict *args, int page) {
 	}
 }
 
+// Muzzle flash lights only (primary and alternate fire), for portal copies.
+void hhWeapon::GetMuzzleFlashHandles(idList<int> &handles) const {
+    if (fireController && fireController->GetPresentationLightHandle() >= 0)
+        handles.Append(fireController->GetPresentationLightHandle());
+    if (altFireController && altFireController->GetPresentationLightHandle() >= 0)
+        handles.AddUnique(altFireController->GetPresentationLightHandle());
+}
+
 // Read-only renderer handles: presentation never changes light lifetimes.
 void hhWeapon::GetPresentationLightHandles(idList<int> &handles) const {
     if (nozzleGlowHandle >= 0) handles.Append(nozzleGlowHandle);

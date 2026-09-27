@@ -28,6 +28,7 @@ class hhWeapon: public hhAnimatedEntity {
 
 	public:
         void GetPresentationLightHandles(idList<int> &handles) const;
+        void GetMuzzleFlashHandles(idList<int> &handles) const;
 							hhWeapon();
 		virtual				~hhWeapon();
 		void				Spawn();

@@ -5,7 +5,10 @@ static idCVar g_portalWeaponLighting("g_portalWeaponLighting", "0", CVAR_GAME | 
     "experimental distance-based weapon lighting across portals");
 static idCVar g_portalLighter("g_portalLighter", "1", CVAR_GAME | CVAR_BOOL,
     "project the lighter through nearby portals (one hop, at most four lights)");
+static idCVar g_portalMuzzleFlash("g_portalMuzzleFlash", "1", CVAR_GAME | CVAR_BOOL,
+    "project the player's muzzle flashes through nearby portals like the lighter (shadowless copies)");
 static idList<int> portalLighterHandles;
+static idList<int> portalMuzzleFlashHandles;
 static idList<int> portalWeaponLightHandles;
 static idFile *portalWeaponLightTrace = NULL;
 
@@ -16,6 +19,9 @@ static void ClearPortalWeaponLights() {
     for (int i = 0; i < portalLighterHandles.Num(); ++i)
         gameRenderWorld->FreeLightDef(portalLighterHandles[i]);
     portalLighterHandles.Clear();
+    for (int i = 0; i < portalMuzzleFlashHandles.Num(); ++i)
+        gameRenderWorld->FreeLightDef(portalMuzzleFlashHandles[i]);
+    portalMuzzleFlashHandles.Clear();
     if (portalWeaponLightTrace) fileSystem->CloseFile(portalWeaponLightTrace);
     portalWeaponLightTrace = NULL;
 }
@@ -30,14 +36,51 @@ static void DisablePortalWeaponLights() {
     }
 }
 
-static void DisablePortalLighterLights() {
-    for (int i = 0; i < portalLighterHandles.Num(); ++i) {
-        const renderLight_t *source = gameRenderWorld->GetRenderLight(portalLighterHandles[i]);
+static void DisableLightCopies(const idList<int> &handles) {
+    for (int i = 0; i < handles.Num(); ++i) {
+        const renderLight_t *source = gameRenderWorld->GetRenderLight(handles[i]);
         if (!source) continue;
         renderLight_t light = *source;
         light.allowLightInViewID = -1;
-        gameRenderWorld->UpdateLightDef(portalLighterHandles[i], &light);
+        gameRenderWorld->UpdateLightDef(handles[i], &light);
     }
+}
+
+static void DisablePortalLighterLights() {
+    DisableLightCopies(portalLighterHandles);
+    DisableLightCopies(portalMuzzleFlashHandles);
+}
+
+// Copy a point light through each nearby portal (one hop): the copy sits at the
+// transformed origin, clipped by the portal planes to the far side. Copies are
+// written to handles[first...] (reused across frames; DisableLightCopies turns
+// them off after rendering). Returns the next unused index, at most maxCopies.
+static int ProjectLightThroughPortals(const renderLight_t &source, const idVec3 &eye, int ownerViewID,
+    idList<int> &handles, int first, int maxCopies) {
+    int used = first;
+    const float range = Max(source.lightRadius.x, Max(source.lightRadius.y, source.lightRadius.z));
+    for (idEntity *ent = gameLocal.spawnedEntities.Next(); ent && used < maxCopies; ent = ent->spawnNode.Next()) {
+        if (!ent->IsType(hhPortal::Type)) continue;
+        renderLight_t light = source;
+        idMat3 rotation;
+        if (!static_cast<hhPortal *>(ent)->GetLighterTransform(source.origin, eye, range,
+            light.origin, rotation, light.portalLightClipPlanes)) continue;
+        light.axis = source.axis * rotation;
+        light.portalLightClipCount = 5;
+        light.portalLightOwnerViewID = ownerViewID;
+        light.portalWeaponOnly = false;
+        light.portalWeaponAttenuation = 0;
+        light.allowLightInViewID = light.suppressLightInViewID = 0;
+        light.prelightModel = NULL;
+        // The virtual origin sits behind the destination portal wall. Its
+        // untransformed shadow volume would incorrectly block the whole light.
+        light.noShadows = true;
+        if (used == handles.Num())
+            handles.Append(gameRenderWorld->AddLightDef(&light));
+        else gameRenderWorld->UpdateLightDef(handles[used], &light);
+        ++used;
+    }
+    return used;
 }
 
 static void ApplyPortalLighter(hhPlayer *player, const renderView_t &authoritative,
@@ -61,32 +104,29 @@ static void ApplyPortalLighter(hhPlayer *player, const renderView_t &authoritati
         gameRenderWorld->UpdateLightDef(player->lighterHandle, &presented);
         eye = view.vieworg;
     }
-    source = &presented;
-    int used = 0;
-    const float range = Max(source->lightRadius.x, Max(source->lightRadius.y, source->lightRadius.z));
-    for (idEntity *ent = gameLocal.spawnedEntities.Next(); ent && used < 4; ent = ent->spawnNode.Next()) {
-        if (!ent->IsType(hhPortal::Type)) continue;
-        renderLight_t light = *source;
-        idMat3 rotation;
-        if (!static_cast<hhPortal *>(ent)->GetLighterTransform(source->origin, eye, range,
-            light.origin, rotation, light.portalLightClipPlanes)) continue;
-        light.axis = source->axis * rotation;
-        light.portalLightClipCount = 5;
-        light.portalLightOwnerViewID = player->entityNumber + 1;
-        light.portalWeaponOnly = false;
-        light.portalWeaponAttenuation = 0;
-        light.allowLightInViewID = light.suppressLightInViewID = 0;
-        light.prelightModel = NULL;
-        // The virtual origin sits behind the destination portal wall. Its
-        // untransformed shadow volume would incorrectly block the whole light.
-        light.noShadows = true;
-        if (used == portalLighterHandles.Num())
-            portalLighterHandles.Append(gameRenderWorld->AddLightDef(&light));
-        else gameRenderWorld->UpdateLightDef(portalLighterHandles[used], &light);
-        ++used;
-    }
+    const int used = ProjectLightThroughPortals(presented, eye, player->entityNumber + 1, portalLighterHandles, 0, 4);
     if (cvarSystem->GetCVarBool("com_fpsTrace"))
         gameLocal.Printf("PORTAL_LIGHTER %d lights %d\n", gameLocal.time, used);
+}
+
+// Project the player's muzzle flash lights through nearby portals the same way
+// as the lighter (one hop, clipped to the far side, shadowless copies). The
+// flash lights have already been moved to the presented view-weapon pose.
+static void ApplyPortalMuzzleFlash(hhPlayer *player, const renderView_t &view) {
+    if (!g_portalMuzzleFlash.GetBool() || gameLocal.isMultiplayer || player->spectating ||
+        player->InVehicle() || player->IsSpiritOrDeathwalking() || !player->weapon.IsValid()) return;
+    idList<int> handles;
+    player->weapon->GetMuzzleFlashHandles(handles);
+    const idVec3 eye = (!gameLocal.GetCamera() && !gameLocal.inCinematic && !pm_thirdPerson.GetBool() && view.viewID)
+        ? view.vieworg : player->GetEyePosition();
+    int used = 0;
+    for (int i = 0; i < handles.Num() && used < 4; ++i) {
+        const renderLight_t *source = gameRenderWorld->GetRenderLight(handles[i]);
+        if (!source || !source->pointLight) continue;
+        used = ProjectLightThroughPortals(*source, eye, player->entityNumber + 1, portalMuzzleFlashHandles, used, 4);
+    }
+    if (used && cvarSystem->GetCVarBool("com_fpsTrace"))
+        gameLocal.Printf("PORTAL_MUZZLE %d lights %d\n", gameLocal.time, used);
 }
 
 static void ApplyPortalWeaponLighting(hhPlayer *player, const renderView_t &view,
