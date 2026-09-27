@@ -860,6 +860,7 @@ void RB_CreateSingleDrawInteractions( const drawSurf_t *surf, void (*DrawInterac
 			const shaderStage_t	*surfaceStage = surfaceShader->GetStage( surfaceStageNum );
 
 			switch( surfaceStage->lighting ) {
+				case SL_SHADER: // Use authored fallback stages until custom interactions are supported.
 				case SL_AMBIENT: {
 					// ignore ambient stages while drawing interactions
 					break;

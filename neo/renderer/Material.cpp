@@ -872,6 +872,16 @@ void idMaterial::ParseBlend( idLexer &src, shaderStage_t *stage ) {
 		stage->lighting = SL_SPECULAR;
 		return;
 	}
+	if ( !token.Icmp( "shader" ) ) {
+		// Retail per-light programs (skin, cloth, masked interactions) consume
+		// light origins, projections and texture units supplied by an interaction
+		// pass. They must never run as ambient overlays with stale light state.
+		// Until custom interactions are supported, the authored shaderFallback
+		// bump/diffuse/specular stages provide the lit surface.
+		stage->lighting = SL_SHADER;
+		stage->drawStateBits = GLS_SRCBLEND_ONE | GLS_DSTBLEND_ONE;
+		return;
+	}
 
 	srcBlend = NameToSrcBlendMode( token );
 
@@ -2418,6 +2428,23 @@ bool idMaterial::Parse( const char *text, const int textLength ) {
 
 	// parse it
 	ParseMaterial( src );
+
+	// This renderer has no custom per-light program backend yet. Suppress
+	// unsupported interaction overlays only when the material has its own lit
+	// fallback. Preserve legacy rendering for program-only effects (for example
+	// the outro atmosphere) rather than making them disappear in this fix.
+	bool hasLitFallback = false;
+	for ( int stage = 0; stage < numStages; ++stage ) {
+		const stageLighting_t lighting = pd->parseStages[stage].lighting;
+		hasLitFallback |= lighting == SL_DIFFUSE || lighting == SL_SPECULAR;
+	}
+	if ( !hasLitFallback ) {
+		for ( int stage = 0; stage < numStages; ++stage ) {
+			if ( pd->parseStages[stage].lighting == SL_SHADER ) {
+				pd->parseStages[stage].lighting = SL_AMBIENT;
+			}
+		}
+	}
 
 	// if we are doing an fs_copyfiles, also reference the editorImage
 	if ( cvarSystem->GetCVarInteger( "fs_copyFiles" ) ) {
