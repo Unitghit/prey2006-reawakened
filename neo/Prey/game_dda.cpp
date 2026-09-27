@@ -136,6 +136,8 @@ void hhDDAManager::ClearTracking() {
 //=============================================================================
 
 float hhDDAManager::GetDifficulty() {
+    const int mode = gameLocal.isMultiplayer ? 0 : g_adaptiveDifficulty.GetInteger();
+    if (mode) return idMath::ClampFloat(mode == 2 ? 0.75f : 0.5f, 1.0f, difficulty);
 	return difficulty;
 }
 
@@ -154,17 +156,17 @@ void hhDDAManager::RecalculateDifficulty( int updateFlags ) {
 
 	float oldDiff = difficulty; // TEMP
 
-	if ( g_wicked.GetBool() ) { // Wicked mode, force the DDA to 1.0
+	if ( g_wicked.GetBool() && !g_adaptiveDifficulty.GetInteger() ) { // Wicked mode, force the DDA to 1.0
 		difficulty = 1.0f;
 		return;
 	}		
 
-	if ( !g_useDDA.GetBool() ) { // Skip the DDA calculations.  After g_wicked so that is still a valid mode
+	if ( !g_useDDA.GetBool() && !g_adaptiveDifficulty.GetInteger() ) { // Skip the DDA calculations.  After g_wicked so that is still a valid mode
 		difficulty = 0.5f;
 		return;
 	}
 
-	if ( bForcedDifficulty ) { // Don't recalculate if the difficulty is forced
+	if ( bForcedDifficulty && !g_adaptiveDifficulty.GetInteger() ) { // Don't recalculate if the difficulty is forced
 		return;
 	}
 

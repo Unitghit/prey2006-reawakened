@@ -559,7 +559,7 @@ void idGameLocal::SaveGame( idFile *f ) {
 	Save( &savegame ); // HUMANHEAD Added to allow hhGameLocal to save it's data -mdl
 
 //	savegame.WriteInt( g_skill.GetInteger() );	// HUMANHEAD pdm: not used
-	savegame.WriteInt( g_wicked.GetInteger() );	// HUMANHEAD pdm
+	savegame.WriteInt( g_adaptiveDifficulty.GetInteger() ? 2 + g_adaptiveDifficulty.GetInteger() : g_wicked.GetInteger() );	// HUMANHEAD pdm
 	savegame.WriteInt( g_casino.GetInteger() );	// HUMANHEAD pdm
 
 	savegame.WriteDict( &serverInfo );
@@ -1403,6 +1403,15 @@ void idGameLocal::InitFromNewMap( const char *mapName, idRenderWorld *renderWorl
 
 	LoadMap( mapName, randseed );
 
+    if (!isMultiplayer) {
+        if (!persistentPlayerInfo[0].GetNumKeyVals()) g_adaptiveDifficulty.SetInteger(0);
+        const int mode = g_forceCherokee.GetInteger();
+        if (mode) {
+            g_adaptiveDifficulty.SetInteger(mode >= 3 ? mode - 2 : 0);
+            g_wicked.SetBool(mode == 1 || mode == 4);
+        }
+    }
+
 	InitScriptForMap();
 
 	MapPopulate();
@@ -1554,12 +1563,14 @@ bool idGameLocal::InitFromSaveGame( const char *mapName, idRenderWorld *renderWo
 //	g_skill.SetInteger( i );	// HUMANHEAD pdm: not used
 
 	savegame.ReadInt( i );		// HUMANHEAD pdm
-	g_wicked.SetInteger( i );
-	if ( !isMultiplayer && g_forceCherokee.GetInteger() != 0 ) {
-		g_wicked.SetBool( g_forceCherokee.GetInteger() == 1 );
-		common->Printf( "Difficulty override: %s (saved: %s).\n",
-			g_wicked.GetBool() ? "Cherokee" : "Normal", i ? "Cherokee" : "Normal" );
-	}
+	g_adaptiveDifficulty.SetInteger(i == 3 ? 1 : i == 4 ? 2 : 0);
+	g_wicked.SetBool(i == 1 || i == 4);
+	if (!isMultiplayer && g_forceCherokee.GetInteger()) {
+        const int mode = g_forceCherokee.GetInteger();
+        g_adaptiveDifficulty.SetInteger(mode >= 3 ? mode - 2 : 0);
+        g_wicked.SetBool(mode == 1 || mode == 4);
+    }
+    common->Printf("DIFFICULTY wicked=%d adaptive=%d override=%d\n", g_wicked.GetInteger(), g_adaptiveDifficulty.GetInteger(), g_forceCherokee.GetInteger());
 
 	savegame.ReadInt( i );		// HUMANHEAD pdm
 	g_casino.SetInteger( i );

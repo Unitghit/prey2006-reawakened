@@ -34,6 +34,7 @@ extern idCVar	g_tips;
 extern idCVar	g_jawflap;
 extern idCVar	g_wicked;
 extern idCVar g_forceCherokee;
+extern idCVar g_adaptiveDifficulty;
 extern idCVar	g_casino;
 extern idCVar	g_roadhouseCompleted;
 extern idCVar	g_precache;

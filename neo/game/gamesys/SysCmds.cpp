@@ -2686,6 +2686,13 @@ static void Cmd_PlasmaInfo_f(const idCmdArgs &args) {
 	}
 }
 
+static void Cmd_DifficultyInfo_f(const idCmdArgs &args) {
+    if (cvarSystem->GetCVarBool("developer") && args.Argc() == 2 && !gameLocal.isMultiplayer)
+        gameLocal.GetDDA()->ForceDifficulty(atof(args.Argv(1)));
+    gameLocal.Printf("DIFFICULTY wicked=%d adaptive=%d override=%d scale=%.3f\n",
+        g_wicked.GetInteger(), g_adaptiveDifficulty.GetInteger(), g_forceCherokee.GetInteger(), gameLocal.GetDDAValue());
+}
+
 static void Cmd_PortalGun_f(const idCmdArgs &args) {
     hhPlayer *player = static_cast<hhPlayer *>(gameLocal.GetLocalPlayer());
     if (!player) return;
@@ -2828,6 +2835,7 @@ static void Cmd_RocketInfo_f(const idCmdArgs &args) {
 void idGameLocal::InitConsoleCommands( void ) {
 	cmdSystem->AddCommand("plasmaInfo", Cmd_PlasmaInfo_f, CMD_FL_GAME, "show independent slot-6 ammo; developer: seed, pickup");
 	cmdSystem->AddCommand("portalGun", Cmd_PortalGun_f, CMD_FL_GAME, "portal tool: select, blue, orange, or status");
+	cmdSystem->AddCommand("difficultyInfo", Cmd_DifficultyInfo_f, CMD_FL_GAME, "show active difficulty; developer-only optional DDA test value");
 	cmdSystem->AddCommand("superShotgunInfo", Cmd_SuperShotgunInfo_f, CMD_FL_GAME, "show independent Super Shotgun ammo; developer: seed, pickup");
 	cmdSystem->AddCommand("rocketInfo", Cmd_RocketInfo_f, CMD_FL_GAME, "show independent slot-7 ammo; developer: seed, pickup");
 	cmdSystem->AddCommand("chaingunInfo", Cmd_ChaingunInfo_f, CMD_FL_GAME, "show independent slot-5 ammo; developer: seed, pickup, altpickup");
