@@ -3,7 +3,7 @@
 #include "../renderer/Model_eyeball.h"
 // Render-only model pieces. None of these objects enter physics or save files.
 static idCVar g_portalBodySplit("g_portalBodySplit", "1", CVAR_GAME | CVAR_BOOL,
-    "split the local player's third-person model across an intersecting portal (0 for comparison)");
+    "split character models across an intersecting portal (0 for comparison)");
 static idCVar g_portalBodyTrace("g_portalBodyTrace", "0", CVAR_GAME | CVAR_BOOL,
     "log portal body pieces for isolated rendering tests");
 struct portalBodyPart_t {
@@ -329,8 +329,11 @@ static void ApplyNPCPortalBodies(const renderView_t &view, idList<presentationMo
         if(ent->IsType(hhPortal::Type) && ent->spawnArgs.GetBool("rw_portalGun")) portals.Append(static_cast<hhPortal *>(ent));
     if(!portals.Num() && !npcPortalPoses.Num()) return;
     for (idEntity *actor = gameLocal.spawnedEntities.Next(); actor; actor = actor->spawnNode.Next()) {
-        if (!actor->IsType(idAI::Type) || actor->health <= 0 || actor->IsHidden() || actor->IsBound() ||
-            actor->fl.noPortal || !actor->GetPhysics()->IsType(idPhysics_Monster::Type)) continue;
+        const bool ragdoll=actor->IsType(idAFEntity_Base::Type) && actor->GetPhysics()->IsType(idPhysics_AF::Type) &&
+            (!actor->IsType(idActor::Type) || actor->health<=0) &&
+            static_cast<const idPhysics_AF *>(actor->GetPhysics())->CanTraversePortal();
+        const bool npc=actor->IsType(idAI::Type) && actor->health>0 && actor->GetPhysics()->IsType(idPhysics_Monster::Type);
+        if ((!npc && !ragdoll) || actor->IsHidden() || actor->IsBound() || actor->fl.noPortal) continue;
         const renderEntity_t *body = gameRenderWorld->GetRenderEntity(actor->GetModelDefHandle());
         if (!body || !body->hModel) continue;
         const idVec3 center = actor->GetPhysics()->GetOrigin() +

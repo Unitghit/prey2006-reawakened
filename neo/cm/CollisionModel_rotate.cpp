@@ -1057,6 +1057,9 @@ idCollisionModelManagerLocal::RotateTrmThroughPolygon
 ================
 */
 bool idCollisionModelManagerLocal::RotateTrmThroughPolygon( cm_traceWork_t *tw, cm_polygon_t *p ) {
+    if (PortalClipSurface(p->plane) || PortalCoverSurface(p->plane,p->contents) ||
+        (portalClipActive && p->bounds.PlaneDistance(portalClipPlane)<-0.01f)) return false;
+
 	int i, j, k, edgeNum;
 	float d;
 	cm_trmVertex_t *bv;

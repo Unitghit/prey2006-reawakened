@@ -890,6 +890,8 @@ public:
 	void					SetForcePushable( const bool enable ) { forcePushable = enable; }
 							// update the clip model positions
 	void					UpdateClipModels( void );
+	bool CanTraversePortal() const;
+	void TransformThroughPortal(const idVec3 &source, const idVec3 &destination, const idMat3 &rotation);
 
 public:	// common physics interface
 	void					SetClipModel( idClipModel *model, float density, int id = 0, bool freeOld = true );

@@ -2689,6 +2689,13 @@ static void Cmd_PlasmaInfo_f(const idCmdArgs &args) {
 static void Cmd_PortalGun_f(const idCmdArgs &args) {
     hhPlayer *player = static_cast<hhPlayer *>(gameLocal.GetLocalPlayer());
     if (!player) return;
+    if (cvarSystem->GetCVarBool("developer") && args.Argc() == 2 && !idStr::Icmp(args.Argv(1), "ragdolls")) {
+        for (idEntity *e=gameLocal.spawnedEntities.Next();e;e=e->spawnNode.Next()) {
+            if (!e->GetPhysics()->IsType(idPhysics_AF::Type)) continue;
+            const idPhysics_AF *af=static_cast<const idPhysics_AF *>(e->GetPhysics());
+            gameLocal.Printf("PORTAL_AF name=%s health=%d free=%d bodies=%d rest=%d pos=%s\n",e->GetName(),e->health,af->CanTraversePortal(),af->GetNumClipModels(),af->IsAtRest(),af->GetOrigin().ToString());
+        }
+    }
     if (cvarSystem->GetCVarBool("developer") && args.Argc() == 2 && !idStr::Icmp(args.Argv(1), "actors")) {
         for (idEntity *e = gameLocal.spawnedEntities.Next(); e; e = e->spawnNode.Next()) {
             if (!e->IsType(idAI::Type) || (e->GetOrigin()-player->GetOrigin()).LengthSqr() > 1024*1024) continue;

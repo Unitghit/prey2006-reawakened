@@ -67,14 +67,34 @@ static bool RW_PortalOccupied(const hhPortal *portal, const idPhysics *physics) 
     }
     return local.IntersectsBounds(RW_PORTAL_OCCUPANCY_BOUNDS);
 }
+static bool RW_PortalRagdoll(const idEntity *ent) {
+    return ent && !ent->IsBound() && !ent->fl.noPortal &&
+        ent->IsType(idAFEntity_Base::Type) && ent->GetPhysics()->IsType(idPhysics_AF::Type) &&
+        (!ent->IsType(idActor::Type) || ent->health <= 0) &&
+        static_cast<const idPhysics_AF *>(ent->GetPhysics())->CanTraversePortal();
+}
 static bool RW_GunPortalEntity(const idEntity *ent) {
     return ent && !ent->fl.noPortal && !ent->IsBound() &&
-        (ent->IsType(hhPlayer::Type) || ent->IsType(hhProjectile::Type) || ent->IsType(idMoveable::Type) ||
+        (RW_PortalRagdoll(ent) || ent->IsType(hhPlayer::Type) || ent->IsType(hhProjectile::Type) || ent->IsType(idMoveable::Type) ||
          (ent->IsType(idAI::Type) && ent->health > 0 && ent->GetPhysics()->IsType(idPhysics_Monster::Type)));
 }
 // Disable only the wall cutout for final closing-clearance queries. Keeping
 // portal trigger handling active avoids treating their sensor volumes as walls.
 static bool rw_portalClosingQuery = false;
+// Sweep every AF limb, reporting the limiting fraction in root coordinates.
+static bool RW_PortalOccupantTrace(trace_t &result, idEntity *entity, const idVec3 &start, const idVec3 &end) {
+    idPhysics *physics=entity->GetPhysics();
+    if (!RW_PortalRagdoll(entity)) return gameLocal.clip.Translation(result,start,end,physics->GetClipModel(),physics->GetAxis(),physics->GetClipMask(),entity);
+    idPhysics_AF *af=static_cast<idPhysics_AF *>(physics);
+    memset(&result,0,sizeof(result)); result.fraction=1; result.endpos=end;
+    for (int i=0;i<af->GetNumClipModels();++i) {
+        const idVec3 offset=af->GetOrigin(i)-af->GetOrigin();
+        trace_t limb;
+        gameLocal.clip.Translation(limb,start+offset,end+offset,af->GetClipModel(i),af->GetAxis(i),af->GetBody(i)->GetClipMask(),entity);
+        if (limb.fraction<result.fraction) { result=limb; result.endpos=start+(end-start)*limb.fraction; }
+    }
+    return result.fraction<1;
+}
 // Resolve movable occupants before moving either endpoint. Validate every move
 // first, so a blocked object cannot leave a half-updated pair or moved neighbors.
 static bool RW_ClearPortalOccupants(hhPortal *first, hhPortal *second) {
@@ -108,9 +128,7 @@ static bool RW_ClearPortalOccupants(hhPortal *first, hhPortal *second) {
             trace_t closingTrace;
             const bool previousClosingQuery = rw_portalClosingQuery;
             rw_portalClosingQuery = true;
-            const bool needsClearance = gameLocal.clip.Translation(closingTrace,
-                physics->GetOrigin(), physics->GetOrigin(), physics->GetClipModel(),
-                physics->GetAxis(), physics->GetClipMask(), entity);
+            const bool needsClearance = RW_PortalOccupantTrace(closingTrace, entity, physics->GetOrigin(), physics->GetOrigin());
             rw_portalClosingQuery = previousClosingQuery;
             if (!needsClearance) continue;
             const idVec3 outward = physics->GetOrigin()+normal*Max(0.0f, 3.0f-back);
@@ -125,8 +143,7 @@ static bool RW_ClearPortalOccupants(hhPortal *first, hhPortal *second) {
                     end = outward + normal*((sample%5)*8.0f) + (portal->GetAxis()[1]*idMath::Cos(angle) +
                         portal->GetAxis()[2]*idMath::Sin(angle))*(ring*4.0f);
                     trace_t trace;
-                    if (gameLocal.clip.Translation(trace, physics->GetOrigin(), end, physics->GetClipModel(),
-                            physics->GetAxis(), physics->GetClipMask(), entity)) {
+                    if (RW_PortalOccupantTrace(trace, entity, physics->GetOrigin(), end)) {
                         // A swept move may finish against a nearby surface
                         // after the entire hull has already cleared the opening.
                         if (trace.fraction <= 0 || back+(trace.endpos-physics->GetOrigin())*normal <= 2.25f) continue;
@@ -135,8 +152,7 @@ static bool RW_ClearPortalOccupants(hhPortal *first, hhPortal *second) {
                     // The final position must be clear even after closure.
                     const bool oldClosingQuery = rw_portalClosingQuery;
                     rw_portalClosingQuery = true;
-                    bool blocked = gameLocal.clip.Translation(trace, end, end, physics->GetClipModel(),
-                        physics->GetAxis(), physics->GetClipMask(), entity);
+                    bool blocked = RW_PortalOccupantTrace(trace, entity, end, end);
                     rw_portalClosingQuery = oldClosingQuery;
                     // Independently clear destinations must not overlap one another.
                     const idBounds destination = physics->GetAbsBounds().Translate(end-physics->GetOrigin());
@@ -161,6 +177,11 @@ static bool RW_ClearPortalOccupants(hhPortal *first, hhPortal *second) {
         velocity -= normals[i]*Min(0.0f, velocity*normals[i]);
         entity->SetOrigin(positions[i]);
         physics->SetLinearVelocity(velocity);
+        if (RW_PortalRagdoll(entity)) for (int b=1;b<physics->GetNumClipModels();++b) {
+            idVec3 limbVelocity=physics->GetLinearVelocity(b);
+            limbVelocity-=normals[i]*Min(0.0f,limbVelocity*normals[i]);
+            physics->SetLinearVelocity(limbVelocity,b);
+        }
         entity->BecomeActive(TH_PHYSICS);
         entity->UpdateVisuals();
         if (cvarSystem->GetCVarBool("developer"))
@@ -482,7 +503,7 @@ bool RW_PortalClipPlane(const idEntity *entity, const idTraceModel *trm, const i
         // while the rotated hull emerges. Keep the cutout for that overlap,
         // but still reject players whose whole hull is behind the surface.
         float bodyFront = 0;
-        if (entity->IsType(hhPlayer::Type) || entity->IsType(idAI::Type)) {
+        if (entity->IsType(hhPlayer::Type) || entity->IsType(idAI::Type) || RW_PortalRagdoll(entity)) {
             const idBounds &body = entity->GetPhysics()->GetBounds();
             for (int k = 0; k < 8; ++k) {
                 const idVec3 corner(body[(k&1)!=0].x, body[(k&2)!=0].y, body[(k&4)!=0].z);

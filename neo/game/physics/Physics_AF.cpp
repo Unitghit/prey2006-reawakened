@@ -8206,3 +8206,29 @@ void idPhysics_AF::ReadFromSnapshot( const idBitMsgDelta &msg ) {
 
 	UpdateClipModels();
 }
+
+// A free articulated figure crosses as one constrained system. Never detach
+// bound figures or world-anchored chains as a side effect of a portal opening.
+bool idPhysics_AF::CanTraversePortal() const {
+    if (masterBody || frozen || !bodies.Num() || !enableCollision) return false;
+    for (int i=0; i<constraints.Num(); ++i)
+        if (!constraints[i]->GetBody2()) return false;
+    return true;
+}
+void idPhysics_AF::TransformThroughPortal(const idVec3 &source, const idVec3 &destination, const idMat3 &matrix) {
+    idRotation rotation=matrix.ToRotation(); rotation.SetOrigin(source);
+    Rotate(rotation);
+    Translate(destination-source);
+    for (int i=0;i<bodies.Num();++i) {
+        bodies[i]->current->spatialVelocity.SubVec3(0) *= matrix;
+        bodies[i]->current->spatialVelocity.SubVec3(1) *= matrix;
+        *bodies[i]->next = *bodies[i]->current;
+    }
+    current.pushVelocity.Zero();
+    ClearExternalForce();
+    AddGravity();
+    ClearContacts();
+    collisions.SetNum(0,false);
+    Activate();
+    UpdateClipModels();
+}

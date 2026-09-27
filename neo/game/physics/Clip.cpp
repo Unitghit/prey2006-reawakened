@@ -34,6 +34,15 @@ If you have questions concerning this license or the applicable additional terms
 // The game validates the entire swept hull before allowing a wall-face exclusion.
 extern bool RW_PortalCoverPlane(const idPlane &, const idVec3 &, idPlane &);
 extern bool RW_PortalClipPlane(const idEntity *, const idTraceModel *, const idMat3 &, const idVec3 &, const idVec3 &, idPlane &, float &);
+// Require the complete angular sweep to fit, not just its endpoint poses.
+// Otherwise a rotating limb could leave the oval between two valid endpoints.
+static idTraceModel RW_PortalRotationHull(const idTraceModel *trm, const idMat3 &axis,
+    const idVec3 &start, const idRotation &rotation) {
+    idBounds bounds;
+    bounds.FromBoundsRotation(trm->bounds,start,axis,rotation);
+    bounds.TranslateSelf(-start);
+    return idTraceModel(bounds);
+}
 // Map decoration uses separate static collision models. Apply the same portal
 // half-space as world geometry, transformed into each model's local space.
 // Loose props and other dynamic entities retain their ordinary collision.
@@ -1336,7 +1345,7 @@ void idClip::TranslationEntities( trace_t &results, const idVec3 &start, const i
 		} else {
 			idClip::numTranslations++;
             idPlane localOpening, localCover; bool hasCover;
-            const bool staticOpening = RW_StaticPortalPlane(passEntity, trm, trmAxis, start, end, touch, localOpening, localCover, hasCover);
+            const bool staticOpening = RW_StaticPortalPlane(passEntity ? passEntity : (mdl ? mdl->GetEntity() : NULL), trm, trmAxis, start, end, touch, localOpening, localCover, hasCover);
             collisionModelManager->SetPortalClipPlane(staticOpening ? &localOpening : NULL, hasCover ? &localCover : NULL);
 			collisionModelManager->Translation( &trace, start, end, trm, trmAxis, contentMask,
 									touch->Handle(), touch->origin, touch->axis );
@@ -1393,7 +1402,7 @@ bool idClip::Translation( trace_t &results, const idVec3 &start, const idVec3 &e
 		// test world
 		idClip::numTranslations++;
         { idPlane openingPlane; float openingLimit;
-        const bool opening = RW_PortalClipPlane(passEntity, trm, trmAxis, start, end, openingPlane, openingLimit);
+        const bool opening = RW_PortalClipPlane(passEntity ? passEntity : (mdl ? mdl->GetEntity() : NULL), trm, trmAxis, start, end, openingPlane, openingLimit);
         idPlane coverPlane;
         // Probe through the body: feet may be below the exit floor during a step.
         const bool cover = opening && RW_PortalCoverPlane(openingPlane, start + trm->bounds.GetCenter() * trmAxis, coverPlane);
@@ -1446,7 +1455,7 @@ bool idClip::Translation( trace_t &results, const idVec3 &start, const idVec3 &e
 		} else {
 			idClip::numTranslations++;
             idPlane localOpening, localCover; bool hasCover;
-            const bool staticOpening = RW_StaticPortalPlane(passEntity, trm, trmAxis, start, end, touch, localOpening, localCover, hasCover);
+            const bool staticOpening = RW_StaticPortalPlane(passEntity ? passEntity : (mdl ? mdl->GetEntity() : NULL), trm, trmAxis, start, end, touch, localOpening, localCover, hasCover);
             collisionModelManager->SetPortalClipPlane(staticOpening ? &localOpening : NULL, hasCover ? &localCover : NULL);
 			collisionModelManager->Translation( &trace, start, end, trm, trmAxis, contentMask,
 									touch->Handle(), touch->origin, touch->axis );
@@ -1507,7 +1516,7 @@ bool idClip::TranslationWithExceptions( trace_t &results, const idVec3 &start, c
 		// test world
 		idClip::numTranslations++;
         { idPlane openingPlane; float openingLimit;
-        const bool opening = RW_PortalClipPlane(passEntity, trm, trmAxis, start, end, openingPlane, openingLimit);
+        const bool opening = RW_PortalClipPlane(passEntity ? passEntity : (mdl ? mdl->GetEntity() : NULL), trm, trmAxis, start, end, openingPlane, openingLimit);
         idPlane coverPlane;
         // Probe through the body: feet may be below the exit floor during a step.
         const bool cover = opening && RW_PortalCoverPlane(openingPlane, start + trm->bounds.GetCenter() * trmAxis, coverPlane);
@@ -1565,7 +1574,7 @@ bool idClip::TranslationWithExceptions( trace_t &results, const idVec3 &start, c
 		} else {
 			idClip::numTranslations++;
             idPlane localOpening, localCover; bool hasCover;
-            const bool staticOpening = RW_StaticPortalPlane(passEntity, trm, trmAxis, start, end, touch, localOpening, localCover, hasCover);
+            const bool staticOpening = RW_StaticPortalPlane(passEntity ? passEntity : (mdl ? mdl->GetEntity() : NULL), trm, trmAxis, start, end, touch, localOpening, localCover, hasCover);
             collisionModelManager->SetPortalClipPlane(staticOpening ? &localOpening : NULL, hasCover ? &localCover : NULL);
 			collisionModelManager->Translation( &trace, start, end, trm, trmAxis, contentMask,
 									touch->Handle(), touch->origin, touch->axis );
@@ -1624,7 +1633,14 @@ bool idClip::Rotation( trace_t &results, const idVec3 &start, const idRotation &
 	if ( !passEntity || passEntity->entityNumber != ENTITYNUM_WORLD ) {
 		// test world
 		idClip::numRotations++;
+        idPlane openingPlane; float openingLimit;
+        const idEntity *owner=passEntity ? passEntity : (mdl ? mdl->GetEntity() : NULL);
+        idTraceModel sweepHull;
+        if (trm) sweepHull=RW_PortalRotationHull(trm,trmAxis,start,rotation);
+        const bool opening=trm && RW_PortalClipPlane(owner,&sweepHull,mat3_identity,start,start,openingPlane,openingLimit);
+        collisionModelManager->SetPortalClipPlane(opening ? &openingPlane : NULL);
 		collisionModelManager->Rotation( &results, start, rotation, trm, trmAxis, contentMask, 0, vec3_origin, mat3_default );
+        collisionModelManager->SetPortalClipPlane(NULL);
 		results.c.entityNum = results.fraction != 1.0f ? ENTITYNUM_WORLD : ENTITYNUM_NONE;
 		if ( results.fraction == 0.0f ) {
 			return true;		// blocked immediately by the world
@@ -1657,8 +1673,16 @@ bool idClip::Rotation( trace_t &results, const idVec3 &start, const idRotation &
 		}
 
 		idClip::numRotations++;
-		collisionModelManager->Rotation( &trace, start, rotation, trm, trmAxis, contentMask,
+		idPlane localOpening,localCover; bool hasCover;
+            const idEntity *owner=passEntity ? passEntity : (mdl ? mdl->GetEntity() : NULL);
+            idTraceModel sweepHull;
+            if (trm) sweepHull=RW_PortalRotationHull(trm,trmAxis,start,rotation);
+            hasCover=false;
+            const bool opening=trm && RW_StaticPortalPlane(owner,&sweepHull,mat3_identity,start,start,touch,localOpening,localCover,hasCover);
+            collisionModelManager->SetPortalClipPlane(opening ? &localOpening : NULL,hasCover ? &localCover : NULL);
+            collisionModelManager->Rotation( &trace, start, rotation, trm, trmAxis, contentMask,
 							touch->Handle(), touch->origin, touch->axis );
+            collisionModelManager->SetPortalClipPlane(NULL);
 
 		if ( trace.fraction < results.fraction ) {
 			// HUMANHEAD CJR:  If the hit entity is a portal, then inform the portal it was touched
@@ -1736,7 +1760,7 @@ bool idClip::Motion( trace_t &results, const idVec3 &start, const idVec3 &end, c
 		// translational collision with world
 		idClip::numTranslations++;
         { idPlane openingPlane; float openingLimit;
-        const bool opening = RW_PortalClipPlane(passEntity, trm, trmAxis, start, end, openingPlane, openingLimit);
+        const bool opening = RW_PortalClipPlane(passEntity ? passEntity : (mdl ? mdl->GetEntity() : NULL), trm, trmAxis, start, end, openingPlane, openingLimit);
         idPlane coverPlane;
         // Probe through the body: feet may be below the exit floor during a step.
         const bool cover = opening && RW_PortalCoverPlane(openingPlane, start + trm->bounds.GetCenter() * trmAxis, coverPlane);
@@ -1790,8 +1814,12 @@ bool idClip::Motion( trace_t &results, const idVec3 &start, const idVec3 &end, c
 				TraceRenderModel( trace, start, end, radius, trmAxis, touch );
 			} else {
 				idClip::numTranslations++;
+                idPlane localOpening, localCover; bool hasCover;
+                const bool opening=RW_StaticPortalPlane(passEntity ? passEntity : (mdl ? mdl->GetEntity() : NULL),trm,trmAxis,start,end,touch,localOpening,localCover,hasCover);
+                collisionModelManager->SetPortalClipPlane(opening ? &localOpening : NULL,hasCover ? &localCover : NULL);
 				collisionModelManager->Translation( &trace, start, end, trm, trmAxis, contentMask,
 										touch->Handle(), touch->origin, touch->axis );
+                collisionModelManager->SetPortalClipPlane(NULL);
 			}
 
 			if ( trace.fraction < translationalTrace.fraction ) {
@@ -1831,7 +1859,14 @@ bool idClip::Motion( trace_t &results, const idVec3 &start, const idVec3 &end, c
 	if ( !passEntity || passEntity->entityNumber != ENTITYNUM_WORLD ) {
 		// rotational collision with world
 		idClip::numRotations++;
+        idPlane openingPlane; float openingLimit;
+        const idEntity *owner=passEntity ? passEntity : (mdl ? mdl->GetEntity() : NULL);
+        idTraceModel sweepHull;
+        if (trm) sweepHull=RW_PortalRotationHull(trm,trmAxis,endPosition,endRotation);
+        const bool opening=trm && RW_PortalClipPlane(owner,&sweepHull,mat3_identity,endPosition,endPosition,openingPlane,openingLimit);
+        collisionModelManager->SetPortalClipPlane(opening ? &openingPlane : NULL);
 		collisionModelManager->Rotation( &rotationalTrace, endPosition, endRotation, trm, trmAxis, contentMask, 0, vec3_origin, mat3_default );
+        collisionModelManager->SetPortalClipPlane(NULL);
 		rotationalTrace.c.entityNum = rotationalTrace.fraction != 1.0f ? ENTITYNUM_WORLD : ENTITYNUM_NONE;
 	} else {
 		memset( &rotationalTrace, 0, sizeof( rotationalTrace ) );
@@ -1860,8 +1895,16 @@ bool idClip::Motion( trace_t &results, const idVec3 &start, const idVec3 &end, c
 			}
 
 			idClip::numRotations++;
-			collisionModelManager->Rotation( &trace, endPosition, endRotation, trm, trmAxis, contentMask,
+			idPlane localOpening,localCover; bool hasCover;
+            const idEntity *owner=passEntity ? passEntity : (mdl ? mdl->GetEntity() : NULL);
+            idTraceModel sweepHull;
+            if (trm) sweepHull=RW_PortalRotationHull(trm,trmAxis,endPosition,endRotation);
+            hasCover=false;
+            const bool opening=trm && RW_StaticPortalPlane(owner,&sweepHull,mat3_identity,endPosition,endPosition,touch,localOpening,localCover,hasCover);
+            collisionModelManager->SetPortalClipPlane(opening ? &localOpening : NULL,hasCover ? &localCover : NULL);
+            collisionModelManager->Rotation( &trace, endPosition, endRotation, trm, trmAxis, contentMask,
 								touch->Handle(), touch->origin, touch->axis );
+            collisionModelManager->SetPortalClipPlane(NULL);
 
 			if ( trace.fraction < rotationalTrace.fraction ) {
 				// HUMANHEAD CJR:  If the hit entity is a portal, then inform the portal it was touched
@@ -1918,7 +1961,7 @@ int idClip::Contacts( contactInfo_t *contacts, const int maxContacts, const idVe
 		// test world
 		idClip::numContacts++;
         { idPlane openingPlane; float openingLimit;
-        const bool opening = RW_PortalClipPlane(passEntity, trm, trmAxis, start, start, openingPlane, openingLimit);
+        const bool opening = RW_PortalClipPlane(passEntity ? passEntity : (mdl ? mdl->GetEntity() : NULL), trm, trmAxis, start, start, openingPlane, openingLimit);
         idPlane coverPlane;
         // Probe through the body: feet may be below the exit floor during a step.
         const bool cover = opening && RW_PortalCoverPlane(openingPlane, start + trm->bounds.GetCenter() * trmAxis, coverPlane);
@@ -1967,7 +2010,7 @@ int idClip::Contacts( contactInfo_t *contacts, const int maxContacts, const idVe
 
 		idClip::numContacts++;
         idPlane localOpening, localCover; bool hasCover;
-        const bool staticOpening = RW_StaticPortalPlane(passEntity, trm, trmAxis, start, start, touch, localOpening, localCover, hasCover);
+        const bool staticOpening = RW_StaticPortalPlane(passEntity ? passEntity : (mdl ? mdl->GetEntity() : NULL), trm, trmAxis, start, start, touch, localOpening, localCover, hasCover);
         collisionModelManager->SetPortalClipPlane(staticOpening ? &localOpening : NULL, hasCover ? &localCover : NULL);
 		n = collisionModelManager->Contacts( contacts + numContacts, maxContacts - numContacts,
 								start, dir, depth, trm, trmAxis, contentMask,
@@ -2005,7 +2048,7 @@ int idClip::Contents( const idVec3 &start, const idClipModel *mdl, const idMat3 
 		// test world
 		idClip::numContents++;
         { idPlane openingPlane; float openingLimit;
-        const bool opening = RW_PortalClipPlane(passEntity, trm, trmAxis, start, start, openingPlane, openingLimit);
+        const bool opening = RW_PortalClipPlane(passEntity ? passEntity : (mdl ? mdl->GetEntity() : NULL), trm, trmAxis, start, start, openingPlane, openingLimit);
         idPlane coverPlane;
         // Probe through the body: feet may be below the exit floor during a step.
         const bool cover = opening && RW_PortalCoverPlane(openingPlane, start + trm->bounds.GetCenter() * trmAxis, coverPlane);
@@ -2058,7 +2101,7 @@ int idClip::Contents( const idVec3 &start, const idClipModel *mdl, const idMat3 
 
 		idClip::numContents++;
         idPlane localOpening, localCover; bool hasCover;
-        const bool staticOpening = RW_StaticPortalPlane(passEntity, trm, trmAxis, start, start, touch, localOpening, localCover, hasCover);
+        const bool staticOpening = RW_StaticPortalPlane(passEntity ? passEntity : (mdl ? mdl->GetEntity() : NULL), trm, trmAxis, start, start, touch, localOpening, localCover, hasCover);
         collisionModelManager->SetPortalClipPlane(staticOpening ? &localOpening : NULL, hasCover ? &localCover : NULL);
 		if ( collisionModelManager->Contents( start, trm, trmAxis, contentMask, touch->Handle(), touch->origin, touch->axis ) ) {
 			contents |= ( touch->contents & contentMask );

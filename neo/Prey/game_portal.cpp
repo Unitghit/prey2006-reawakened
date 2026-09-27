@@ -403,6 +403,8 @@ void hhPortal::CheckPlayerDistances(void) {
 
 static void RW_UpdateGunPortalFloor(hhPortal *portal);
 static bool RW_GunPortalEntity(const idEntity *ent);
+static bool RW_PortalRagdoll(const idEntity *ent);
+static bool RW_TransferPortalRagdoll(hhPortal *portal, idEntity *ent, const idVec3 *crossingPoint);
 static void RW_AssistFloorExit(idEntity *, idEntity *, const idVec3 &, const idMat3 &, idVec3 &);
 static bool RW_PortalFits(const hhPortal *, const idTraceModel *, const idMat3 &, const idVec3 &, bool);
 
@@ -433,6 +435,20 @@ void hhPortal::Think( void ) {
     if (spawnArgs.GetBool("rw_portalGun")) {
         if (!cvarSystem->GetCVarBool("g_portalGun")) { Hide(); GetPhysics()->SetContents(0); return; }
         RW_UpdateGunPortalFloor(this);
+        if (cameraTarget) {
+            idEntity *touching[MAX_GENTITIES];
+            const int count=gameLocal.clip.EntitiesTouchingBounds(GetPhysics()->GetAbsBounds().Expand(4), -1, touching, MAX_GENTITIES);
+            for (int n=0;n<count;++n) if (RW_PortalRagdoll(touching[n])) {
+                idPhysics *af=touching[n]->GetPhysics();
+                for (int b=0;b<af->GetNumClipModels();++b) {
+                    const idClipModel *limb=af->GetClipModel(b);
+                    if (limb && limb->IsTraceModel() && RW_PortalFits(this,limb->GetTraceModel(),af->GetAxis(b),af->GetOrigin(b),false)) {
+                        if (af->IsAtRest()) af->Activate();
+                        AddProximityEntity(touching[n]); break;
+                    }
+                }
+            }
+        }
         Show(); GetPhysics()->SetContents(cameraTarget ? CONTENTS_SOLID : 0);
         if (spawnArgs.GetBool("rw_energy_linked") != (cameraTarget != NULL))
             RW_GunPortalVisual(this, false);
@@ -717,6 +733,11 @@ bool hhPortal::AttemptPortal( idPlane &plane, idEntity *hit, idVec3 location, id
             idVec3 velocity = hit->GetPhysics()->GetLinearVelocity();
             velocity -= plane.Normal() * Min(0.0f, velocity * plane.Normal());
             hit->GetPhysics()->SetLinearVelocity(velocity);
+            if (RW_PortalRagdoll(hit)) for (int b=1;b<hit->GetPhysics()->GetNumClipModels();++b) {
+                idVec3 limbVelocity=hit->GetPhysics()->GetLinearVelocity(b);
+                limbVelocity-=plane.Normal()*Min(0.0f,limbVelocity*plane.Normal());
+                hit->GetPhysics()->SetLinearVelocity(limbVelocity,b);
+            }
             if (eyeOffset != 0) {
                 hhPlayer *player = static_cast<hhPlayer *>(hit);
                 const renderView_t oldView = *player->GetRenderView();
@@ -1097,6 +1118,8 @@ bool hhPortal::PortalEntity( idEntity *ent, const idVec3 &point, const idVec3 *c
 	}
 
 	if ( cameraTarget ) {
+        if (spawnArgs.GetBool("rw_portalGun") && RW_PortalRagdoll(ent))
+            return RW_TransferPortalRagdoll(this,ent,crossingPoint);
 		sourceAxis = GetAxis().Transpose();
 		destAxis = cameraTarget->GetAxis();
 
@@ -1644,5 +1667,37 @@ void hhPortal::Event_HideGlowPortal( void ) {
 
 #include "portalgun.inl"
 
-
+// Validate every limb before changing any physics state. A blocked exit must
+// never transfer only the torso or abandon the rest of the constrained figure.
+static bool RW_TransferPortalRagdoll(hhPortal *portal, idEntity *ent, const idVec3 *crossingPoint) {
+    hhPortal *destination=static_cast<hhPortal *>(portal->cameraTarget);
+    if (!destination) return false;
+    idPhysics_AF *af=static_cast<idPhysics_AF *>(ent->GetPhysics());
+    idMat3 rotation=mat3_identity;
+    for (int i=0;i<3;++i) PortalRotate(rotation[i],portal->GetAxis().Transpose(),destination->GetAxis(),true);
+    for (int i=0;i<af->GetNumClipModels();++i) {
+        const idVec3 target=(af->GetOrigin(i)-portal->GetOrigin())*rotation+destination->GetOrigin();
+        // Sweep the remaining tick at the exit as well as checking occupancy,
+        // so a fast corpse cannot skip a thin obstacle beyond the opening.
+        const idVec3 start=crossingPoint ? target+(*crossingPoint-af->GetOrigin())*rotation : target;
+        trace_t trace;
+        if (gameLocal.clip.Translation(trace,target,target,af->GetClipModel(i),af->GetAxis(i)*rotation,
+                af->GetBody(i)->GetClipMask(),ent) ||
+            gameLocal.clip.Translation(trace,start,target,af->GetClipModel(i),af->GetAxis(i)*rotation,
+                af->GetBody(i)->GetClipMask(),ent)) {
+            if (cvarSystem->GetCVarBool("developer")) gameLocal.Printf("PORTAL_AF_BLOCK %s body=%d hit=%d\n",ent->GetName(),i,trace.c.entityNum);
+            return false;
+        }
+    }
+    ent->CancelEvents(&EV_ResetGravity);
+    af->SetGravity(destination->GetGravity());
+    af->TransformThroughPortal(portal->GetOrigin(),destination->GetOrigin(),rotation);
+    gameLocal.InvalidateEntityPresentation(ent);
+    static_cast<idAFEntity_Base *>(ent)->UpdateAnimationControllers();
+    ent->UpdateVisuals();
+    static_cast<idAFEntity_Base *>(ent)->LinkCombat();
+    ent->Portalled(portal);
+    if (cvarSystem->GetCVarBool("developer")) gameLocal.Printf("PORTAL_AF_CROSS %s bodies=%d origin=%s\n",ent->GetName(),af->GetNumClipModels(),af->GetOrigin().ToString());
+    return true;
+}
 
