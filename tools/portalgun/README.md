@@ -506,3 +506,18 @@ The private `noportal` save verifies the salvage window, real portal projectile
 impact, and traversal through the resulting opening. `window_backing.cfg` records
 the reproduction without distributing the save. The surface-fit fixture also
 checks recessed support, obstacle avoidance, blocked openings and low placement.
+
+### Camera-facing mist through portals
+
+Particle model snapshots now use the renderer view counter, rather than the
+simulation frame counter. Each visible portal camera therefore gets billboards
+oriented to its own view. Other continuous models retain their frame cadence.
+Particle surfaces are retired through the renderer's deferred-free queue when
+rebuilt, preserving geometry and GPU caches referenced by earlier queued views
+and their light interactions. This avoids both wrong-facing mist and recursive
+views overwriting each other's particle meshes. Fog volume shaders are unchanged.
+
+Hidden muted tests use the private `nofog` save, compare particle-enabled and
+particle-disabled direct views, confirm the mist through the window portal,
+exercise camera turns and save/reload, and check `multiportal2` recursion.
+`tests/particle_views.cfg` records the regression sequence without retail assets.

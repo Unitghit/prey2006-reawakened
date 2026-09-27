@@ -1023,8 +1023,11 @@ idRenderModel *R_EntityDefDynamicModel( idRenderEntityLocal *def ) {
 		return model;
 	}
 
-	// continously animating models (particle systems, etc) will have their snapshot updated every single view
-	if ( callbackUpdate || ( model->IsDynamicModel() == DM_CONTINUOUS && def->dynamicModelFrameCount != tr.frameCount ) ) {
+	// Particle billboards depend on the camera, not just the simulation frame.
+    const bool viewParticles = idStr::CheckExtension(model->Name(), ".prt");
+    const int snapshotCount = viewParticles ? tr.viewCount : tr.frameCount;
+    // Other continuous models retain their frame-based update cadence.
+	if ( callbackUpdate || ( model->IsDynamicModel() == DM_CONTINUOUS && def->dynamicModelFrameCount != snapshotCount ) ) {
 		R_ClearEntityDefDynamicModel( def );
 	}
 
@@ -1056,7 +1059,7 @@ idRenderModel *R_EntityDefDynamicModel( idRenderEntityLocal *def ) {
 		}
 
 		def->dynamicModel = def->cachedDynamicModel;
-		def->dynamicModelFrameCount = tr.frameCount;
+		def->dynamicModelFrameCount = snapshotCount;
 	}
 
 	// set model depth hack value

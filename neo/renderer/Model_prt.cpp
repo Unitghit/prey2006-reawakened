@@ -145,16 +145,19 @@ idRenderModel *idRenderModelPrt::InstantiateDynamicModel( const struct renderEnt
 
 		if ( staticModel->FindSurfaceWithId( stageNum, surfaceNum ) ) {
 			surf = &staticModel->surfaces[surfaceNum];
-			R_FreeStaticTriSurfVertexCaches( surf->geometry );
+            // Earlier views can still reference these vertices and interactions.
+            // Retire the old surface through the renderer's deferred-free queue;
+            // do not overwrite it while building billboards for another camera.
+            R_FreeStaticTriSurf( surf->geometry );
 		} else {
 			surf = &staticModel->surfaces.Alloc();
 			surf->id = stageNum;
 			surf->shader = stage->material;
-			surf->geometry = R_AllocStaticTriSurf();
-			R_AllocStaticTriSurfVerts( surf->geometry, 4 * count );
-			R_AllocStaticTriSurfIndexes( surf->geometry, 6 * count );
-			R_AllocStaticTriSurfPlanes( surf->geometry, 6 * count );
 		}
+        surf->geometry = R_AllocStaticTriSurf();
+        R_AllocStaticTriSurfVerts( surf->geometry, 4 * count );
+        R_AllocStaticTriSurfIndexes( surf->geometry, 6 * count );
+        R_AllocStaticTriSurfPlanes( surf->geometry, 6 * count );
 
 		int numVerts = 0;
 		idDrawVert *verts = surf->geometry->verts;
