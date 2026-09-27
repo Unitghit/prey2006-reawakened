@@ -1225,10 +1225,11 @@ void hhWeapon::PresentWeapon( bool showViewModel ) {
     // shared magazine remain untouched, so no shell is granted or discarded.
     if (gameLocal.GameState() == GAMESTATE_ACTIVE && dict && state == "Idle" &&
         (!idStr::Icmp(scriptObject.GetTypeName(), "weapon_d3supershotgun") ||
-         !idStr::Icmp(scriptObject.GetTypeName(), "weapon_d3supershotgun_v2")) &&
-        !idStr::Icmp(dict->GetString("scriptobject"), "weapon_d3supershotgun_v3")) {
+         !idStr::Icmp(scriptObject.GetTypeName(), "weapon_d3supershotgun_v2") ||
+         !idStr::Icmp(scriptObject.GetTypeName(), "weapon_d3supershotgun_v3")) &&
+        !idStr::Icmp(dict->GetString("scriptobject"), "weapon_d3supershotgun_v4")) {
         const float cooldown = WEAPON_NEXTATTACK;
-        InitScriptObject("weapon_d3supershotgun_v3");
+        InitScriptObject("weapon_d3supershotgun_v4");
         WEAPON_NEXTATTACK = cooldown;
         SetState("Idle", 0);
     }

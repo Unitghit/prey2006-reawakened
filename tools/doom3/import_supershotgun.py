@@ -97,3 +97,4 @@ def import_supershotgun(index, read, text, block, files):
     files['script/reawakened/weapon_d3supershotgun_v1.script'] = Path(__file__).with_name('weapon_d3supershotgun_v1.script').read_bytes()
     files['script/reawakened/weapon_d3supershotgun_v2.script'] = Path(__file__).with_name('weapon_d3supershotgun_v2.script').read_bytes()
     files['script/reawakened/weapon_d3supershotgun_v3.script'] = Path(__file__).with_name('weapon_d3supershotgun_v3.script').read_bytes()
+    files['script/reawakened/weapon_d3supershotgun_v4.script'] = Path(__file__).with_name('weapon_d3supershotgun_v4.script').read_bytes()

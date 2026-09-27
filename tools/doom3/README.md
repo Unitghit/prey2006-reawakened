@@ -435,9 +435,14 @@ Validated with an existing shotgun save and hidden, muted firing captures.
 
 ### Super Shotgun single-barrel save compatibility
 
-The immutable v1 and v2 scripts remain installed for existing saves. New weapons
-use v3; restored weapons finish their current action before upgrading at idle,
+The immutable v1, v2 and v3 scripts remain installed for existing saves. New weapons
+use v4; restored weapons finish their current action before upgrading at idle,
 preserving the magazine and cooldown. Hidden, muted tests cover secondary
 pellet/shell counts, primary fire, one-shell top-up, the last reserve shell,
 saving with one loaded shell, and legacy saves during idle and reload.
 `tests/supershotgun_single.cfg` exercises both triggers and save/reload.
+
+Single-barrel recoil plays fully when no second shot is requested. A follow-up
+shot can blend into new recoil after 0.25 seconds; empty-gun reload waits for
+recoil completion. `tests/supershotgun_recoil.cfg` checks single shots, rapid
+secondary fire, and secondary-to-primary follow-ups with legacy saves.

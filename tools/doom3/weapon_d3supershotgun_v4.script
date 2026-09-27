@@ -1,0 +1,110 @@
+// Prey firing-controller adapter for locally imported Doom 3 supershotgun assets.
+scriptEvent void fireSingleBarrel();
+object weapon_d3supershotgun_v4 : weapon_base {
+    void init();
+    void Idle();
+    void Fire();
+    void AltFire();
+    void Reload();
+};
+
+void weapon_d3supershotgun_v4::init() {
+    nextAttack = 0;
+    WEAPON_ALTMODE = false;
+}
+
+void weapon_d3supershotgun_v4::Idle() {
+    weaponReady();
+    PlayCycle("idle");
+    while (1) {
+        CheckLower(2);
+        CheckAside(2);
+        if (WEAPON_ATTACK && sys.getTime() >= nextAttack) {
+            if (ammoInClip() >= 2) {
+                PerformAction("Fire", 0);
+            } else if (ammoInClip() == 1) {
+                PerformAction("AltFire", 0);
+            } else if (ammoAvailable() > ammoInClip()) {
+                PerformAction("Reload", 2);
+            } else {
+                StartSound("snd_empty", SND_CHANNEL_WEAPON, false);
+                nextAttack = sys.getTime() + 0.4;
+            }
+        }
+        if (WEAPON_ALTATTACK && !WEAPON_ATTACK && sys.getTime() >= nextAttack) {
+            if (ammoInClip() >= 1) {
+                PerformAction("AltFire", 0);
+            } else if (ammoAvailable() > ammoInClip()) {
+                PerformAction("Reload", 2);
+            } else {
+                StartSound("snd_empty", SND_CHANNEL_WEAPON, false);
+                nextAttack = sys.getTime() + 0.4;
+            }
+        }
+        if (WEAPON_RELOAD && ammoInClip() < clipSize() && ammoAvailable() > ammoInClip()) {
+            PerformAction("Reload", 2);
+        }
+        waitFrame();
+    }
+}
+
+void weapon_d3supershotgun_v4::Fire() {
+    nextAttack = sys.getTime() + 2.2;
+    PlayAnim("fire");
+    setShaderParm(SHADERPARM_TIMEOFFSET, -sys.getTime());
+    setShaderParm(SHADERPARM_DIVERSITY, sys.random(1));
+    fireProjectiles();
+    if (sys.getcvarFloat("d3_supershotgunTrace") == 1) {
+        sys.println("D3SHOT fired clip=" + ammoInClip());
+    }
+    while (!animDone(ANIMCHANNEL_ALL, 0)) {
+        CheckLower(2);
+        CheckAside(2);
+        waitFrame();
+    }
+    if (ammoAvailable() > ammoInClip()) { PerformAction("Reload", 2); }
+    PerformAction("Idle", 0);
+}
+
+void weapon_d3supershotgun_v4::AltFire() {
+    nextAttack = sys.getTime() + 0.25;
+    PlayAnim("fire");
+    setShaderParm(SHADERPARM_TIMEOFFSET, -sys.getTime());
+    setShaderParm(SHADERPARM_DIVERSITY, sys.random(1));
+    fireSingleBarrel();
+    if (sys.getcvarFloat("d3_supershotgunTrace") == 1) {
+        sys.println("D3SHOT single clip=" + ammoInClip() + " time=" + sys.getTime());
+    }
+    // Shot readiness and animation completion are independent. Let recoil
+    // finish unless a real follow-up shot replaces it, blending from its pose.
+    while (!animDone(ANIMCHANNEL_ALL, 0)) {
+        CheckLower(2);
+        CheckAside(2);
+        if (ammoInClip() > 0 && sys.getTime() >= nextAttack &&
+            (WEAPON_ATTACK || WEAPON_ALTATTACK)) {
+            PerformAction("AltFire", 2);
+        }
+        waitFrame();
+    }
+    if (sys.getcvarFloat("d3_supershotgunTrace") == 1) {
+        sys.println("D3SHOT single recoil completed time=" + sys.getTime());
+    }
+    // An empty gun starts reloading only after its recoil finishes.
+    if (ammoInClip() == 0 && ammoAvailable() > 0) { PerformAction("Reload", 2); }
+    PerformAction("Idle", 4);
+}
+
+void weapon_d3supershotgun_v4::Reload() {
+    weaponReloading();
+    PlayAnim("reload");
+    while (!animDone(ANIMCHANNEL_ALL, 0)) {
+        CheckLower(2);
+        CheckAside(2);
+        waitFrame();
+    }
+    addToClip(clipSize());
+    if (sys.getcvarFloat("d3_supershotgunTrace") == 1) {
+        sys.println("D3SHOT reload clip=" + ammoInClip() + " available=" + ammoAvailable());
+    }
+    PerformAction("Idle", 0);
+}
