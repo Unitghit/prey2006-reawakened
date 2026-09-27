@@ -363,7 +363,10 @@ static bool RW_GroundPortalPartialBlocked(hhPortal *portal, idEntity *entity, co
         // Find the supporting top face rather than pushing toward the void.
         if (trace.c.normal*destinationUp < -0.99f) {
             trace_t floor;
-            gameLocal.clip.TracePoint(floor, remote, remote-destinationUp*(pm_bboxwidth.GetFloat()*2),
+            // The mapped feet can already be inside the thin floor slab.
+            // Start above the bounded step-clearance range, otherwise this
+            // probe starts solid and cannot identify the supporting top face.
+            gameLocal.clip.TracePoint(floor, remote+destinationUp*32.0f, remote-destinationUp*(pm_bboxwidth.GetFloat()*2),
                 entity->GetPhysics()->GetClipMask(), entity);
             if (floor.fraction > 0 && floor.fraction < 1 && floor.c.entityNum == ENTITYNUM_WORLD &&
                 floor.c.normal*destinationUp > 0.99f) trace.c = floor.c;

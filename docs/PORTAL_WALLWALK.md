@@ -29,3 +29,10 @@ changed gravity zones, and use area gravity for partial-entry floor clearance.
 The `portalwalk` replay now settles with gravity `(0,0,-1)` and hull up `(0,0,1)`.
 Physical wallwalk contact at an exit still follows the normal wallwalk rules;
 campaign portals retain their original gravity handling.
+
+The updated low-exit `portalwalk` case exposed an underside contact when mapped
+feet start inside a thin floor slab. The supporting-floor probe now starts 32
+units above that point instead of inside solid. Existing bounded clearance,
+source sweep and destination occupancy checks still apply. The reproduction
+crosses with a 23.325-unit checked clearance and zero teleport correction;
+shallow/fast floor entries pass and the blocked deep exit remains blocked.
