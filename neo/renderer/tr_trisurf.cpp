@@ -2093,6 +2093,10 @@ srfTriangles_t	*R_MergeSurfaceList( const srfTriangles_t **surfaces, int numSurf
 	totalIndexes = 0;
 	for ( i = 0 ; i < numSurfaces ; i++ ) {
 		tri = surfaces[i];
+		// Importers can leave normals empty for renderbump materials and defer
+		// generation until FinishSurfaces. Preserve that requirement when mesh
+		// pieces sharing a material are merged, including repeated merges.
+		newTri->generateNormals |= tri->generateNormals;
 		memcpy( newTri->verts + totalVerts, tri->verts, tri->numVerts * sizeof( *tri->verts ) );
 		for ( j = 0 ; j < tri->numIndexes ; j++ ) {
 			newTri->indexes[ totalIndexes + j ] = totalVerts + tri->indexes[j];
