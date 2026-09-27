@@ -244,6 +244,17 @@ void idMD5Mesh::ParseMesh( idLexer &parser, int numJoints, const idJointMat *joi
 	}
 	TransformVerts( verts, joints );
 	deformInfo = R_BuildDeformInfo( texCoords.Num(), verts, tris.Num(), tris.Ptr(), shader->UseUnsmoothedTangents() );
+	// The retail Jen body has a mirrored UV join on exposed chest skin. Keep
+	// its authored basis everywhere else, especially folds and jewelry.
+	jenChestSeamVerts.Clear();
+	if (texCoords.Num() == 917 && !idStr::Icmp(shader->GetName(), "models/characters/girlfriend/girlfriend_liquid")) {
+		for (int v = 0; v < deformInfo->numOutputVerts; ++v) {
+			const int source = v < texCoords.Num() ? v : deformInfo->mirroredVerts[v - texCoords.Num()];
+			const idVec3 &point = verts[source].xyz;
+			if (idMath::Fabs(point.y) < 0.01f && point.x > 0 && point.z > 55 && point.z < 63)
+				jenChestSeamVerts.Append(v);
+		}
+	}
 	Mem_FreeA( verts, onStack );
 }
 
@@ -352,10 +363,34 @@ void idMD5Mesh::UpdateSurface( const struct renderEntity_s *ent, const idJointMa
 	// R_DeriveTangents() to get normals, tangents, and face planes.  If it only
 	// needs shadows generated, it will only have to generate face planes.  If it only
 	// has ambient drawing, or is culled, no additional work will be necessary
-	if ( !r_useDeferredTangents.GetBool() ) {
+	if ( !r_useDeferredTangents.GetBool() || jenChestSeamVerts.Num() ) {
 		// set face planes, vertex normals, tangents
 		R_DeriveTangents( tri );
 	}
+	for (int n = 0; n < jenChestSeamVerts.Num(); ++n) {
+		idDrawVert &vertex = tri->verts[jenChestSeamVerts[n]];
+		idVec3 normal(0, 0, 0);
+		for (int t = 0; t < tri->numIndexes; t += 3) {
+			const idVec3 &a = tri->verts[tri->indexes[t]].xyz;
+			const idVec3 &b = tri->verts[tri->indexes[t+1]].xyz;
+			const idVec3 &c = tri->verts[tri->indexes[t+2]].xyz;
+			if ((a-vertex.xyz).LengthSqr() < 1e-8f || (b-vertex.xyz).LengthSqr() < 1e-8f || (c-vertex.xyz).LengthSqr() < 1e-8f) {
+				idVec3 face;
+				face.Cross(c-a, b-a);
+				normal += face;
+			}
+		}
+		if (normal.Normalize() == 0) continue;
+		idVec3 tangent = vertex.tangents[0] - normal * (vertex.tangents[0] * normal);
+		if (tangent.Normalize() == 0) continue;
+		idVec3 bitangent;
+		bitangent.Cross(normal, tangent);
+		if (bitangent * vertex.tangents[1] < 0) bitangent = -bitangent;
+		vertex.normal = normal;
+		vertex.tangents[0] = tangent;
+		vertex.tangents[1] = bitangent;
+	}
+
 }
 
 /*

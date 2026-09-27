@@ -189,6 +189,7 @@ public:
 	int							NumWeights( void ) const;
 
 private:
+	idList<int> jenChestSeamVerts; // Bind-pose selected centerline vertices only.
 	idList<idVec2>				texCoords;			// texture coordinates
 	int							numWeights;			// number of weights
 #if NEW_MESH_TRANSFORM
