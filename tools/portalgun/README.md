@@ -491,3 +491,18 @@ static mesh over a broad floor, projectile placement, physical traversal after
 reload, and rejection of movable support. The private `portalnospawn` campaign
 save verifies placement on its scenery mesh and a center crossing through the
 original pair. No personal save or retail mesh is included in the source tests.
+
+### Thin two-sided window backing
+
+A two-sided world face can be visible from behind while its solid brush extends
+toward the shooter and its outer face is nodraw. Placement may advance a fully
+supported opening by up to eight units only when the blocking contact is the
+reverse of that exact support plane. Every candidate still passes the full oval
+clearance test and the other endpoint overlap check. Moving objects and ordinary
+front-facing walls do not use this adjustment. Both render-created back sides
+and runtime two-sided culling are recognized.
+
+The private `noportal` save verifies the salvage window, real portal projectile
+impact, and traversal through the resulting opening. `window_backing.cfg` records
+the reproduction without distributing the save. The surface-fit fixture also
+checks recessed support, obstacle avoidance, blocked openings and low placement.

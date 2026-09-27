@@ -593,7 +593,7 @@ static bool RW_PortalWindowClear(const idVec3 &center, const idMat3 &axis, const
     idClipModel clearance(window);
     return !gameLocal.clip.Contents(center, &clearance, idMat3(axis[1], axis[2], axis[0]), MASK_SOLID, ignore);
 }
-static bool RW_PortalSurfaceSupports(const idVec3 &center, const idMat3 &axis, const idEntity *ignore) {
+static bool RW_PortalSurfaceSupports(const idVec3 &center, const idMat3 &axis, const idEntity *ignore, bool checkWindow = true) {
     // The central ellipse has half the original radii (one quarter the area).
     // It anchors the flat cutout. The full artwork still needs backing, but
     // shallow recesses outside that core are safely behind the cutout plane.
@@ -620,7 +620,38 @@ static bool RW_PortalSurfaceSupports(const idVec3 &center, const idMat3 &axis, c
     }
     // A conservative oval prism checks the whole window against protruding
     // corners and solid entities, including objects between the sample rays.
-    return RW_PortalWindowClear(center, axis, ignore);
+    return !checkWindow || RW_PortalWindowClear(center, axis, ignore);
+}
+
+// A two-sided pane may expose its back face while its collision brush
+// extends toward the shooter (the front face can be nodraw). Move only a
+// fully supported opening past that thin backing, never waive final clearance.
+static bool RW_PortalBackFaceCenter(idVec3 &center, const idMat3 &axis,
+    const trace_t &hit, const idEntity *ignore) {
+    if (!hit.c.material || (hit.c.material->GetCullType() != CT_TWO_SIDED && !hit.c.material->ShouldCreateBackSides()) ||
+        hit.c.entityNum != ENTITYNUM_WORLD ||
+        !RW_PortalSurfaceSupports(center, axis, ignore, false)) return false;
+    idTraceModel window;
+    window.SetupCylinder(idBounds(idVec3(-RW_PORTAL_BACKING_HALF_WIDTH*RW_PORTAL_WINDOW_RIM_SCALE,
+        -RW_PORTAL_BACKING_HALF_HEIGHT*RW_PORTAL_WINDOW_RIM_SCALE, 0.25f),
+        idVec3(RW_PORTAL_BACKING_HALF_WIDTH*RW_PORTAL_WINDOW_RIM_SCALE,
+        RW_PORTAL_BACKING_HALF_HEIGHT*RW_PORTAL_WINDOW_RIM_SCALE, 4.0f)), 8);
+    idClipModel clearance(window);
+    trace_t contact;
+    gameLocal.clip.Translation(contact, center, center, &clearance,
+        idMat3(axis[1], axis[2], axis[0]), MASK_SOLID, ignore);
+    // The blocking brush must expose the reverse of this exact support plane.
+    // Ordinary front-facing walls, obstacles and moving entities do not qualify.
+    if (contact.fraction == 1 || contact.c.entityNum != ENTITYNUM_WORLD ||
+        contact.c.normal*axis[0] > -0.9999f ||
+        idMath::Fabs(center*contact.c.normal-contact.c.dist) > 0.14f) return false;
+    for (int step = 1; step <= 32; ++step) {
+        const idVec3 candidate = center+axis[0]*(step*0.25f);
+        if (!RW_PortalWindowClear(candidate, axis, ignore)) continue;
+        center = candidate;
+        return true;
+    }
+    return false;
 }
 
 // Keep the aperture rigid, but fit it to gently uneven surfaces. The final plane
@@ -836,6 +867,14 @@ bool hhPlayer::PlaceGunPortal(int color, const idDict *shot, int *previewCandida
             if (RW_PortalOpeningsOverlap(candidate, axis, other)) continue;
             if (RW_PortalSurfaceSupports(candidate, axis, this)) { center = candidate; supported = true; }
             else {
+                idVec3 backingCenter = candidate;
+                if (RW_PortalBackFaceCenter(backingCenter, axis, hit, this) &&
+                    !RW_PortalOpeningsOverlap(backingCenter, axis, other)) {
+                    center = backingCenter; supported = true;
+                    if (!preview && cvarSystem->GetCVarBool("com_fpsTrace"))
+                        gameLocal.Printf("PORTAL_BACKFACE_FIT offset=%.2f center=%s\n", (center-candidate)*normal, center.ToString());
+                    continue;
+                }
                 idVec3 fittedCenter = candidate;
                 idMat3 fittedAxis = axis;
                 if (RW_FitPortalSurface(fittedCenter, fittedAxis, this) &&
