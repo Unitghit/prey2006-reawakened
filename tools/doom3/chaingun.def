@@ -14,6 +14,8 @@ entityDef weaponobj_d3chaingun {
     "model" "d3_viewmodel_chaingun"
     "model_world" "d3_worldmodel_chaingun"
     "joint_attach" "Rattach_gun"
+    "world_attach_axis" "0 1 0  0 0 1  1 0 0"
+    "world_attach_offset" "-4.400 -1.200 -0.000"
     "def_fireInfo" "fireinfo_d3chaingun"
     "def_altFireInfo" "fireinfo_d3chaingun"
     "def_dropItem" "weapon_d3chaingun"

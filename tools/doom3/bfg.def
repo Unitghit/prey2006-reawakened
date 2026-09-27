@@ -13,6 +13,8 @@ entityDef weaponobj_d3bfg {
     "model" "d3_viewmodel_bfg"
     "model_world" "d3_worldmodel_bfg"
     "joint_attach" "Rattach_gun"
+    "world_attach_axis" "0.7745110 0.3108124 0.5509341 -0.4092700 -0.4178687 0.8111004 0.4823182 -0.8536869 -0.1964377"
+    "world_attach_offset" "-4.400 -1.200 -0.000"
     "def_fireInfo" "fireinfo_d3bfg"
     "def_altFireInfo" "fireinfo_d3bfg"
     "def_dropItem" ""

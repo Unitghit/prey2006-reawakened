@@ -379,6 +379,27 @@ installations. Developer diagnostics: `superShotgunInfo` and
 
 The Super Shotgun also passed Spirit Walk and real level-transition/save tests.
 
+### Third-person weapon attachments
+
+The seven Doom weapons now define a separate world attachment axis and offset.
+Doom's world animations use weapon-specific attachment frames: the shotguns
+point along negative Z, several heavy weapons along positive Z, the Machine Gun
+along X, and the BFG uses an oblique frame. These are converted to Tommy's
+forward-facing rifle attachment rather than bound with an identity rotation.
+Grip offsets account for Tommy's wrist being behind his grip-center attachment
+and the original weapon's offset from Doom's wrist. The Rocket Launcher needs
+a separate offset; it does not share the other weapons' wrist origin.
+
+The correction applies to the bound world entity, including older saved entities,
+and is cached in its spawn arguments. It does not alter the first-person model,
+pickup model, ammo, or save layout. Tommy still uses the existing character
+animations; this does not import Doom's full-body animations or add finger IK.
+
+The hidden, muted gunmodels test checks all seven weapons from both sides,
+up/down aiming, firing, switching and save/reload. The authored axes are rigid
+rotations, and runtime definition comparisons confirm that only attachment
+values changed. See test_world_grips.cfg; it requires the user's gunmodels save.
+
 ### Screen interaction poses
 
 The Shotgun, Machine Gun and Super Shotgun fully lower at interactive screens,

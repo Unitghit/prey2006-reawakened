@@ -8,6 +8,8 @@ entityDef weaponobj_d3shotgun {
     "model" "d3_viewmodel_shotgun"
     "model_world" "d3_worldmodel_shotgun"
     "joint_attach" "Rattach_gun"
+    "world_attach_axis" "0 -1 0  0 0 1  -1 0 0"
+    "world_attach_offset" "-4.166 -1.281 0.852"
     "def_fireInfo" "fireinfo_d3shotgun"
     "def_altFireInfo" "fireinfo_d3shotgun"
     "def_dropItem" "weapon_d3shotgun"

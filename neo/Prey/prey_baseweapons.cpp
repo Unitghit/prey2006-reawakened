@@ -404,6 +404,19 @@ void hhWeapon::Clear( void ) {
 hhWeapon::InitWorldModel
 ================
 */
+// Apply authored world-model grip corrections without changing pickup or view models.
+static void RW_ApplyWorldWeaponAttachment(idEntity *world, const idDict *definition) {
+    if (!world || !definition || !definition->FindKey("world_attach_axis")) return;
+    const idStr signature = idStr(definition->GetString("world_attach_axis")) + ";" +
+        definition->GetString("world_attach_offset", "0 0 0");
+    if (idStr::Cmp(world->spawnArgs.GetString("rw_grip_frame"), signature.c_str())) {
+        world->GetPhysics()->SetAxis(definition->GetMatrix("world_attach_axis"));
+        world->GetPhysics()->SetOrigin(definition->GetVector("world_attach_offset", "0 0 0"));
+        world->spawnArgs.Set("rw_grip_frame", signature.c_str());
+        world->UpdateVisuals();
+    }
+}
+
 void hhWeapon::InitWorldModel( const idDict *dict ) {
 	idEntity *ent;
 
@@ -427,6 +440,8 @@ void hhWeapon::InitWorldModel( const idDict *dict ) {
 		ent->BindToJoint( owner.GetEntity(), attach, true );
 		ent->GetPhysics()->SetOrigin( vec3_origin );
 		ent->GetPhysics()->SetAxis( mat3_identity );
+        ent->spawnArgs.Delete("rw_grip_frame");
+        RW_ApplyWorldWeaponAttachment(ent, dict);
 
 		// supress model in player views, but allow it in mirrors and remote views
 		renderEntity_t *worldModelRenderEntity = ent->GetRenderEntity();
@@ -1202,6 +1217,9 @@ hhWeapon::PresentWeapon
 ================
 */
 void hhWeapon::PresentWeapon( bool showViewModel ) {
+    // Also upgrades existing saved world entities after their physics is restored.
+    RW_ApplyWorldWeaponAttachment(worldModel.GetEntity(), dict);
+
 	UpdateScript();
 
 	//HUMANHEAD rww - added this gui owner logic here
