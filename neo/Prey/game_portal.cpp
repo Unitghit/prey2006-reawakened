@@ -663,6 +663,23 @@ bool hhPortal::AttemptPortal( idPlane &plane, idEntity *hit, idVec3 location, id
 
     idPlane crossingPlane = plane;
     if (eyeOffset != 0) crossingPlane.FitThroughPoint(GetOrigin() - plane.Normal()*eyeOffset);
+    // Some campaign openings have a player-clip backstop within the original
+    // near-plane margin. The hull cannot reach the visual plane there. Admit
+    // the crossing within that small margin only for a verified invisible
+    // world backstop; keep the actual transform anchored to the visible portal.
+    if (!spawnArgs.GetBool("rw_portalGun") && cameraTarget && hit->IsType(hhPlayer::Type) &&
+        plane.Distance(nextLocation) > 0 && plane.Distance(nextLocation) < 6.5f &&
+        plane.Distance(location) > plane.Distance(nextLocation)) {
+        trace_t stop;
+        gameLocal.clip.Translation(stop, nextLocation, nextLocation-plane.Normal()*8.0f,
+            hit->GetPhysics()->GetClipModel(), hit->GetPhysics()->GetAxis(), hit->GetPhysics()->GetClipMask(), hit);
+        if (stop.fraction < 1 && stop.c.entityNum == ENTITYNUM_WORLD &&
+            (stop.c.contents & CONTENTS_PLAYERCLIP) && !(stop.c.contents & CONTENTS_SOLID) &&
+            stop.c.normal*plane.Normal() > 0.99f) {
+            const float margin = Min(6.5f, plane.Distance(location)-0.001f);
+            crossingPlane.FitThroughPoint(GetOrigin()+plane.Normal()*margin);
+        }
+    }
     // NPC ownership changes at the hull center while the two visual pieces
     // remain joined at the opening. Feet entering alone no longer teleports
     // the whole model, and walking below the raised rim still crosses reliably.
