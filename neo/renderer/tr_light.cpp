@@ -1023,10 +1023,14 @@ idRenderModel *R_EntityDefDynamicModel( idRenderEntityLocal *def ) {
 		return model;
 	}
 
-	// Particle billboards depend on the camera, not just the simulation frame.
-    const bool viewParticles = idStr::CheckExtension(model->Name(), ".prt");
-    const int snapshotCount = viewParticles ? tr.viewCount : tr.frameCount;
-    // Other continuous models retain their frame-based update cadence.
+	// Particle billboards and beam ribbons depend on each portal's camera.
+	// Both beam implementations allocate fresh triangles and defer freeing the
+	// old snapshot, preserving geometry already queued by an earlier view.
+	const bool viewDependent = idStr::CheckExtension(model->Name(), ".prt")
+		|| idStr::CheckExtension(model->Name(), ".beam")
+		|| idStr::Icmp(model->Name(), "_beam") == 0;
+	const int snapshotCount = viewDependent ? tr.viewCount : tr.frameCount;
+	// Other continuous models retain their frame-based update cadence.
 	if ( callbackUpdate || ( model->IsDynamicModel() == DM_CONTINUOUS && def->dynamicModelFrameCount != snapshotCount ) ) {
 		R_ClearEntityDefDynamicModel( def );
 	}

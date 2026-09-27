@@ -128,3 +128,32 @@ failures or change a running game. Existing colorproblem and monitor regressions
 remain documented in tools/tests. The next safe implementation is the small ASE
 alpha initialization fix with an independent fixture, followed by beam multi-view
 reproduction. Larger effect work should stay separate from those repairs.
+
+## First implementation pass
+
+Implemented ASE RGB-to-RGBA alpha initialization and per-view snapshots for
+both built-in `_beam` and `.beam` ribbon models. Their existing snapshot
+replacement allocates fresh triangles; static-model destruction calls
+R_FreeStaticTriSurf, which defers disposal while frame data exists. Earlier
+queued views therefore retain their geometry. Other continuous model types
+keep their previous cache cadence.
+
+Validation: Release engine build passed. `python tools/tests/ase_vertex_alpha.py`
+compiles the actual color-face parser against an independent RGB/winding fixture
+and verifies identical opaque RGBA for all 256 poisoned allocation patterns.
+A hidden, muted engine run loaded colorproblem, saved/reloaded it, and loaded
+multiportal2 and captured its nested views without a fatal error. This is a
+runtime regression test, not yet an isolated visual reproduction of a beam
+facing the wrong portal camera. The beam change is based on the explicit
+view-dependent geometry and verified deferred lifetime path.
+
+Expected benefits: deterministic vertex transparency and vertex deduplication
+for colored ASE models; correctly oriented beam ribbons in distinct views.
+These are correctness changes, not a demonstrated FPS improvement. Beam-heavy
+portal scenes can do more geometry work because each camera needs its own mesh.
+
+Still pending: malformed ASE validation, dedicated multi-view beam comparison,
+retail-matched corona/jitter deformation, full custom lighting programs and
+quality-stage selection, and verified highres semantics. Existing lighting
+fallbacks remain active. No claim is made that all missing renderer features
+identified in this audit are implemented.
