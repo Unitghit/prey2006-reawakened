@@ -1,4 +1,5 @@
 reawakened/portalgun/view/v_portalgun {
+    noShadows
     noSelfShadow
     bumpmap textures/reawakened/portalgun/v_portalgun_normal.tga
     diffusemap textures/reawakened/portalgun/v_portalgun.tga
@@ -9,8 +10,19 @@ reawakened/portalgun/view/v_portalgun {
     }
 }
 reawakened/portalgun/view/v_hands {
+    noShadows
     noSelfShadow
     diffusemap textures/reawakened/portalgun/v_hands.tga
+}
+reawakened/portalgun/world/w_portalgun {
+    noSelfShadow
+    bumpmap textures/reawakened/portalgun/w_portalgun_normal.tga
+    diffusemap textures/reawakened/portalgun/w_portalgun.tga
+    {
+        blend specularmap
+        forceHighQuality
+        map textures/reawakened/portalgun/phong_world.tga
+    }
 }
 reawakened/portalgun/view/v_portalgun_glass {
     noShadows

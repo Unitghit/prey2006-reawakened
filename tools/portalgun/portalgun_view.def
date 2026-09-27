@@ -5,7 +5,11 @@ entityDef weaponobj_portalgun {
     "rw_addonScript" "script/reawakened/weapon_portalgun_v1.script"
     "model" "rw_portalgun_view"
     "viewmodel_fov" "54"
-    "model_world" ""
+    "model_world" "rw_portalgun_world"
+    "joint_attach" "Rattach_gun"
+    "world_attach_axis" "1 0 0  0 1 0  0 0 1"
+    "world_attach_offset" "-4.4 -1.2 0"
+    "rw_worldModelRevision" "portal_world_1"
     "def_fireInfo" "fireinfo_rwportalgun"
     "def_altFireInfo" "fireinfo_rwportalgun"
     "snd_fire" "rw_portalgun_blue"
@@ -13,6 +17,10 @@ entityDef weaponobj_portalgun {
     "snd_raise" ""
     "snd_putaway" ""
     "crosshair" "1"
+}
+model rw_portalgun_world {
+    mesh models/reawakened/portalgun/world/world.md5mesh
+    anim idle models/reawakened/portalgun/world/idle.md5anim
 }
 entityDef fireinfo_rwportalgun {
     "inherit" "fireinfo_wrench"

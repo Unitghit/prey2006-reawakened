@@ -442,6 +442,7 @@ void hhWeapon::InitWorldModel( const idDict *dict ) {
 		ent->GetPhysics()->SetAxis( mat3_identity );
         ent->spawnArgs.Delete("rw_grip_frame");
         RW_ApplyWorldWeaponAttachment(ent, dict);
+        ent->spawnArgs.Set("rw_worldModelRevision", dict->GetString("rw_worldModelRevision"));
 
 		// supress model in player views, but allow it in mirrors and remote views
 		renderEntity_t *worldModelRenderEntity = ent->GetRenderEntity();
@@ -1217,8 +1218,22 @@ hhWeapon::PresentWeapon
 ================
 */
 void hhWeapon::PresentWeapon( bool showViewModel ) {
+    // Older saves can contain the previously empty Portal world entity.
+    // Rebuild once, after restore, without replacing inventory or view animations.
+    if (gameLocal.GameState() == GAMESTATE_ACTIVE && dict && worldModel.IsValid() && dict->GetString("rw_worldModelRevision")[0] &&
+        idStr::Icmp(dict->GetString("rw_worldModelRevision"), worldModel->spawnArgs.GetString("rw_worldModelRevision"))) {
+        InitWorldModel(dict);
+    }
     // Also upgrades existing saved world entities after their physics is restored.
     RW_ApplyWorldWeaponAttachment(worldModel.GetEntity(), dict);
+
+    if (gameLocal.GameState() == GAMESTATE_ACTIVE && dict && !idStr::Icmp(dict->GetString("model_world"), "rw_portalgun_world")) {
+        renderEntity.noShadow = true;
+        if (worldModel.IsValid()) {
+            worldModel->SetShaderParm(5, renderEntity.shaderParms[5]);
+            worldModel->SetShaderParm(6, renderEntity.shaderParms[6]);
+        }
+    }
 
 	UpdateScript();
 

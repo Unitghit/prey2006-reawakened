@@ -1098,10 +1098,23 @@ void hhPlayer::UpdatePortalGun() {
         if (idStr::Icmp(weapon->spawnArgs.GetString("classname"), desired)) {
             SAFE_REMOVE(weapon);
             weapon = SpawnWeapon(desired);
-            animPrefix = "wrench";
+            animPrefix = selected ? "rifle" : "wrench";
             weapon->Raise();
             spawnArgs.SetInt("rw_portal_view_anim_end", 0);
             if (cvarSystem->GetCVarBool("developer")) gameLocal.Printf("PORTALGUN_VIEW selected %s\n", desired);
+        }
+    }
+    if (currentWeapon == 1 && idealWeapon == 1 && weapon.IsValid() && PortalGunViewAvailable()) {
+        animPrefix = selected ? "rifle" : "wrench";
+        // A saved idle loop does not automatically re-resolve its animation
+        // when the prefix changes. Refresh only that idle pose; leave scripted
+        // actions, GUI interaction, pain and cinematic animations alone.
+        const idAnimBlend *torso = animator.CurrentAnim(ANIMCHANNEL_TORSO);
+        const char *oldPrefix = selected ? "wrench_" : "rifle_";
+        if (!gameLocal.inCinematic && health > 0 && !ActiveGui() &&
+            !idStr::Icmp(GetAnimState(ANIMCHANNEL_TORSO), "Torso_Idle") && torso &&
+            !idStr::Icmpn(torso->AnimName(), oldPrefix, idStr::Length(oldPrefix))) {
+            SetAnimState(ANIMCHANNEL_TORSO, "Torso_Idle", 4);
         }
     }
     const int buttons = usercmd.buttons & (BUTTON_ATTACK | BUTTON_ATTACK_ALT);

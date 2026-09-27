@@ -6,7 +6,7 @@ places orange. Both endpoints must be placed before traversal is possible.
 An optional first-person Portal gun model can be imported locally as described
 below. Without that import the mechanics-only tool remains available.
 
-## Portal first-person model
+## Portal first-person and world models
 
 The local importer uses the installed PC Portal game and the command-line Crowbar
 decompiler to convert its gun mesh, weighted skeleton, and ten animation sequences
@@ -34,8 +34,15 @@ highlight sharpness from 1 to 150. The shell uses the original material's boost
 and three Fresnel controls; the glass has its own controls and a subtle neutral
 additive layer over the illuminated chamber. This approximates Source shading
 under Prey's lights; it does not reproduce Source's ambient probes, lightwarp,
-HDR pipeline, or complete particle system. No dropped
-or third-person world model is imported. Keep imported files
+HDR pipeline, or complete particle system. The importer also converts Portal's
+dedicated `w_portalgun` mesh and textures for third-person and portal views.
+Its muzzle/top axes are rotated into Tommy's gun attachment frame, with a grip
+offset and his existing two-handed rifle pose. This is not custom finger IK.
+The world shell uses its own normal/specular textures and original Phong controls
+(boost 1, Fresnel 1/1.5/2). Its own attachment sockets drive the blue/orange lights.
+The camera model and its arms have shadowless materials; the world shell retains
+normal scene lighting and the existing third-person weapon shadow rules.
+No pickup or drop behavior is added. Keep imported files
 installed when loading saves that contain the model; disabling the launcher option
 is supported and restores the wrench without changing weapon inventory slots.
 
@@ -57,6 +64,11 @@ executable. The Prey implementation is independent.
 Hidden muted tests compare world FOV 90/110 and 16:9/4:3 framing, both fire inputs,
 save/reload, campaign screen interaction and the sloped portal-exit regression.
 Update the engine, game DLL and imported portal gun definition together.
+Re-run the importer to install the world model. Existing saves upgrade their
+previously empty world entity after restore, without changing the save layout.
+The `tests/worldmodel.cfg` fixture covers third-person aiming, both colors,
+switching and save/reload. Legacy portal-gun saves and screen interaction were
+also checked with an isolated muted profile.
 
 The converter inserts a stationary root so Prey's removal of root motion does not
 erase Source's camera-relative offsets. The recovered bind pose was checked to

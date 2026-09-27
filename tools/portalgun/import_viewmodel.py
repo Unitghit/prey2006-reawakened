@@ -54,6 +54,8 @@ def main():
                     '-o',str(decompiled.resolve())],check=True,creationflags=creationflags,timeout=120)
     models = output/'models/reawakened/portalgun/view'
     print('Converted joints/triangles:',convert(decompiled, models))
+    from import_worldmodel import import_worldmodel
+    import_worldmodel(vpk, crowbar, output, work, vtf_image)
     textures=output/'textures/reawakened/portalgun'
     textures.mkdir(parents=True,exist_ok=True)
     for name in ('bluelight','orangelight','portalgun_effects'):

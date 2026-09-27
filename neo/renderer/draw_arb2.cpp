@@ -60,16 +60,17 @@ void	RB_ARB2_DrawInteraction( const drawInteraction_t *din ) {
     const char *materialName = din->surf->material->GetName();
     const bool portalGunBody = !idStr::Icmp(materialName, "reawakened/portalgun/view/v_portalgun");
     const bool portalGunGlass = !idStr::Icmp(materialName, "reawakened/portalgun/view/v_portalgun_glass");
+    const bool portalGunWorld = !idStr::Icmp(materialName, "reawakened/portalgun/world/w_portalgun");
     // Older local imports still have a conventional grayscale specular map.
     // Opt in only with the new packed map; disabled specular keeps its fallback.
-    const bool portalGunPhong = (portalGunBody || portalGunGlass) &&
+    const bool portalGunPhong = (portalGunBody || portalGunGlass || portalGunWorld) &&
         din->specularImage->imgName.Find("textures/reawakened/portalgun/phong", false) == 0;
     if (portalGunPhong) {
         qglBindProgramARB(GL_VERTEX_PROGRAM_ARB, VPROG_PORTALGUN_PHONG);
         qglBindProgramARB(GL_FRAGMENT_PROGRAM_ARB, FPROG_PORTALGUN_PHONG);
         // Boost and the three artist-authored Fresnel values from the VMT.
         const float body[4] = { 3, 5, 1, 2 }, glass[4] = { 1, 1, 1.5f, 2 };
-        qglProgramEnvParameter4fvARB(GL_FRAGMENT_PROGRAM_ARB, 3, portalGunGlass ? glass : body);
+        qglProgramEnvParameter4fvARB(GL_FRAGMENT_PROGRAM_ARB, 3, (portalGunGlass || portalGunWorld) ? glass : body);
         const float ambient[4] = { backEnd.vLight->lightShader->IsAmbientLight() ? 1.0f : 0.0f, 0, 0, 0 };
         qglProgramEnvParameter4fvARB(GL_FRAGMENT_PROGRAM_ARB, 4, ambient);
     }
