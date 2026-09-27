@@ -555,6 +555,25 @@ bool RW_PortalClipPlane(const idEntity *entity, const idTraceModel *trm, const i
     }
     return false;
 }
+// A catwalk loses its contact deliberately inside a portal aperture. Keep its
+// gravity during that partial entry so the eye crossing plane does not jump to
+// the feet. Use the same bounded aperture test as collision, not proximity alone.
+bool RW_PortalHoldWallWalkGravity(const idEntity *entity) {
+    if (!entity || !entity->IsType(hhPlayer::Type)) return false;
+    const idPhysics *physics = entity->GetPhysics();
+    const idClipModel *clip = physics->GetClipModel();
+    if (!clip || !clip->IsTraceModel()) return false;
+    idPlane plane;
+    float limit;
+    const idVec3 &origin = physics->GetOrigin();
+    if (!RW_PortalClipPlane(entity, clip->GetTraceModel(), physics->GetAxis(), origin, origin, plane, limit) ||
+        plane.Normal() * -physics->GetGravityNormal() <= 0.95f ||
+        plane.Normal() * physics->GetAxis()[2] <= 0.95f) return false;
+    const float depth = plane.Distance(origin);
+    const hhPlayer *player = static_cast<const hhPlayer *>(entity);
+    return depth <= 2.0f && plane.Distance(player->GetEyePosition()) > 0;
+}
+
 // Some maps place an invisible actor-clip shell ahead of the visible wall.
 // Match that exact nearby plane, only for invisible player-clip contents.
 bool RW_PortalCoverPlane(const idPlane &wall, const idVec3 &query, idPlane &cover) {

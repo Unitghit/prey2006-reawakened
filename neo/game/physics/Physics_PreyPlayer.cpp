@@ -3,6 +3,7 @@
 
 #include "../../Prey/prey_local.h"
 extern bool RW_PortalHoldPlayerAxis(const idEntity *entity);
+extern bool RW_PortalHoldWallWalkGravity(const idEntity *entity);
 
 const float c_fTraceOriginOffset = 2.0f;
 const float c_fGroundTraceDistance = 50.0f + c_fTraceOriginOffset;
@@ -653,6 +654,8 @@ void hhPhysics_Player::CheckWallWalk( bool bForce ) {
 	trace_t TraceInfo;
 
 	assert( self );
+	// A forced check after teleport must still acquire the destination gravity.
+	if (!bForce && IsWallWalking() && RW_PortalHoldWallWalkGravity(self)) return;
 
 	if( bForce || WallWalkIsAllowed() ) {
 		BuildWallwalkTraceOriginTable( clipModelAxis );
@@ -738,7 +741,7 @@ hhPhysics_Player::AirMove
 void hhPhysics_Player::AirMove( void ) {
 	idPhysics_Player::AirMove();
 
-	if( IsWallWalking() && groundTrace.fraction == 1.0f ) {
+	if( IsWallWalking() && groundTrace.fraction == 1.0f && !RW_PortalHoldWallWalkGravity(self) ) {
 		PLAYER_DEBUG("Align with gameLocal.gravity\n");
 		SetGravity( hhUtils::GetLocalGravity(GetOrigin(), GetBounds(), gameLocal.GetGravity()) );
 		ClipModelRotationOrigin = current.origin;

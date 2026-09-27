@@ -2755,6 +2755,8 @@ static void Cmd_PortalGun_f(const idCmdArgs &args) {
         gameLocal.Printf("PORTALGUN_FLIGHTS %d\n", shots);
     }
     gameLocal.Printf("PORTALGUN selected=%d current=%d origin=%s velocity=%s\n", player->PortalGunSelected(), player->GetCurrentWeapon(), player->GetOrigin().ToString(), player->GetPhysics()->GetLinearVelocity().ToString());
+    if (cvarSystem->GetCVarBool("developer")) gameLocal.Printf("PORTALGUN_FRAME gravity=%s up=%s eye=%s\n",
+        player->GetPhysics()->GetGravityNormal().ToString(), player->GetPhysics()->GetAxis()[2].ToString(), player->GetEyePosition().ToString());
     if (cvarSystem->GetCVarBool("developer")) for (int color = 0; color < 2; ++color) {
         idEntity *portal = gameLocal.FindEntity(color ? "rw_gun_orange" : "rw_gun_blue");
         if (portal) gameLocal.Printf("PORTALGUN_ENDPOINT %s origin=%s normal=%s up=%s\n", portal->GetName(),

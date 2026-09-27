@@ -500,7 +500,9 @@ void hhCameraInterpolator::VerifyEyeOffset( float& eyeOffset ) {
 	}
 
 	trace_t trace;
-	gameLocal.clip.Translation( trace, GetCurrentPosition(), GetCurrentPosition() + GetCurrentUpVector() * eyeOffset, &clipBounds, GetCurrentAxis(), selfPhysics->GetClipMask(), NULL );
+	// This is the player's camera hull. Supply its owner so portal apertures
+	// apply to this trace too, especially while the player is sideways on wallwalk.
+	gameLocal.clip.Translation( trace, GetCurrentPosition(), GetCurrentPosition() + GetCurrentUpVector() * eyeOffset, &clipBounds, GetCurrentAxis(), selfPhysics->GetClipMask(), self );
 	eyeOffset *= trace.fraction;
 }
 
