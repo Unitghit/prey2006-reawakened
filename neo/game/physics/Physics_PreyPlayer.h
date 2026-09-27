@@ -77,6 +77,7 @@ class hhPhysics_Player: public idPhysics_Player
 		void				Restore( idRestoreGame *savefile );
 
 	protected:
+        bool RecoverGroundPenetration();
 		idVec3				ClipModelRotationOrigin;
 		bool				shouldRemainAlignedToAxial;
 		bool				orientToGravity;

@@ -754,6 +754,32 @@ void hhPhysics_Player::AirMove( void ) {
 hhPhysics_Player::CheckGround
 =============
 */
+// Recover only shallow floor overlaps. This is not a general wall escape:
+// the free endpoint must sweep back to an upward-facing world surface within
+// the collision skin of the original position, and the lift never exceeds 2 units.
+bool hhPhysics_Player::RecoverGroundPenetration() {
+    if (gameLocal.isMultiplayer || !castSelf || current.movementType != PM_NORMAL ||
+        castSelf->IsSpiritOrDeathwalking() || castSelf->InVehicle() || RW_PortalHoldPlayerAxis(self)) return false;
+    const idVec3 up = -gravityNormal;
+    if (up.LengthSqr() < 0.5f || current.velocity * up > 0.0f) return false;
+    for (float lift = 0.25f; lift <= 2.0f; lift += 0.25f) {
+        const idVec3 candidate = current.origin + up * lift;
+        if (gameLocal.clip.Contents(candidate, clipModel, clipModelAxis, GetClipMask(), self)) continue;
+        trace_t reverse;
+        gameLocal.clip.Translation(reverse, candidate, current.origin, clipModel, clipModelAxis, GetClipMask(), self);
+        if (reverse.fraction <= 0.0f || reverse.fraction >= 1.0f ||
+            reverse.c.entityNum != ENTITYNUM_WORLD || reverse.c.normal * up < MIN_WALK_NORMAL ||
+            (reverse.endpos - current.origin).LengthSqr() > 0.75f * 0.75f) continue;
+        current.origin = candidate;
+        const float intoFloor = current.velocity * reverse.c.normal;
+        if (intoFloor < 0.0f) current.velocity -= reverse.c.normal * intoFloor;
+        clipModel->SetPosition(current.origin, clipModelAxis);
+        if (p_playerPhysicsDebug.GetInteger()) gameLocal.Printf("PLAYER_FLOOR_RECOVERY lift=%.2f\n", lift);
+        return true;
+    }
+    return false;
+}
+
 void hhPhysics_Player::CheckGround( void ) {
 	int i, contents;
 	idVec3 point;
@@ -783,6 +809,7 @@ void hhPhysics_Player::CheckGround( void ) {
 
 	contents = gameLocal.clip.Contents( current.origin, clipModel, clipModelAxis, GetClipMask(), self );
 	if ( contents & GetClipMask() ) { // HUMANHEAD cjr:  added GetClipMask() instead of hardcoded MASK_SOLID - was causing problems with spiritwalk
+		if (RecoverGroundPenetration()) { CheckGround(); return; }
 		// do something corrective if stuck in solid
 		CorrectAllSolid( groundTrace, contents );
 	}
