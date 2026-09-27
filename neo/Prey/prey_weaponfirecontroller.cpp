@@ -15,6 +15,20 @@ END_CLASS
 static idCVar g_muzzleFlashShadows( "g_muzzleFlashShadows", "1", CVAR_GAME | CVAR_BOOL | CVAR_ARCHIVE,
 	"player muzzle flashes cast shadows while the lighter is off (single player)" );
 
+// The barrel sits only ~5 units right of and ~6 below the eye, so shadows fell
+// straight behind what cast them and stayed hidden from the player. Raising the
+// shadow-casting flash lets heads and arms visibly shadow the bodies below them.
+static idCVar g_muzzleFlashShadowOffset( "g_muzzleFlashShadowOffset", "0 24", CVAR_GAME | CVAR_ARCHIVE,
+	"right and up offset (units) of the player's shadow-casting muzzle flash light" );
+
+idVec2 hhWeaponFireController::MuzzleFlashShadowOffset() const {
+	idVec2 offset( 0.0f, 0.0f );
+	if ( MuzzleFlashCastsShadows() ) {
+		sscanf( g_muzzleFlashShadowOffset.GetString(), "%f %f", &offset.x, &offset.y );
+	}
+	return offset;
+}
+
 bool hhWeaponFireController::MuzzleFlashCastsShadows() const {
 	return g_muzzleFlashShadows.GetBool() && !gameLocal.isMultiplayer &&
 		owner.IsValid() && !owner->IsLighterOn();

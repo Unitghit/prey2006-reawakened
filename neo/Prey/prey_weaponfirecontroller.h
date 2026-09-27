@@ -41,6 +41,7 @@ public:
 
 protected:
 	virtual bool		MuzzleFlashCastsShadows() const;
+	virtual idVec2		MuzzleFlashShadowOffset() const;
 
 public:
 	virtual int			AmmoAvailable() const;

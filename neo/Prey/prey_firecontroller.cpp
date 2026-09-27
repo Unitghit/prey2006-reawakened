@@ -395,9 +395,18 @@ void hhFireController::CalculateMuzzlePosition( idVec3& origin, idMat3& axis ) {
 hhFireController::UpdateMuzzleFlashPosition
 ================
 */
-void hhFireController::UpdateMuzzleFlashPosition() {	
+void hhFireController::UpdateMuzzleFlashPosition() {
 	muzzleFlash.axis = GetSelf()->GetAxis();
 	muzzleFlash.origin = AssureInsideCollisionBBox( muzzleOrigin, muzzleFlash.axis, GetProjectileOwner()->GetPhysics()->GetAbsBounds(), projectileMaxHalfDimension );
+	const idVec2 shadowOffset = MuzzleFlashShadowOffset();
+	if ( shadowOffset.x != 0.0f || shadowOffset.y != 0.0f ) {
+		// Move the shadow-casting flash away from the eye (right, up in weapon
+		// space) so shadows fall beside what casts them; stop short of walls.
+		const idVec3 target = muzzleFlash.origin - muzzleFlash.axis[1] * shadowOffset.x + muzzleFlash.axis[2] * shadowOffset.y;
+		trace_t trace;
+		gameLocal.clip.TracePoint( trace, muzzleFlash.origin, target, MASK_OPAQUE, GetProjectileOwner() );
+		muzzleFlash.origin += ( target - muzzleFlash.origin ) * Max( 0.0f, trace.fraction - 0.1f );
+	}
 
 	//TEST
 	/*trace_t trace;

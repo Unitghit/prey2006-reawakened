@@ -57,6 +57,8 @@ protected:
 	void				UpdateMuzzleFlashPosition();
 	// Reawakened: whether this shot's muzzle flash light casts shadows (off, as in retail Prey)
 	virtual bool		MuzzleFlashCastsShadows() const { return false; }
+	// offset (right, up) applied to the flash light while it casts shadows
+	virtual idVec2		MuzzleFlashShadowOffset() const { return vec2_origin; }
 
 	idVec3				AssureInsideCollisionBBox( const idVec3& origin, const idMat3& axis, const idBounds& ownerAbsBounds, float projMaxHalfDim ) const;
 	virtual idMat3		DetermineAimAxis( const idVec3& muzzlePos, const idMat3& weaponAxis );
