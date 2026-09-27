@@ -355,7 +355,8 @@ static bool RW_GroundPortalPartialBlocked(hhPortal *portal, idEntity *entity, co
     // center, with a swept source check and a fresh destination occupancy test.
     // Other contacts retain the small skin allowance; movable objects block.
     if (blocked && clearOrigin && trace.c.entityNum == ENTITYNUM_WORLD) {
-        idVec3 destinationUp = -portal->cameraTarget->GetGravity();
+        idVec3 destinationUp = -hhUtils::GetLocalGravity(portal->cameraTarget->GetOrigin(),
+            portal->cameraTarget->GetPhysics()->GetBounds(), gameLocal.GetGravity());
         destinationUp.Normalize();
         // Contents tests report the closest brush face. Inside a thin floor
         // slab that may be its underside, even though entry came from above.
@@ -954,8 +955,8 @@ bool hhPlayer::PlaceGunPortal(int color, const idDict *shot, int *previewCandida
     portal->spawnArgs.SetFloat("rw_portal_surface_offset", RW_PORTAL_SURFACE_OFFSET);
     portal->spawnArgs.SetBool("rw_portal_floor_aligned", true);
     portal->GetPhysics()->SetContents(0);
-    portal->SetGravity(shot && shot->GetInt("shot_hops") > 0 ?
-        hhUtils::GetLocalGravity(portal->GetOrigin(), portal->GetPhysics()->GetBounds(), gameLocal.GetGravity()) : GetPhysics()->GetGravity());
+    // Wallwalk gravity belongs to the shooter, not the destination room.
+    portal->SetGravity(hhUtils::GetLocalGravity(portal->GetOrigin(), portal->GetPhysics()->GetBounds(), gameLocal.GetGravity()));
     if (other) {
         portal->cameraTarget = other; other->cameraTarget = portal;
         portal->spawnArgs.Set("cameraTarget", other->GetName()); other->spawnArgs.Set("cameraTarget", portal->GetName());

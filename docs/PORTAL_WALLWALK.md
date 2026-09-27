@@ -22,3 +22,10 @@ crossing at approximately 68 units of eye offset, zero teleport correction;
 entry. Existing shallow floor clearance, fast crossing and blocked deep exit
 tests pass. No save format changes. `portalGun status` reports gravity, hull up
 and eye position in developer mode for future arbitrary-gravity diagnostics.
+
+Gun portals also resolve gravity from their destination area rather than copying
+the shooter's wallwalk gravity. Refresh this at traversal for existing saves and
+changed gravity zones, and use area gravity for partial-entry floor clearance.
+The `portalwalk` replay now settles with gravity `(0,0,-1)` and hull up `(0,0,1)`.
+Physical wallwalk contact at an exit still follows the normal wallwalk rules;
+campaign portals retain their original gravity handling.

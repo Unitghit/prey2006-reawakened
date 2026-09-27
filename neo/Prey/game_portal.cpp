@@ -1118,6 +1118,10 @@ bool hhPortal::PortalEntity( idEntity *ent, const idVec3 &point, const idVec3 *c
 	}
 
 	if ( cameraTarget ) {
+        // Refresh gun exits at traversal, including older saves and rooms whose
+        // gravity changed after placement. Campaign portals retain their rules.
+        if (spawnArgs.GetBool("rw_portalGun")) cameraTarget->SetGravity(
+            hhUtils::GetLocalGravity(cameraTarget->GetOrigin(), cameraTarget->GetPhysics()->GetBounds(), gameLocal.GetGravity()));
         if (spawnArgs.GetBool("rw_portalGun") && RW_PortalRagdoll(ent))
             return RW_TransferPortalRagdoll(this,ent,crossingPoint);
 		sourceAxis = GetAxis().Transpose();
