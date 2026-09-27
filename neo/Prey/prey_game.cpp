@@ -9,6 +9,8 @@ static renderView_t previousPresentationView;
 static idMat3 previousPresentationAim;
 static idVec2 presentationCursorOffset(0.0f, 0.0f);
 static idEntityPtr<hhPlayer> presentationPlayer;
+static idEntityPtr<hhVehicle> presentationVehicle;
+static bool previousPresentationInVehicle;
 static int previousPresentationTime = -1;
 static int previousPresentationMode;
 static bool previousPresentationAllowed;
@@ -132,12 +134,14 @@ void hhGameLocal::ResetPresentation() {
 	ClearPresentationPoses();
 	previousPresentationTime = -1;
 	presentationPlayer = NULL;
+    presentationVehicle = NULL;
+    previousPresentationInVehicle = false;
 }
 
 idVec2 hhGameLocal::GetPresentationCursorOffset() const { return presentationCursorOffset; }
 
 void hhGameLocal::InvalidateEntityPresentation(idEntity *entity) {
-    if (entity == presentationPlayer.GetEntity()) { ResetPresentation(); return; }
+    if (entity == presentationPlayer.GetEntity() || entity == presentationVehicle.GetEntity()) { ResetPresentation(); return; }
     const int slot = entity->entityNumber;
     if (slot >= 0 && slot < presentationPoses.Num() && presentationPoses[slot])
         presentationPoses[slot]->time = -1;
@@ -886,7 +890,10 @@ gameReturn_t hhGameLocal::RunFrame( const usercmd_t *clientCmds, int activeEdito
 		previousPresentationTime = time;
 		presentationPlayer = presentation;
 		previousPresentationMode = presentation->IsSpiritOrDeathwalking();
-		previousPresentationAllowed = !GetCamera() && !inCinematic && !presentation->InVehicle() && !presentation->spectating && !pm_thirdPerson.GetBool();
+		previousPresentationInVehicle = presentation->InVehicle();
+        presentationVehicle = previousPresentationInVehicle && presentation->GetVehicleInterface() ?
+            presentation->GetVehicleInterface()->GetVehicle() : NULL;
+        previousPresentationAllowed = !GetCamera() && !inCinematic && !presentation->spectating && !pm_thirdPerson.GetBool();
 		previousPresentationGravity = presentation->GetPhysics()->GetGravityNormal();
 		CapturePresentationPoses();
         if (stalePortalView) TransformPortalViewModels(presentationPortalSource, presentationPortalDestination, presentationPortalRotation);
@@ -1238,9 +1245,17 @@ bool hhGameLocal::Draw( int clientNum ) {
 	presentationCursorOffset.Zero();
 	idAngles lateDelta(0.0f, 0.0f, 0.0f);
 	bool lateLook = false;
-	const bool interpolate = presentationFraction >= 0.0f && g_interpolateView.GetBool() &&
+	hhVehicle *currentVehicle = player->InVehicle() && player->GetVehicleInterface() ?
+        player->GetVehicleInterface()->GetVehicle() : NULL;
+    // Never blend across entering, leaving, deleting or switching vehicles.
+    const bool sameVehicle = previousPresentationInVehicle == player->InVehicle() &&
+        (!player->InVehicle() || (currentVehicle && presentationVehicle.GetEntity() == currentVehicle));
+    const idVec3 vehiclePhysicsOrigin = currentVehicle ? currentVehicle->GetPhysics()->GetOrigin() : vec3_origin;
+    const idVec3 vehiclePhysicsVelocity = currentVehicle ? currentVehicle->GetPhysics()->GetLinearVelocity() : vec3_origin;
+    const idMat3 vehiclePhysicsAxis = currentVehicle ? currentVehicle->GetPhysics()->GetAxis() : mat3_identity;
+    const bool interpolate = presentationFraction >= 0.0f && g_interpolateView.GetBool() &&
 		presentationPlayer.GetEntity() == player && previousPresentationAllowed && time - previousPresentationTime == USERCMD_MSEC &&
-		!GetCamera() && !inCinematic && !player->InVehicle() && !player->spectating && !pm_thirdPerson.GetBool() &&
+		!GetCamera() && !inCinematic && sameVehicle && !player->spectating && !pm_thirdPerson.GetBool() &&
 		previousPresentationMode == player->IsSpiritOrDeathwalking() &&
 		previousPresentationGravity * player->GetPhysics()->GetGravityNormal() > 0.99f &&
 		previousPresentationView.viewID == view->viewID &&
@@ -1257,7 +1272,8 @@ bool hhGameLocal::Draw( int clientNum ) {
 		view->viewaxis = orientation.ToMat3();
 		view->fov_x = previousPresentationView.fov_x + presentationFraction * ( authoritativeView.fov_x - previousPresentationView.fov_x );
 		view->fov_y = previousPresentationView.fov_y + presentationFraction * ( authoritativeView.fov_y - previousPresentationView.fov_y );
-		lateLook = ApplyLateMousePresentation(player, *view, lateDelta);
+		// Vehicle aim drives its physical orientation; do not apply on-foot late-look math.
+        if (!currentVehicle) lateLook = ApplyLateMousePresentation(player, *view, lateDelta);
         // Interpolation trails simulation. Until the eye reaches the exit
         // plane, draw in entrance coordinates instead of behind the exit wall.
         if (presentationPortalTime == time &&
@@ -1290,10 +1306,10 @@ bool hhGameLocal::Draw( int clientNum ) {
 	if ( cvarSystem->GetCVarBool( "com_fpsTrace" ) ) {
 		if ( !presentationTrace ) {
 			presentationTrace = fileSystem->OpenFileWrite( "fps-presentation.csv" );
-			if ( presentationTrace ) presentationTrace->Printf( "game_ms,fraction,interpolated,sim_yaw,render_yaw,models,world_models,world_pose,weapon_pose,lights,effects,late_look,late_yaw,aim_yaw,cursor_x,cursor_y,render_ms,effect_ms,blob_y,hurt,overlay,blobs,ammo,spirit,third_person,gravity_x,gravity_z,mode_transition,gravity_transition,beam_models,beam_pose,beam_sim_pose,world_lights,beam_attach,beam_start_error,beam_end_error,ammo_available,soul_weapon\n" );
+			if ( presentationTrace ) presentationTrace->Printf( "game_ms,fraction,interpolated,sim_yaw,render_yaw,models,world_models,world_pose,weapon_pose,lights,effects,late_look,late_yaw,aim_yaw,cursor_x,cursor_y,render_ms,effect_ms,blob_y,hurt,overlay,blobs,ammo,spirit,third_person,gravity_x,gravity_z,mode_transition,gravity_transition,beam_models,beam_pose,beam_sim_pose,world_lights,beam_attach,beam_start_error,beam_end_error,ammo_available,soul_weapon,vehicle,vehicle_transition\n" );
 		}
 		const idVec4 effectState = player->playerView.GetPresentationEffectState();
-		if ( presentationTrace ) presentationTrace->Printf( "%d,%.6f,%d,%.6f,%.6f,%d,%d,%.6f,%.6f,%d,%d,%d,%.6f,%.6f,%.6f,%.6f,%d,%d,%.6f,%.6f,%.0f,%.0f,%d,%d,%d,%.6f,%.6f,%d,%d,%d,%.6f,%.6f,%d,%d,%.6f,%.6f,%d,%d\n", time,
+		if ( presentationTrace ) presentationTrace->Printf( "%d,%.6f,%d,%.6f,%.6f,%d,%d,%.6f,%.6f,%d,%d,%d,%.6f,%.6f,%.6f,%.6f,%d,%d,%.6f,%.6f,%.0f,%.0f,%d,%d,%d,%.6f,%.6f,%d,%d,%d,%.6f,%.6f,%d,%d,%.6f,%.6f,%d,%d,%d,%d\n", time,
 			presentationFraction, interpolate ? 1 : 0, authoritativeView.viewaxis.ToAngles().yaw,
 			view->viewaxis.ToAngles().yaw, presentedViewModels, worldModels, interpolate ? worldPoseChecksum : 0.0,
 			interpolate ? weaponPoseChecksum : 0.0, adjustedLights.Num(), adjustedEffects.Num(), lateLook ? 1 : 0,
@@ -1307,7 +1323,8 @@ bool hhGameLocal::Draw( int clientNum ) {
             presentationBeamCount, beamPoseChecksum, simulationBeams, presentationWorldLightCount,
             presentationBeamAttachments, presentationBeamAttachmentError, presentationBeamEndError,
             player->weapon.IsValid() ? player->weapon->AmmoAvailable() : -1,
-            player->weapon.IsValid() && player->weapon->IsType(hhWeaponSoulStripper::Type) ? 1 : 0 );
+            player->weapon.IsValid() && player->weapon->IsType(hhWeaponSoulStripper::Type) ? 1 : 0,
+            currentVehicle ? currentVehicle->entityNumber : -1, sameVehicle ? 0 : 1 );
 	} else if ( presentationTrace ) {
 		fileSystem->CloseFile( presentationTrace );
 		presentationTrace = NULL;
@@ -1379,6 +1396,10 @@ bool hhGameLocal::Draw( int clientNum ) {
     if (traceBeams && (presentationPhysicsOrigin != player->GetPhysics()->GetOrigin() ||
         presentationPhysicsVelocity != player->GetPhysics()->GetLinearVelocity()))
         gameLocal.Error("Portal presentation modified player physics");
+    if (traceBeams && currentVehicle && (vehiclePhysicsOrigin != currentVehicle->GetPhysics()->GetOrigin() ||
+        vehiclePhysicsVelocity != currentVehicle->GetPhysics()->GetLinearVelocity() ||
+        vehiclePhysicsAxis != currentVehicle->GetPhysics()->GetAxis()))
+        gameLocal.Error("Presentation modified vehicle physics");
     if (traceBeams && SimulationBeamChecksum() != simulationBeams)
         gameLocal.Error("Presentation modified simulation-owned beam nodes");
 
