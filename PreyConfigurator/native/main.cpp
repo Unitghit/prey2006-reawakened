@@ -262,6 +262,7 @@ struct App {
             Dependencies();Status(ExtraInstalled(root,Extra::Doom3)?L"Game content updated.":L"Game content updated. Doom 3 weapons need the optional Doom 3 content.");return;
         }
         Values v=Read();Save(root,v);Status(L"Saved. Use Play-Prey2006-Custom.bat or Save & Play.");
+        if(id==PlayId && !InstallPathProblem(root).empty()) throw std::runtime_error(Utf8(InstallPathProblem(root)));
         if(id==PlayId) {Launch(root/EngineDirectory/L"prey06.exe",Arguments(root,v));DestroyWindow(window);}
     }
     void PaintPage(HDC dc) {
@@ -271,7 +272,7 @@ struct App {
     void Verify(const fs::path& output);
 };
 
-static void Report(HWND owner,const std::exception& e) {MessageBoxW(owner,Wide(e.what()).c_str(),L"Prey2006 Reawakened Launcher",MB_OK|MB_ICONERROR);}
+static void Report(HWND owner,const std::exception& e) {MessageBoxW(owner,ErrorText(e.what()).c_str(),L"Prey2006 Reawakened Launcher",MB_OK|MB_ICONERROR);}
 static LRESULT CALLBACK ComboProc(HWND h,UINT msg,WPARAM wp,LPARAM lp,UINT_PTR,DWORD_PTR data) {
     auto app=reinterpret_cast<App*>(data);
     if(msg==WM_MOUSEWHEEL) {SendMessageW(h,CB_SHOWDROPDOWN,FALSE,0);app->Wheel(wp);return 0;}
@@ -475,6 +476,16 @@ int WINAPI wWinMain(HINSTANCE inst,HINSTANCE,PWSTR,int show) {
         else if(args[i]==L"--verify")verify=true;
         else if(args[i]==L"--migrate")migrate=true;
         else if(args[i]==L"--setup")setup=true;
+        else if(args[i]==L"--import-extra" && i+3<args.size()) {
+            // Test hook: installs (or with "remove", removes) optional content without the window.
+            const Extra extra=args[i+1]==L"portal"?Extra::Portal:Extra::Doom3;
+            const fs::path game=args[i+2],out=fs::absolute(args[i+3]);std::string result;
+            try {
+                if(game==L"remove") RemoveExtra(extra,root); else ImportExtra(extra,game,root,[](uint64_t,uint64_t){},nullptr);
+                result="OK installed="+std::to_string(ExtraInstalled(root,extra));
+            } catch(const std::exception& e) {result=std::string("ERROR ")+e.what();}
+            Atomic(out,result+"\n");return 0;
+        }
         else if(args[i]==L"--list-games" && i+1<args.size()) {
             // Test hook: detected installations per game, then how each extra
             // folder argument is judged for every game.

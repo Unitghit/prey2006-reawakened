@@ -23,6 +23,34 @@ std::string Utf8(const std::wstring& text) {
     WideCharToMultiByte(CP_UTF8, WC_ERR_INVALID_CHARS, text.data(), (int)text.size(), result.data(), n, nullptr, nullptr);
     return result;
 }
+std::wstring ErrorText(const char* message) {
+    try { return Wide(message); } catch (...) {}
+    const int n = MultiByteToWideChar(CP_ACP, 0, message, -1, nullptr, 0);
+    if (n <= 1) return L"Unknown error";
+    std::wstring result(n - 1, 0);
+    MultiByteToWideChar(CP_ACP, 0, message, -1, result.data(), n);
+    return result;
+}
+fs::path LongPath(const fs::path& path) {
+    std::wstring text = fs::absolute(path).lexically_normal().make_preferred().wstring();
+    if (text.rfind(L"\\\\?\\", 0) == 0) return text;
+    if (text.rfind(L"\\\\", 0) == 0) return L"\\\\?\\UNC\\" + text.substr(2);
+    return L"\\\\?\\" + text;
+}
+static bool InCodePage(const std::wstring& text) {
+    BOOL lost = FALSE;
+    WideCharToMultiByte(CP_ACP, WC_NO_BEST_FIT_CHARS, text.c_str(), -1, nullptr, 0, nullptr, &lost);
+    return !lost;
+}
+fs::path EnginePath(const fs::path& path) {
+    if (InCodePage(path.wstring())) return path;
+    std::error_code ec; fs::create_directories(path, ec);	// short names exist only for existing folders
+    std::wstring name(32768, L'\0');
+    const DWORD n = GetShortPathNameW(path.c_str(), name.data(), (DWORD)name.size());
+    if (n && n < name.size()) { name.resize(n); if (InCodePage(name)) return name; }
+    return path;
+}
+bool EngineCanUse(const fs::path& path) { return InCodePage(EnginePath(path).wstring()); }
 static const wchar_t* Smooth[] = {L"g_interpolatePortals", L"g_interpolateView", L"g_interpolateWorld", L"g_interpolateWeapons", L"g_interpolateEffects"};
 static std::wstring Get(const Values& v, const std::wstring& key, const std::wstring& fallback = L"") {
     auto it = v.find(key); return it == v.end() ? fallback : it->second;
@@ -148,7 +176,7 @@ std::vector<std::pair<std::wstring,std::wstring>> Variables(const Values& v) {
 }
 std::string Launcher(const Values& v) {
     std::string build = Utf8(EngineDirectory); std::replace(build.begin(),build.end(),'/','\\');
-    std::string result = "@echo off\r\nsetlocal\r\npushd \"%~dp0" + build + "\" || exit /b 1\r\nprey06.exe +set fs_basepath \"%~dp0" + build + "\" +set fs_cdpath \"%~dp0engine\" +set fs_savepath \"%~dp0userdata\" +set fs_configpath \"%~dp0userdata\" ";
+    std::string result = "@echo off\r\nsetlocal\r\npushd \"%~sdp0" + build + "\" || exit /b 1\r\nprey06.exe +set fs_basepath \"%~sdp0" + build + "\" +set fs_cdpath \"%~sdp0engine\" +set fs_savepath \"%~sdp0userdata\" +set fs_configpath \"%~sdp0userdata\" ";
     bool first = true; for (const auto& p : Variables(v)) { if (!first) result += ' '; first=false; result += "+set " + Utf8(p.first) + " " + (p.second.empty()?"\"\"":Utf8(p.second)); }
     return result + "\r\nset \"preyExitCode=%errorlevel%\"\r\npopd\r\nexit /b %preyExitCode%\r\n";
 }
@@ -206,8 +234,8 @@ std::vector<std::wstring> Arguments(const fs::path& root, const Values& v) {
     }
     std::vector<std::wstring> args;
     auto set = [&](const std::wstring& key, const std::wstring& value) { args.insert(args.end(),{L"+set",key,value}); };
-    set(L"fs_basepath",(root/EngineDirectory).wstring()); set(L"fs_cdpath",(root/L"engine").wstring());
-    set(L"fs_savepath",(root/L"userdata").wstring()); set(L"fs_configpath",(root/L"userdata").wstring());
+    set(L"fs_basepath",EnginePath(root/EngineDirectory).wstring()); set(L"fs_cdpath",EnginePath(root/L"engine").wstring());
+    set(L"fs_savepath",EnginePath(root/L"userdata").wstring()); set(L"fs_configpath",EnginePath(root/L"userdata").wstring());
     for (const auto& p : Variables(v)) set(p.first,p.second);
     return args;
 }
@@ -227,7 +255,7 @@ void Launch(const fs::path& exe, const std::vector<std::wstring>& args) {
     std::wstring command = QuoteArgument(exe.wstring());
     for (const auto& arg : args) command += L" " + QuoteArgument(arg);
     STARTUPINFOW si{}; si.cb = sizeof(si); PROCESS_INFORMATION pi{};
-    if (!CreateProcessW(exe.c_str(),command.data(),nullptr,nullptr,FALSE,CREATE_NO_WINDOW,nullptr,exe.parent_path().c_str(),&si,&pi))
+    if (!CreateProcessW(exe.c_str(),command.data(),nullptr,nullptr,FALSE,CREATE_NO_WINDOW,nullptr,EnginePath(exe.parent_path()).c_str(),&si,&pi))
         throw std::runtime_error("Could not launch game (Windows error " + std::to_string(GetLastError()) + ")");
     CloseHandle(pi.hThread); CloseHandle(pi.hProcess);
 }

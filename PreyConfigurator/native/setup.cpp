@@ -13,6 +13,20 @@ const wchar_t* const RetailPaks[7] = { L"pak000.pk4", L"pak001.pk4", L"pak002.pk
 
 static fs::path RetailTarget(const fs::path& root) { return root/EngineDirectory/L"base"; }
 
+std::wstring InstallPathProblem(const fs::path& root) {
+	// Prey's file functions stop at 260 characters; the deepest installed file
+	// (converted Doom 3 content) adds 86 after the installation folder.
+	if (!EngineCanUse(root))
+		return L"This folder's path has characters that Prey's engine cannot use with this Windows language setting, "
+			L"and the drive has no short names for it. Move the Reawakened folder to a path with plain letters, "
+			L"such as C:\\Games\\Prey2006 Reawakened, and start it from there.";
+	const size_t length = fs::absolute(EnginePath(root)).wstring().size();
+	if (length > 170)
+		return L"This folder's path is " + std::to_wstring(length) + L" characters long, too long for Prey's engine (170 at most). "
+			L"Move the Reawakened folder somewhere shorter, such as C:\\Games\\Prey2006 Reawakened, and start it from there.";
+	return L"";
+}
+
 bool RetailReady(const fs::path& root) {
 	std::error_code ec;
 	for (auto name : RetailPaks) if (!fs::is_regular_file(RetailTarget(root)/name, ec)) return false;
@@ -175,9 +189,10 @@ static bool SuperShotgunFile(const std::wstring& relative) {
 static std::vector<std::wstring> StagedFiles(const fs::path& stage) {
 	std::vector<std::wstring> files;
 	std::error_code ec;
-	if (!fs::is_directory(stage, ec)) return files;
-	for (auto it = fs::recursive_directory_iterator(stage, ec); it != fs::recursive_directory_iterator(); it.increment(ec))
-		if (it->is_regular_file(ec)) files.push_back(it->path().lexically_relative(stage).generic_wstring());
+	const fs::path folder = LongPath(stage);
+	if (!fs::is_directory(folder, ec)) return files;
+	for (auto it = fs::recursive_directory_iterator(folder, ec); it != fs::recursive_directory_iterator(); it.increment(ec))
+		if (it->is_regular_file(ec)) files.push_back(it->path().lexically_relative(folder).generic_wstring());
 	std::sort(files.begin(), files.end());
 	return files;
 }
@@ -187,7 +202,13 @@ static std::vector<std::wstring> StagedFiles(const fs::path& stage) {
 // pre-converted content from setup-content.
 static fs::path ImporterExe(const fs::path& root) { return root/EngineDirectory/L"importer/reawakened-import.exe"; }
 static fs::path CrowbarExe(const fs::path& root) { return root/EngineDirectory/L"importer/crowbar/Crowbar.exe"; }
-static fs::path ImportWork(const fs::path& root) { return root/EngineDirectory/L"import-work"; }
+static fs::path ImportWork(const fs::path&) {
+	// A short temporary folder: conversion uses deep paths, and the model
+	// decompiler does not accept extended-length ones.
+	wchar_t temp[MAX_PATH + 1] = {};
+	GetTempPathW(MAX_PATH + 1, temp);
+	return fs::path(temp)/L"Reawakened-import";
+}
 // Shipped files an import replaced, restored when the content is removed.
 static fs::path ReplacedFolder(const fs::path& root, Extra extra) {
 	return root/EngineDirectory/L"replaced"/ExtraKey(extra);
@@ -243,11 +264,16 @@ static void RunImporter(const fs::path& root, const std::vector<std::wstring>& a
 	if (code != 0) throw std::runtime_error(error.empty() ? "The content conversion failed." : error);
 }
 
+// Extended-length paths accept only backslashes; records use '/'.
+static fs::path Under(const fs::path& folder, const std::wstring& relative) {
+	fs::path r(relative); r.make_preferred(); return folder/r;
+}
+
 void ImportExtra(Extra extra, const fs::path& gameFolder, const fs::path& root,
 		const std::function<void(uint64_t, uint64_t)>& progress, const std::atomic<bool>* cancel) {
 	const auto source = CheckExtraSource(extra, gameFolder);
 	if (!source.check.problem.empty()) throw std::runtime_error(Utf8(source.check.problem));
-	const auto base = root/EngineDirectory/L"base";
+	const auto base = LongPath(root/EngineDirectory/L"base");
 	fs::path stage;
 	std::error_code ec;
 	// Conversion is 80% of the progress bar, installing the result the rest.
@@ -260,7 +286,7 @@ void ImportExtra(Extra extra, const fs::path& gameFolder, const fs::path& root,
 		stage = work/(std::wstring(ExtraKey(extra)) + L"-output");
 		std::vector<std::wstring> args;
 		if (extra == Extra::Doom3)
-			args = { L"doom3", L"--game", source.folder.wstring(), L"--prey-base", base.wstring(), L"--output", stage.wstring() };
+			args = { L"doom3", L"--game", source.folder.wstring(), L"--prey-base", (root/EngineDirectory/L"base").wstring(), L"--output", stage.wstring() };
 		else
 			args = { L"portal", L"--game", source.folder.wstring(), L"--crowbar", CrowbarExe(root).wstring(),
 				L"--output", stage.wstring(), L"--work", (work/L"portal-work").wstring() };
@@ -270,6 +296,7 @@ void ImportExtra(Extra extra, const fs::path& gameFolder, const fs::path& root,
 		stage = ExtraStage(root, extra);
 	}
 	auto files = StagedFiles(stage);
+	stage = LongPath(stage);
 	if (files.empty()) throw std::runtime_error(Utf8(std::wstring(L"This build cannot convert the ") + ExtraName(extra) + L"."));
 	if (extra == Extra::Doom3 && !source.check.expansion)
 		files.erase(std::remove_if(files.begin(), files.end(), SuperShotgunFile), files.end());
@@ -280,31 +307,31 @@ void ImportExtra(Extra extra, const fs::path& gameFolder, const fs::path& root,
 		std::ifstream in(ExtraRecord(root, extra), std::ios::binary);
 		std::string line; while (std::getline(in, line)) if (!line.empty()) ours.insert(Wide(line));
 	}
-	const auto replaced = ReplacedFolder(root, extra);
+	const auto replaced = LongPath(ReplacedFolder(root, extra));
 	uint64_t total = 0, done = 0;
-	for (const auto& f : files) total += fs::file_size(stage/f);
+	for (const auto& f : files) total += fs::file_size(Under(stage, f));
 	std::string record;
 	for (const auto& f : files) {
 		if (cancel && cancel->load()) throw std::runtime_error("Import cancelled.");
-		const auto dest = base/f;
-		if (fs::is_regular_file(dest, ec) && !ours.count(f) && !fs::exists(replaced/f, ec)) {
-			fs::create_directories((replaced/f).parent_path());
-			fs::copy_file(dest, replaced/f);
+		const auto dest = Under(base, f);
+		if (fs::is_regular_file(dest, ec) && !ours.count(f) && !fs::exists(Under(replaced, f), ec)) {
+			fs::create_directories((Under(replaced, f)).parent_path());
+			fs::copy_file(dest, Under(replaced, f));
 		}
 		fs::create_directories(dest.parent_path());
 		const fs::path part = dest.wstring() + L".part";
-		fs::copy_file(stage/f, part, fs::copy_options::overwrite_existing);
+		fs::copy_file(Under(stage, f), part, fs::copy_options::overwrite_existing);
 		fs::rename(part, dest);
 		record += Utf8(f) + "\n";
 		done += fs::file_size(dest); scaled(done, total, 800, 200);
 	}
 	// Written last: content counts as installed only once every file is in place.
 	Atomic(ExtraRecord(root, extra), record);
-	if (stage.parent_path() == ImportWork(root)) fs::remove_all(stage, ec);
+	if (stage.parent_path() == LongPath(ImportWork(root))) fs::remove_all(stage, ec);
 }
 
 void RemoveExtra(Extra extra, const fs::path& root) {
-	const auto base = root/EngineDirectory/L"base";
+	const auto base = LongPath(root/EngineDirectory/L"base");
 	std::vector<std::wstring> files;
 	std::ifstream in(ExtraRecord(root, extra), std::ios::binary);
 	if (in) { std::string line; while (std::getline(in, line)) if (!line.empty()) files.push_back(Wide(line)); }
@@ -312,7 +339,7 @@ void RemoveExtra(Extra extra, const fs::path& root) {
 	if (files.empty() && ExtraInstalled(root, extra)) throw std::runtime_error("Cannot determine which files to remove.");
 	std::error_code ec;
 	for (const auto& f : files) {
-		const auto path = (base/f).lexically_normal();
+		const auto path = (Under(base, f)).lexically_normal();
 		// Records are plain text; never follow one outside engine/base.
 		if (path.wstring().rfind(base.lexically_normal().wstring(), 0) != 0) continue;
 		fs::remove(path, ec);
@@ -320,10 +347,10 @@ void RemoveExtra(Extra extra, const fs::path& root) {
 	}
 	in.close();
 	// Put back the shipped files the import replaced.
-	const auto replaced = ReplacedFolder(root, extra);
+	const auto replaced = LongPath(ReplacedFolder(root, extra));
 	for (const auto& f : StagedFiles(replaced)) {
-		fs::create_directories((base/f).parent_path());
-		fs::copy_file(replaced/f, base/f, fs::copy_options::overwrite_existing);
+		fs::create_directories((Under(base, f)).parent_path());
+		fs::copy_file(Under(replaced, f), Under(base, f), fs::copy_options::overwrite_existing);
 	}
 	fs::remove_all(replaced, ec);
 	if (fs::is_empty(replaced.parent_path(), ec)) fs::remove(replaced.parent_path(), ec);
@@ -398,8 +425,9 @@ void Refresh(SetupUi& ui) {
 		if (row.include) EnableWindow(row.include, !ui.busy);
 	}
 	const bool changes = !Plan(ui).empty();
-	EnableWindow(ui.install, ready && changes && !ui.busy);
-	if (!ui.busy) SetWindowTextW(ui.status, !ready ? L"" : changes ? (ui.manage ? L"Ready. Click Apply." : L"Ready. Click Install.") : ui.manage ? L"No changes." : L"");
+	const auto pathProblem = InstallPathProblem(ui.root);
+	EnableWindow(ui.install, ready && changes && !ui.busy && pathProblem.empty());
+	if (!ui.busy) SetWindowTextW(ui.status, !pathProblem.empty() ? pathProblem.c_str() : !ready ? L"" : changes ? (ui.manage ? L"Ready. Click Apply." : L"Ready. Click Install.") : ui.manage ? L"No changes." : L"");
 }
 
 void Browse(SetupUi& ui, int r) {
@@ -426,6 +454,14 @@ void Browse(SetupUi& ui, int r) {
 
 void StartInstall(SetupUi& ui) {
 	const auto steps = Plan(ui);
+	// Saves made with an optional weapon selected need its files to load.
+	std::wstring removing;
+	for (const auto& s : steps) if (s.remove) removing += std::wstring(removing.empty() ? L"" : L" and the ") + ExtraName(RowExtra(s.row));
+	if (!removing.empty()) {
+		const std::wstring text = L"Remove the " + removing + L"?\n\nSaves made while using them will not load until the content "
+			L"is added again. Adding it again, from any copy of the game, makes those saves work as before.";
+		if (MessageBoxW(ui.window, text.c_str(), L"Prey2006 Reawakened", MB_OKCANCEL | MB_ICONWARNING | MB_DEFBUTTON2) != IDOK) return;
+	}
 	ui.busy = true; ui.cancel = false; ui.error.clear();
 	Refresh(ui);
 	EnableWindow(ui.install, FALSE);
@@ -448,7 +484,7 @@ void StartInstall(SetupUi& ui) {
 			}
 			PostMessageW(window, WM_SETUP_DONE, 1, 0);
 		} catch (const std::exception& e) {
-			ui.error = Wide(e.what());
+			ui.error = ErrorText(e.what());
 			PostMessageW(window, WM_SETUP_DONE, 0, 0);
 		}
 	});
@@ -551,7 +587,7 @@ bool RunSetup(HINSTANCE instance, const fs::path& root, HWND owner) {
 		if (!found.empty()) SetWindowTextW(row.path, found.front().c_str());
 		if (row.include) SendMessageW(row.include, BM_SETCHECK, row.installed || (!ui.manage && !found.empty()) ? BST_CHECKED : BST_UNCHECKED, 0);
 	}
-	ui.status = add(L"STATIC", L"", SS_NOPREFIX, margin, y, inner, S(36), 0, ui.font); y += S(40);
+	ui.status = add(L"STATIC", L"", SS_NOPREFIX, margin, y, inner, S(52), 0, ui.font); y += S(56);
 	ui.progress = add(PROGRESS_CLASSW, L"", 0, margin, y, inner, S(16), 0, ui.font); y += S(28);
 	SendMessageW(ui.progress, PBM_SETRANGE32, 0, 1000);
 	ui.install = add(L"BUTTON", ui.manage ? L"Apply" : L"Install", WS_TABSTOP | BS_DEFPUSHBUTTON, width - margin - S(196), y, S(96), S(28), InstallId, ui.font);
@@ -652,11 +688,13 @@ void VerifyRetailSetup(const fs::path& output) {
 	try { ImportExtra(Extra::Portal, doom, root, [](uint64_t, uint64_t) {}, nullptr); } catch (const std::exception&) { noConverter = true; }
 	require(noConverter && !ExtraInstalled(root, Extra::Portal), "Invalid Portal source accepted");
 
+	require(InstallPathProblem(L"C:\\Games\\Prey2006 Reawakened").empty(), "Short installation path rejected");
+	require(!InstallPathProblem(fs::path(L"C:\\") / std::wstring(180, L'x')).empty(), "Over-long installation path accepted");
 	const auto variants = DriveVariants(L"Q:\\Games\\Prey 2006");
 	require(!variants.empty() && std::all_of(variants.begin(), variants.end(), [](const fs::path& p) {
 		return p.relative_path() == fs::path(L"Games\\Prey 2006"); }), "Drive variants wrong");
 	(void)FindRetailCandidates();	// must not throw on this machine
 	std::error_code ec; fs::remove_all(work, ec);
 	Atomic(output/L"setup-pass.txt", "PASS: retail validation (missing/damaged archives, base folder, trailing separator), import with progress, "
-		"no partial files, repeat import, cancellation, optional content install/expansion/removal with shipped-file restore, drive-letter variants, detection.\n");
+		"no partial files, repeat import, cancellation, optional content install/expansion/removal with shipped-file restore, installation path length, drive-letter variants, detection.\n");
 }

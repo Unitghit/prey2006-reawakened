@@ -14,6 +14,14 @@ const std::vector<Setting>& Options();
 inline constexpr wchar_t EngineDirectory[] = L"engine";
 std::wstring Wide(const std::string& text);
 std::string Utf8(const std::wstring& text);
+// Exception text: UTF-8 when valid, otherwise the Windows code page (filesystem errors).
+std::wstring ErrorText(const char* message);
+// Extended-length form of an absolute path, for file operations beyond MAX_PATH.
+fs::path LongPath(const fs::path& path);
+// Prey's engine opens files with the Windows code page. A folder whose name has other
+// characters is passed by its short (8.3) name; EngineCanUse is false when there is none.
+fs::path EnginePath(const fs::path& path);
+bool EngineCanUse(const fs::path& path);
 Values Defaults();
 Values Migrate(const Values& saved);
 Values ParseJson(const std::string& text);
