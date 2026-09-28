@@ -37,10 +37,13 @@ Values Migrate(const Values& saved) {
         if (it != saved.end() && std::any_of(s.choices.begin(), s.choices.end(), [&](const Choice& c) { return c.value == it->second; })) v[s.key] = it->second;
     }
     if (!saved.count(L"bloom")) v[L"bloom"] = Get(saved,L"r_skipGlowOverlay") == L"1" ? L"off" : Get(saved,L"r_glowResolution") == L"256" ? L"original" : L"enhanced";
-    if (!saved.count(L"smoothMotion")) {
-        bool enabled = false; for (auto key : Smooth) enabled |= Get(saved,key,L"1") == L"1";
-        v[L"smoothMotion"] = enabled ? L"1" : L"0";
+    // The two former muzzle flash switches became one choice.
+    if (!saved.count(L"muzzleShadows") && (saved.count(L"g_muzzleFlashShadows") || saved.count(L"g_npcMuzzleFlashShadows"))) {
+        const bool own = Get(saved,L"g_muzzleFlashShadows",L"1") == L"1", enemies = Get(saved,L"g_npcMuzzleFlashShadows",L"1") == L"1";
+        v[L"muzzleShadows"] = !own && !enemies ? L"off" : !enemies ? L"player" : L"all";
     }
+    // Launcher preference, not a game setting.
+    if (Get(saved,L"showAdvanced") == L"1") v[L"showAdvanced"] = L"1";
     return v;
 }
 void Validate(const Values& v) {
@@ -124,7 +127,7 @@ Values Load(const fs::path& root) {
 }
 std::vector<std::pair<std::wstring,std::wstring>> Variables(const Values& v) {
     Validate(v); std::vector<std::pair<std::wstring,std::wstring>> result;
-    for (const auto& s : Options()) if (s.key != L"resolution" && s.key != L"bloom" && s.key != L"smoothMotion" && s.key != L"r_fullscreen" && s.key != L"weaponPack") result.emplace_back(s.key,v.at(s.key));
+    for (const auto& s : Options()) if (s.key != L"resolution" && s.key != L"bloom" && s.key != L"muzzleShadows" && s.key != L"r_fullscreen" && s.key != L"weaponPack") result.emplace_back(s.key,v.at(s.key));
     const auto& size = v.at(L"resolution"); auto x = size.find(L'x');
     const std::vector<std::pair<std::wstring,std::wstring>> fixed = {
         {L"fs_game",L""},{L"g_doom3Shotgun",v.at(L"weaponPack")==L"doom3shotgun"?L"1":L"0"},
@@ -134,10 +137,13 @@ std::vector<std::pair<std::wstring,std::wstring>> Variables(const Values& v) {
         {L"com_unlockedFPS",L"1"},{L"r_glowMode",L"2"},{L"r_skipGlowOverlay",v.at(L"bloom")==L"off"?L"1":L"0"},{L"r_glowResolution",v.at(L"bloom")==L"original"?L"256":L"0"},
         {L"r_glowStrength",L"0.5"},{L"r_glowAlpha",L"0.55"},{L"r_glowAlphaChange",L"0.85"},{L"r_glowSteps",L"8"},
         {L"r_correctspecular",L"1"},{L"r_normalizebumpmap",L"1"},{L"r_cubemapNormalize",L"0"},{L"r_portalMaxDepth",v.at(L"r_portalDeepViews")==L"0"?L"3":L"6"},
-        {L"r_glowPortals",L"1"},{L"g_portalLighter",L"1"},{L"g_portalMuzzleFlash",L"1"},{L"g_portalWeaponLighting",L"1"},{L"g_portalPreserveMotion",L"1"},{L"g_nightmare",L"1"},{L"g_lateMouse",L"0"}
+        {L"r_glowPortals",L"1"},{L"g_portalLighter",L"1"},{L"g_portalMuzzleFlash",L"1"},{L"g_portalWeaponLighting",L"1"},{L"g_portalPreserveMotion",L"1"},{L"g_nightmare",L"1"},{L"g_lateMouse",L"0"},
+        {L"g_muzzleFlashShadows",v.at(L"muzzleShadows")==L"off"?L"0":L"1"},{L"g_npcMuzzleFlashShadows",v.at(L"muzzleShadows")==L"all"?L"1":L"0"},
+        // Formerly launcher options; now always at their recommended values.
+        {L"image_threadedDecode",L"1"},{L"com_assetPreload",L"1"},{L"com_hitchTrace",L"0"}
     };
     result.insert(result.end(),fixed.begin(),fixed.end());
-    for (auto key : Smooth) result.emplace_back(key,v.at(L"smoothMotion"));
+    for (auto key : Smooth) result.emplace_back(key,L"1");
     return result;
 }
 std::string Launcher(const Values& v) {
@@ -229,7 +235,7 @@ void Launch(const fs::path& exe, const std::vector<std::wstring>& args) {
 void VerifyConfiguration(const fs::path& output) {
     fs::create_directories(output);
     auto require = [](bool ok) { if (!ok) throw std::runtime_error("Configuration verification failed"); };
-    auto defaults = Defaults(); require(defaults.size()==26 && defaults.at(L"g_npcMuzzleFlashShadows")==L"1" && defaults.at(L"g_muzzleFlashShadows")==L"1" && defaults.at(L"g_noSpiritResurrections")==L"0" && defaults.at(L"image_threadedDecode")==L"1" && defaults.at(L"g_portalGun")==L"0" && defaults.at(L"g_portalGunReticle")==L"1" && defaults.at(L"g_bunnyHop")==L"0" && defaults.at(L"g_halfLifeAutoHop")==L"0" && defaults.at(L"com_maxFPS")==L"-1");
+    auto defaults = Defaults(); require(defaults.size()==21 && defaults.at(L"muzzleShadows")==L"all" && defaults.at(L"g_noSpiritResurrections")==L"0" && defaults.at(L"g_portalGun")==L"0" && defaults.at(L"g_portalGunReticle")==L"1" && defaults.at(L"g_bunnyHop")==L"0" && defaults.at(L"g_halfLifeAutoHop")==L"0" && defaults.at(L"com_maxFPS")==L"-1");
     Save(output,defaults); require(Load(output)==defaults);
     Atomic(output/L"default-launcher.bat",Launcher(defaults));
     for (const auto& s : Options()) for (const auto& c : s.choices) {
@@ -238,19 +244,24 @@ void VerifyConfiguration(const fs::path& output) {
         require(vars.at(L"fs_game").empty() && vars.at(L"g_doom3Shotgun")==(v[L"weaponPack"]==L"doom3shotgun"?L"1":L"0"));
         require(vars.at(L"g_portalGun")==v[L"g_portalGun"] && vars.at(L"g_portalGunReticle")==v[L"g_portalGunReticle"]);
         require(vars.at(L"g_bunnyHop")==v[L"g_bunnyHop"] && vars.at(L"g_halfLifeAutoHop")==v[L"g_halfLifeAutoHop"]);
-        require(vars.at(L"image_threadedDecode")==v[L"image_threadedDecode"]);
+        require(vars.at(L"image_threadedDecode")==L"1" && vars.at(L"com_assetPreload")==L"1" && vars.at(L"com_hitchTrace")==L"0");
+        require(vars.at(L"g_muzzleFlashShadows")==(v[L"muzzleShadows"]==L"off"?L"0":L"1") && vars.at(L"g_npcMuzzleFlashShadows")==(v[L"muzzleShadows"]==L"all"?L"1":L"0"));
         require(vars.at(L"g_noSpiritResurrections")==v[L"g_noSpiritResurrections"]);
         require(vars.at(L"r_portalMaxDepth")== (v[L"r_portalDeepViews"]==L"0"?L"3":L"6") && vars.at(L"r_correctspecular")==L"1");
         require(vars.at(L"r_fullscreen")== (v[L"r_fullscreen"]==L"0"?L"0":L"1"));
         require(vars.at(L"r_fullscreenDesktop")== (v[L"r_fullscreen"]==L"desktop"?L"1":L"0"));
         require(vars.at(L"r_skipGlowOverlay")== (v[L"bloom"]==L"off"?L"1":L"0"));
         require(vars.at(L"r_glowResolution")== (v[L"bloom"]==L"original"?L"256":L"0"));
-        for (auto key : Smooth) require(vars.at(key)==v[L"smoothMotion"]);
+        for (auto key : Smooth) require(vars.at(key)==L"1");
         Atomic(output/(s.key+L"-"+c.value+L".bat"),Launcher(v));
     }
     Values old{{L"r_skipGlowOverlay",L"1"},{L"gui_translateAlienFontDistance",L"200"},{L"g_forceCherokee",L"1"}};
     auto migrated=Migrate(old); require(migrated[L"bloom"]==L"off" && migrated[L"gui_translateAlienFontDistance"]==L"200" && migrated[L"g_forceCherokee"]==L"1");
-    for (auto key : Smooth) old[key]=L"0"; require(Migrate(old)[L"smoothMotion"]==L"0");
+    require(Migrate({{L"g_muzzleFlashShadows",L"0"},{L"g_npcMuzzleFlashShadows",L"0"}})[L"muzzleShadows"]==L"off");
+    require(Migrate({{L"g_muzzleFlashShadows",L"1"},{L"g_npcMuzzleFlashShadows",L"0"}})[L"muzzleShadows"]==L"player");
+    require(Migrate({{L"g_muzzleFlashShadows",L"0"},{L"g_npcMuzzleFlashShadows",L"1"}})[L"muzzleShadows"]==L"all");
+    require(Migrate({{L"smoothMotion",L"0"},{L"com_hitchTrace",L"1"}})==defaults);
+    auto shown=defaults; shown[L"showAdvanced"]=L"1"; require(Migrate(ParseJson(Json(shown)))==shown);
     require(ParseJson("{\"x\":\"\\u0041\\uD83D\\uDE00\"}")[L"x"]==L"A\U0001F600");
     for (const char* bad : {"{} junk","{\"x\":1}","{\"x\":\"a\",}","{\"x\":\"a\",\"x\":\"b\"}","{\"x\":\"\\uD800\"}"}) {
         bool rejected=false; try { ParseJson(bad); } catch (...) { rejected=true; } require(rejected);

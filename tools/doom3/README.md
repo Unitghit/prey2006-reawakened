@@ -10,8 +10,8 @@ cycling visits all available guns.
 This is single-player experimental work, not the completed arsenal conversion.
 Doom-only mode is not implemented yet.
 
-The local importer reads an original Doom 3 installation; BFG assets are not
-supported. It imports namespaced models, animations, materials, normal/specular
+The local importer reads an original Doom 3 installation (with or without
+Resurrection of Evil) or a Doom 3: BFG Edition installation. It imports namespaced models, animations, materials, normal/specular
 maps, sounds and the Machine Gun and Chaingun ammo-counter GUIs. Generated retail assets
 must stay local and must not be included in source commits or releases.
 
@@ -27,6 +27,24 @@ active engine's base directory using repeated `--prey-base` arguments. The
 importer validates dependencies before writing and records hashes in
 `base/doom3-import-manifest.json`. Default non-compatible mode still imports
 only the historical standalone shotgun prototype.
+
+### BFG Edition
+
+Pass the BFG Edition folder as the install. `bfg_source.py` reads its
+`.resources` archives and converts each file the importers ask for back to the
+original format: `.bmd5mesh`/`.bmd5anim` to text MD5, `.blwo` to LightWave,
+`.bimage` to TGA (YCoCg and two-channel normal maps decoded; images BFG baked
+into `addnormals`/`makealpha` programs are split back out), `.idwav` (MS ADPCM,
+slightly resampled by BFG) to 11025/22050/44100 Hz PCM WAV, and the classic Bank
+Gothic font pages from BFG's atlas with the unchanged original glyph metrics.
+The Super Shotgun is always available. Where BFG ships revised assets (re-recorded
+Shotgun and Machine Gun sounds, the rocket model, one Plasma Gun idle animation,
+some particle tuning) its own declarations select them.
+
+Against the original game, `compare_bfg_classic.py` found: all weapon model
+joints identical and vertices within 0.13 units (BFG stores four 8-bit weights
+per vertex); 64 of 65 animations bit-identical; diffuse and specular maps within
+DXT error; normal maps within about 2 degrees on used texels.
 
 Enable **Gameplay > Doom 3 weapons > Enabled (prototype)** in the launcher.
 Owning the Hunter Rifle unlocks the Shotgun. Owning the Leech Gun unlocks the

@@ -981,9 +981,12 @@ void hhPortalShot::Spawn() {
 }
 
 static void RW_PortalShotImpact(const idVec3 &point, const idVec3 &normal, int color, bool success) {
+    // The shot visuals come from the optional Portal content.
+    const char *particle = va("rw_portal_%s_%s", color ? "orange" : "blue", success ? "impact" : "reject");
+    if (!declManager->FindType(DECL_PARTICLE, particle, false)) return;
     idDict args;
     args.Set("classname", "rw_portal_shot_impact");
-    args.Set("model", va("rw_portal_%s_%s.prt", color ? "orange" : "blue", success ? "impact" : "reject"));
+    args.Set("model", va("%s.prt", particle));
     args.SetVector("origin", point + normal * 1.5f);
     const idMat3 surface = normal.ToMat3();
     // Prey's cone particles emit along local Z.
@@ -1147,7 +1150,9 @@ void hhPlayer::FireGunPortal(int color) {
     const int serial = spawnArgs.GetInt(va("rw_shot_serial_%d", color)) + 1;
     idDict args;
     args.Set("classname", "rw_portal_shot");
-    args.Set("model", color ? "rw_portal_orange_flight.prt" : "rw_portal_blue_flight.prt");
+    // Without the optional Portal content the flight is invisible but still travels.
+    if (declManager->FindType(DECL_PARTICLE, color ? "rw_portal_orange_flight" : "rw_portal_blue_flight", false))
+        args.Set("model", color ? "rw_portal_orange_flight.prt" : "rw_portal_blue_flight.prt");
     args.SetVector("origin", muzzle);
     args.SetMatrix("rotation", direction.ToMat3());
     args.Set("shot_owner", GetName());

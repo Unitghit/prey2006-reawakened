@@ -12,13 +12,14 @@ function Get-OptionalContent {
 		return @($names | Where-Object { Test-Path -LiteralPath (Join-Path $Base $_) } | Sort-Object -Unique)
 	}
 	# Portal importer outputs (tools/portalgun/import_viewmodel.py, import_worldmodel.py,
-	# import_reticle.py). The wall openings come from retail Prey and stay in base.
+	# import_reticle.py). The wall openings come from retail Prey, and the shot
+	# entities (def/portalgun_shots.def) are portal tool mechanics; both stay in base.
 	$patterns = @(
 		'^models/reawakened/portalgun/(view|world)/',
 		'^textures/reawakened/portalgun/',
 		'^sound/reawakened/portalgun/',
 		'^guis/assets/portalgun/',
-		'^def/portalgun_(view|shots)\.def$',
+		'^def/portalgun_view\.def$',
 		'^materials/portalgun_(view|shots|reticle)\.mtr$',
 		'^particles/portalgun_shots\.prt$',
 		'^script/reawakened/weapon_portalgun_v1\.script$',

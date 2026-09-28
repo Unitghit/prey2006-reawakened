@@ -1,6 +1,6 @@
 # Gameplay loading work
 
-The native launcher exposes Asset preloading (experimental) and Hitch logging.
+The launcher always enables asset preloading. Hitch logging (`com_hitchTrace 1`) is a developer diagnostic, off by default, set from the console or command line.
 Both are enabled by default in the launcher for playtesting; engine-only defaults
 remain off. Existing preset batch files are unchanged.
 

@@ -10,6 +10,7 @@ import re
 import zipfile
 from pathlib import Path
 from weapon_group_hud import generate_hud
+import bfg_source
 
 
 def block(text, name):
@@ -110,7 +111,12 @@ def main():
                         help='Install additive assets in base, retaining the normal campaign script baseline')
     args = parser.parse_args()
     index, archives = {}, []
-    for archive in sorted((args.install / 'base').glob('pak*.pk4')):
+    # Doom 3: BFG Edition: the same art, converted back to the original formats
+    # on read. Its expansion content shares the base archives.
+    bfg = bfg_source.ClassicView(args.install) if bfg_source.is_bfg_install(args.install) else None
+    if bfg:
+        index = bfg.index()
+    for archive in ([] if bfg else sorted((args.install / 'base').glob('pak*.pk4'))):
         z = zipfile.ZipFile(archive)
         archives.append(z)
         for name in z.namelist():
@@ -283,6 +289,16 @@ def main():
 
     resolve_weapon_gui_strings(files, read)
     fix_gui_transitions(files)
+    if bfg:
+        # BFG sounds are decoded to PCM; give former Ogg files a .wav name.
+        renamed = {n: n[:-4]+'.wav' for n in files if n.endswith('.ogg')}
+        for old, new in renamed.items():
+            files[new] = files.pop(old)
+        for name in [n for n in files if n.endswith(('.sndshd', '.def'))]:
+            text = files[name].decode('latin1')
+            for old, new in renamed.items():
+                text = re.sub(re.escape(old), new, text, flags=re.I)
+            files[name] = text.encode('latin1')
 
     # Validate everything before writing; no path may escape the output folder.
     for name in files:

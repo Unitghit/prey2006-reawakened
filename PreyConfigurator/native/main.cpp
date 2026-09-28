@@ -8,7 +8,7 @@
 #include <stdexcept>
 
 static HINSTANCE instance;
-static constexpr int RestoreId=2001, SaveId=2002, PlayId=2003, ContentId=2004;
+static constexpr int RestoreId=2001, SaveId=2002, PlayId=2003, ContentId=2004, AdvancedId=2005;
 static constexpr wchar_t MainClass[]=L"PreySettingsNative", PageClass[]=L"PreySettingsPage";
 static UINT WindowDpi(HWND window) {
     using Fn=UINT(WINAPI*)(HWND);
@@ -33,7 +33,8 @@ struct Row { HWND label{},combo{}; RECT labelRect{},comboRect{}; };
 struct Group { std::wstring name; HWND title{}; RECT rect{}; };
 struct App {
     fs::path root;
-    HWND window{},page{},title{},status{},tooltip{},buttons[4]{};
+    HWND window{},page{},title{},status{},tooltip{},buttons[4]{},advanced{};
+    bool showAdvanced=false;
     HFONT font{},bold{},heading{};
     UINT dpi=96;
     std::vector<Row> rows;
@@ -78,6 +79,7 @@ struct App {
         auto set=[](HWND h,HFONT f) { if(h) SendMessageW(h,WM_SETFONT,(WPARAM)f,TRUE); };
         set(title,heading); set(status,font);
         for (auto h:buttons) set(h,font);
+        set(advanced,font);
         for (auto& row:rows) {set(row.label,font);set(row.combo,font);}
         for (auto& group:groups) set(group.title,bold);
         DeleteObject(oldFont);DeleteObject(oldBold);DeleteObject(oldHeading);
@@ -88,7 +90,19 @@ struct App {
         SendMessageW(tooltip,TTM_ADDTOOLW,0,(LPARAM)&ti);
     }
     void Create();
+    bool Visible(size_t i) const { return !Options()[i].advanced || showAdvanced; }
+    bool GroupVisible(const Group& g) const {
+        for (size_t i=0;i<rows.size();++i) if(Options()[i].group==g.name && Visible(i)) return true;
+        return false;
+    }
+    void ShowAdvanced(bool show) {
+        showAdvanced=show;SendMessageW(advanced,BM_SETCHECK,show?BST_CHECKED:BST_UNCHECKED,0);
+        for (size_t i=0;i<rows.size();++i) {int cmd=Visible(i)?SW_SHOWNA:SW_HIDE;ShowWindow(rows[i].label,cmd);ShowWindow(rows[i].combo,cmd);}
+        for (auto& g:groups) ShowWindow(g.title,GroupVisible(g)?SW_SHOWNA:SW_HIDE);
+        Layout();
+    }
     void SetValues(const Values& v) {
+        auto shown=v.find(L"showAdvanced");ShowAdvanced(shown!=v.end() && shown->second==L"1");
         for (size_t i=0;i<rows.size();++i) {
             const auto& s=Options()[i];
             auto it=std::find_if(s.choices.begin(),s.choices.end(),[&](const Choice& c){return c.value==v.at(s.key);});
@@ -103,6 +117,7 @@ struct App {
             if(selection<0 || selection>=(int)Options()[i].choices.size()) throw std::runtime_error("Missing settings choice");
             v[Options()[i].key]=Options()[i].choices[selection].value;
         }
+        if(showAdvanced) v[L"showAdvanced"]=L"1";
         return v;
     }
     void Dependencies() {
@@ -111,6 +126,8 @@ struct App {
             const auto& key=Options()[i].key; bool enabled=true;
             if(key==L"resolution") enabled=v[L"r_fullscreen"]!=L"desktop";
             if(key==L"joy_invertLook" || key==L"joy_deadZone") enabled=v[L"in_useGamepad"]==L"1";
+            if(key==L"g_portalGunReticle") enabled=v[L"g_portalGun"]==L"1";
+            if(key==L"g_halfLifeAutoHop") enabled=v[L"g_bunnyHop"]==L"3" || v[L"g_bunnyHop"]==L"4";
             // Needs the optional Doom 3 content; offered again once it is installed.
             if(key==L"weaponPack" && !ExtraInstalled(root,Extra::Doom3)) {enabled=false;SendMessageW(rows[i].combo,CB_SETCURSEL,0,0);}
             EnableWindow(rows[i].combo,enabled);
@@ -124,11 +141,16 @@ struct App {
         y+=headerHeight+D(12);
         size_t i=0;
         for (auto& group:groups) {
+            if(!GroupVisible(group)) {
+                while(i<rows.size() && Options()[i].group==group.name) ++i;
+                group.rect={0,y,width,y};continue;
+            }
             int top=y; y+=D(12);
             int titleHeight=Measure(group.name,bold).cy;
             if(place) MoveWindow(group.title,D(12),y,inner,titleHeight,TRUE);
             y+=titleHeight+D(10);
             while(i<rows.size() && Options()[i].group==group.name) {
+                if(!Visible(i)) {++i;continue;}
                 auto& row=rows[i];
                 int leftWidth=(int)(inner*.46),labelWidth=std::max(1,leftWidth-D(15));
                 int labelHeight=Measure(Options()[i].label,font,labelWidth).cy;
@@ -155,6 +177,11 @@ struct App {
         int y=statusHeight+D(3),x=0,rowHeight=0;
         const wchar_t* texts[]={L"Restore defaults",L"Save settings",L"Save & Play",L"Game content..."};
         buttonRects.clear();
+        {
+            SIZE size=Measure(L"Show advanced options",font);int w=size.cx+MulDiv(28,(int)dpi,96),h=size.cy+D(18);
+            if(place) MoveWindow(advanced,D(18),top+y,w,h,TRUE);
+            x=w+D(10);rowHeight=h;
+        }
         for(int i=0;i<4;++i) {
             SIZE size=Measure(texts[i],font);int w=size.cx+D(22),h=size.cy+D(18);
             if(x && x+w>width) {x=0;y+=rowHeight+D(3);rowHeight=0;}
@@ -229,7 +256,7 @@ struct App {
         Layout();
     }
     void Action(int id) {
-        if(id==RestoreId) {SetValues(Defaults());Status(L"Defaults selected. Click Save to apply.");return;}
+        if(id==RestoreId) {auto d=Defaults();if(showAdvanced)d[L"showAdvanced"]=L"1";SetValues(d);Status(L"Defaults selected. Click Save to apply.");return;}
         if(id==ContentId) {
             if(!RunSetup(instance,root,window)) {DestroyWindow(window);return;}
             Dependencies();Status(ExtraInstalled(root,Extra::Doom3)?L"Game content updated.":L"Game content updated. Doom 3 weapons need the optional Doom 3 content.");return;
@@ -287,6 +314,8 @@ static LRESULT CALLBACK MainProc(HWND h,UINT msg,WPARAM wp,LPARAM lp) {
                 if(id>=100 && id<100+(int)app->rows.size()) {
                     if(event==CBN_SELCHANGE) {app->Dependencies();app->Status(L"Unsaved changes");}
                     if(event==CBN_SETFOCUS) app->Reveal(id-100);
+                } else if(id==AdvancedId && event==BN_CLICKED) {
+                    app->ShowAdvanced(SendMessageW(app->advanced,BM_GETCHECK,0,0)==BST_CHECKED);app->Status(L"Unsaved changes");
                 } else if(id>=RestoreId && id<=ContentId && event==BN_CLICKED) app->Action(id);
                 return 0;
             }
@@ -329,6 +358,8 @@ void App::Create() {
     buttons[2]=Control(L"BUTTON",L"Save && Play",WS_TABSTOP|BS_PUSHBUTTON,window,PlayId);
     buttons[3]=Control(L"BUTTON",L"Game content...",WS_TABSTOP|BS_PUSHBUTTON,window,ContentId);
     Tip(buttons[3],L"Add or remove the optional Doom 3 and Portal content.");
+    advanced=Control(L"BUTTON",L"Show advanced options",WS_TABSTOP|BS_AUTOCHECKBOX,window,AdvancedId);
+    Tip(advanced,L"Shadow, portal rendering and dependent options. Hidden options keep their saved values.");
     Fonts(WindowDpi(window));
     Values values=Defaults();
     try {values=Load(root);if(fs::exists(root/L"Prey-settings.json")) statusText=L"Saved settings loaded.";}
@@ -353,35 +384,50 @@ void App::Verify(const fs::path& output) {
     auto initial=Read();RECT work=WorkArea(window);Snapshot(window,output/L"startup.bmp");
     Atomic(output/L"metrics.txt", "dpi="+std::to_string(dpi)+" work="+std::to_string(work.right-work.left)+"x"+std::to_string(work.bottom-work.top)+" label="+std::to_string(Measure(L"Flashlight dynamic shadows",font).cx)+" rowwidth="+std::to_string(rows[6].labelRect.right-rows[6].labelRect.left)+"\n");
     minWidth=480;
+    for(bool shown:{false,true}) {
+    ShowAdvanced(shown);
     for(UINT scale:{96u,120u,144u,192u}) {
         Fonts(scale);
         for(int width:{640,850,1100}) {
             SetWindowPos(window,nullptr,0,0,width,780,SWP_NOMOVE|SWP_NOZORDER|SWP_NOACTIVATE);Layout();
             int last=0;
             for(const auto& g:groups){require(g.rect.top>=last,"Overlapping sections");last=g.rect.bottom;}
+            size_t visible=0;
             for(size_t i=0;i<rows.size();++i) {
+                if(!Visible(i)) {require(!IsWindowVisible(rows[i].combo),"Hidden option still shown");continue;}
+                ++visible;
                 const auto& a=rows[i].labelRect;const auto& b=rows[i].comboRect;
                 require(a.right<=b.left,"Overlapping label/dropdown");
                 auto g=std::find_if(groups.begin(),groups.end(),[&](const Group& x){return x.name==Options()[i].group;});
                 require(a.top>=g->rect.top && a.bottom<=g->rect.bottom && b.bottom<=g->rect.bottom,"Clipped section row");
-                if(i+1<rows.size())require(std::max(a.bottom,b.bottom)<=std::min(rows[i+1].labelRect.top,rows[i+1].comboRect.top),"Overlapping rows");
+                size_t n=i+1;while(n<rows.size() && !Visible(n))++n;
+                if(n<rows.size())require(std::max(a.bottom,b.bottom)<=std::min(rows[n].labelRect.top,rows[n].comboRect.top),"Overlapping rows");
             }
+            require(visible==(shown?rows.size():15),"Wrong number of visible options");
             ScrollTo(contentHeight);require(scroll+pageHeight>=contentHeight,"Cannot scroll to last setting");
-            require(Read()==initial,"Layout changed a setting");
+            auto current=Read();current.erase(L"showAdvanced");auto expected=initial;expected.erase(L"showAdvanced");
+            require(current==expected,"Layout changed a setting");
         }
     }
+    }
+    ShowAdvanced(false);
     Fonts(WindowDpi(window));RECT small{work.left,work.top,work.left+640,work.top+480};Fit(small);
     RECT bounds;GetWindowRect(window,&bounds);require(bounds.right-bounds.left<=640 && bounds.bottom-bounds.top<=480 && contentHeight>pageHeight,"Small-screen layout failed");
     Snapshot(window,output/L"small-top.bmp");ScrollTo(contentHeight);Snapshot(window,output/L"small-bottom.bmp");
-    auto v=Defaults();v[L"r_fullscreen"]=L"desktop";v[L"in_useGamepad"]=L"0";SetValues(v);
+    auto v=Defaults();v[L"r_fullscreen"]=L"desktop";v[L"in_useGamepad"]=L"0";v[L"g_portalGun"]=L"0";v[L"g_bunnyHop"]=L"1";v[L"showAdvanced"]=L"1";SetValues(v);
     for (size_t i=0; i<rows.size(); ++i) {
         const auto& key=Options()[i].key;
-        if (key==L"resolution" || key==L"joy_invertLook" || key==L"joy_deadZone")
+        if (key==L"resolution" || key==L"joy_invertLook" || key==L"joy_deadZone" || key==L"g_portalGunReticle" || key==L"g_halfLifeAutoHop")
             require(!IsWindowEnabled(rows[i].combo),"Dependency state failed");
+    }
+    v[L"g_portalGun"]=L"1";v[L"g_bunnyHop"]=L"3";SetValues(v);
+    for (size_t i=0; i<rows.size(); ++i) {
+        const auto& key=Options()[i].key;
+        if (key==L"g_portalGunReticle" || key==L"g_halfLifeAutoHop") require(IsWindowEnabled(rows[i].combo),"Dependency enable failed");
     }
     auto before=Read();SendMessageW(rows[0].combo,WM_MOUSEWHEEL,MAKEWPARAM(0,(WORD)-WHEEL_DELTA),0);require(Read()==before,"Mouse wheel changed a choice");
     SetValues(initial);Fit(work);Snapshot(window,output/L"settings.bmp");
-    Atomic(output/L"layout-pass.txt","PASS: all controls, row/group containment, small-screen scrolling, 96/120/144/192 DPI at 640/850/1100 widths, wheel forwarding and dependency state.\n");
+    Atomic(output/L"layout-pass.txt","PASS: all controls with advanced options hidden and shown, row/group containment, small-screen scrolling, 96/120/144/192 DPI at 640/850/1100 widths, wheel forwarding and dependency state.\n");
 
     // Exercise the actual button handlers against an isolated root and child
     // probe, including spaces/Unicode in paths. Never launches the real game.

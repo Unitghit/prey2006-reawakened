@@ -1,6 +1,6 @@
 # Fractional mouse presentation
 
-The launcher forces g_lateMouse off. An initial default-on trial did not improve the reported mouse feel and caused visible reticle displacement during rapid shaking; it was reverted. Smooth motion continues to control the original interpolation bundle only.
+The launcher forces g_lateMouse off. An initial default-on trial did not improve the reported mouse feel and caused visible reticle displacement during rapid shaking; it was reverted. The original interpolation bundle (formerly the Smooth motion option) is always enabled.
 Sensitivity is unchanged. GetPresentationLook retains fractional accumulated
 angles rather than re-quantizing them to the 16-bit command format. MakeCurrent
 normalizes accumulated angles after the pitch-delta clamp, avoiding loss of
