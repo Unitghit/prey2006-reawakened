@@ -398,7 +398,7 @@ void hhWeaponFireController::UseAmmo() {
         if (dict->GetBool("rw_bfgCharge")) {
             const int cells=Min(Max(1,self->spawnArgs.GetInt("rw_bfg_power","1")),Max(0,ammoClip));
             self->spawnArgs.SetInt("rw_bfg_power",cells);
-            owner->inventory.ConsumeBFGCells(owner.GetEntity(),cells); ammoClip-=cells;
+            ammoClip-=cells; // Reserve was spent when these charges were loaded.
             owner->inventory.clip[16] = ammoClip; return;
         }
 		owner->UseAmmo( GetAmmoType(), AmmoRequired() );
@@ -414,7 +414,23 @@ void hhWeaponFireController::UseAmmo() {
 hhWeaponFireController::AddToClip
 ================
 */
-void hhWeaponFireController::AddToClip( int amount ) {
+void hhWeaponFireController::AddToClip( int amount, bool restoreLoaded ) {
+    if (dict && dict->GetBool("rw_bfgCharge") && owner.IsValid()) {
+        if (restoreLoaded) {
+            ammoClip = idMath::ClampInt(0, clipSize, amount);
+        } else if (amount > 0) {
+            const int reserve = owner->inventory.BFGChargesAvailable(owner.GetEntity());
+            int added = Min(amount, Max(0, clipSize - ammoClip));
+            if (reserve >= 0) added = Min(added, reserve);
+            owner->inventory.ConsumeBFGCells(owner.GetEntity(), added);
+            ammoClip += added;
+        } else {
+            // Also synchronizes an active controller after legacy-save migration.
+            ammoClip = Min(ammoClip, Max(0, owner->inventory.clip[16]));
+        }
+        owner->inventory.clip[16] = ammoClip;
+        return;
+    }
 	ammoClip += amount;
 	if ( ammoClip > clipSize ) {
 		ammoClip = clipSize;
@@ -550,7 +566,10 @@ hhWeaponFireController::AmmoAvailable
 ================
 */
 int hhWeaponFireController::AmmoAvailable() const {
-    if (owner.IsValid() && dict && dict->GetBool("rw_bfgCharge")) return owner->inventory.BFGChargesAvailable(owner.GetEntity());
+    if (owner.IsValid() && dict && dict->GetBool("rw_bfgCharge")) {
+        const int reserve = owner->inventory.BFGChargesAvailable(owner.GetEntity());
+        return reserve < 0 ? -1 : Max(0, ammoClip) + reserve;
+    }
     const int slot = SharedShotgunSlot();
     if (slot >= 0) { return owner->inventory.ShotgunAmmoAvailable(slot); }
 	if ( owner.IsValid() ) {

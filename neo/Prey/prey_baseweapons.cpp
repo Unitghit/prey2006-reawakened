@@ -562,7 +562,7 @@ void hhWeapon::ParseDef( const char* objectname ) {
 			clipAmmo = fireController->AmmoAvailable();
 		}
 	}
-	fireController->AddToClip(clipAmmo);
+	fireController->AddToClip(clipAmmo, owner->inventory.clip[owner->GetWeaponNum(objectname)] >= 0);
 
 	WEAPON_ALTMODE = owner->inventory.altMode[owner->GetWeaponNum(objectname)];
 	//HUMANHEAD END

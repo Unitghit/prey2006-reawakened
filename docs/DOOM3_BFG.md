@@ -19,3 +19,25 @@ Existing fixed save arrays remain 16 entries; the additional ammo and clip value
 The original muted hidden-desktop combat fixtures cover charged damage, obstruction, overcharge, portal traversal, save/load and pack toggles. Their independent-cell balance is superseded by bfg-shared.cfg and bfg-shared-migration.cfg, checked with check_bfg_shared.py. The migration fixture additionally needs the legacy bfg_ready save from the original BFG tests. They require the existing isolated portal laboratory input save. Additional campaign screenshots check the model and charging display. The existing progression fixture covers the other Doom weapons.
 
 Reference: https://github.com/id-Software/DOOM-3/blob/master/neo/game/Projectile.cpp
+
+
+## Separate loaded charges
+
+BFG reload now transfers 37.5 plasma per charge out of ammo[13] into clip[16].
+Firing consumes only loaded charges. The Plasma Gun cannot spend BFG-loaded
+ammo; BFG loading also excludes plasma already in the Plasma Gun magazine.
+The normal 150-round plasma pool can refill while up to four BFG charges remain
+loaded. The Plasma Gun retains its existing total-including-magazine accounting.
+
+Weapon reconstruction restores the cached BFG clip without charging reserve
+again; fresh first equip still loads from reserve. A persistent rw_weapon_ flag
+converts older shared-pool saves once, paying for their loaded charges from
+available plasma and limiting overlapping claims to actual available ammo.
+No fixed save layout changes. The marker and clip survive campaign transitions.
+
+Hidden muted tests: full load 150 -> 0 with four charges; ammo pickup refills to
+150 while retaining four charges; Plasma Gun firing/reloading retains the BFG
+clip; BFG firing does not spend reserve twice; save/reload and level transition;
+fully charged shot; older bfg_half save converts to three charges and zero
+reserve, unchanged on reload; loading from 38 leaves one charge and 0.5 plasma,
+unchanged after save/reload and another reload attempt.

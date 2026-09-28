@@ -255,7 +255,8 @@ float hhInventory::BFGCellCost() const {
 }
 int hhInventory::BFGChargesAvailable(const hhPlayer *owner) const {
     if (ammo[13] < 0) return -1;
-    return int((ammo[13] + WeaponAmmoFraction(owner, 13) + 1e-6) / BFGCellCost());
+    // Plasma already in its own magazine is not available to load into the BFG.
+    return int((Max(0.0, ammo[13] + WeaponAmmoFraction(owner, 13) - Max(0, clip[13])) + 1e-6) / BFGCellCost());
 }
 void hhInventory::ConsumeBFGCells(hhPlayer *owner, int charges) {
     if (ammo[13] < 0) return;
@@ -318,8 +319,16 @@ bool hhInventory::SynchronizeWeaponAmmo(hhPlayer *owner) {
             owner->spawnArgs.SetBool("rw_weapon_bfg_shared_plasma", true);
             changed = true;
         }
-        const int charges = BFGChargesAvailable(owner);
-        if (charges >= 0 && clip[16] > charges) { clip[16] = charges; changed = true; }
+        if (!owner->spawnArgs.GetBool("rw_weapon_bfg_loaded_separate")) {
+            const int charges = BFGChargesAvailable(owner);
+            const int loaded = idMath::ClampInt(0, 4, clip[16]);
+            if (clip[16] >= 0) {
+                clip[16] = charges < 0 ? loaded : Min(loaded, charges);
+                ConsumeBFGCells(owner, clip[16]);
+            }
+            owner->spawnArgs.SetBool("rw_weapon_bfg_loaded_separate", true);
+            changed = true;
+        }
         if (ammo[13] >= 0 && clip[13] > ammo[13]) { clip[13] = ammo[13]; changed = true; }
     }
 	if (cvarSystem->GetCVarBool("g_doom3Shotgun") && owner->spawnArgs.GetBool("rw_weapon_d3shotgun_owned") &&

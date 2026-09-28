@@ -45,7 +45,7 @@ protected:
 
 public:
 	virtual int			AmmoAvailable() const;
-	void				AddToClip( int amount );
+	void				AddToClip( int amount, bool restoreLoaded = false );
 	int SharedShotgunSlot() const;
 	void PublishShotgunClip();
     void SetSingleBarrelShot(bool enabled);
