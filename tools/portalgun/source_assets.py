@@ -50,3 +50,53 @@ class VPK:
         dest.parent.mkdir(parents=True, exist_ok=True)
         dest.write_bytes(self.read(name))
         return dest
+
+
+class GameFiles:
+    """A Source game folder: its VPK archives plus loose files.
+
+    Retail and non-Steam copies may ship the same assets unpacked; a loose file
+    takes precedence, as in the Source filesystem's search paths.
+    """
+    SUBFOLDERS = ('materials', 'models', 'sound')
+
+    def __init__(self, folder, archives):
+        self.folder = Path(folder)
+        self.archives = [VPK(p) for p in archives if Path(p).is_file()]
+        self.loose = {}
+        for sub in self.SUBFOLDERS:
+            root = self.folder/sub
+            if root.is_dir():
+                for p in root.rglob('*'):
+                    if p.is_file():
+                        self.loose[p.relative_to(self.folder).as_posix().lower()] = p
+        self.entries = set(self.loose)
+        for archive in self.archives:
+            self.entries.update(archive.entries)
+
+    def read(self, name):
+        name = name.lower()
+        if name in self.loose:
+            return self.loose[name].read_bytes()
+        for archive in self.archives:
+            if name in archive.entries:
+                return archive.read(name)
+        raise KeyError(name)
+
+    def extract(self, name, output):
+        dest = Path(output)/name
+        if not dest.resolve().is_relative_to(Path(output).resolve()):
+            raise ValueError('Unsafe asset path')
+        dest.parent.mkdir(parents=True, exist_ok=True)
+        dest.write_bytes(self.read(name))
+        return dest
+
+
+def portal_files(install):
+    folder = Path(install)/'portal'
+    return GameFiles(folder, sorted(folder.glob('*_dir.vpk')))
+
+
+def hl2_files(install):
+    folder = Path(install)/'hl2'
+    return GameFiles(folder, [folder/'hl2_textures_dir.vpk', folder/'hl2_misc_dir.vpk'])

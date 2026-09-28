@@ -4,11 +4,11 @@ Generated retail-derived images are local-only, not distributable source assets.
 """
 from pathlib import Path
 import sys
-from source_assets import VPK
+from source_assets import portal_files
 from import_viewmodel import vtf_image
 
 def import_reticle(install, output):
-    vpk = VPK(Path(install) / "portal/portal_pak_dir.vpk")
+    vpk = portal_files(install)
     output = Path(output)
     texture = output / "guis/assets/portalgun/reticle.tga"
     texture.parent.mkdir(parents=True, exist_ok=True)

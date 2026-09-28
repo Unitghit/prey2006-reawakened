@@ -4,6 +4,7 @@
 #include <shobjidl.h>
 #include <algorithm>
 #include <fstream>
+#include <set>
 #include <stdexcept>
 #include <thread>
 
@@ -181,31 +182,125 @@ static std::vector<std::wstring> StagedFiles(const fs::path& stage) {
 	return files;
 }
 
+// The bundled converter (tools/importer, built with PyInstaller) and the model
+// decompiler it uses for Portal. Absent in development builds, which then use
+// pre-converted content from setup-content.
+static fs::path ImporterExe(const fs::path& root) { return root/EngineDirectory/L"importer/reawakened-import.exe"; }
+static fs::path CrowbarExe(const fs::path& root) { return root/EngineDirectory/L"importer/crowbar/Crowbar.exe"; }
+static fs::path ImportWork(const fs::path& root) { return root/EngineDirectory/L"import-work"; }
+// Shipped files an import replaced, restored when the content is removed.
+static fs::path ReplacedFolder(const fs::path& root, Extra extra) {
+	return root/EngineDirectory/L"replaced"/ExtraKey(extra);
+}
+
+// Runs the converter hidden, forwarding its "PROGRESS <0-100>" lines. Output
+// is logged next to the work folder for diagnosis.
+static void RunImporter(const fs::path& root, const std::vector<std::wstring>& args,
+		const std::function<void(uint64_t, uint64_t)>& progress, const std::atomic<bool>* cancel, const fs::path& log) {
+	std::wstring command = QuoteArgument(ImporterExe(root).wstring());
+	for (const auto& a : args) command += L" " + QuoteArgument(a);
+	SECURITY_ATTRIBUTES sa{ sizeof(sa), nullptr, TRUE };
+	HANDLE readPipe = nullptr, writePipe = nullptr;
+	if (!CreatePipe(&readPipe, &writePipe, &sa, 0)) throw std::runtime_error("Cannot start the content converter.");
+	SetHandleInformation(readPipe, HANDLE_FLAG_INHERIT, 0);
+	HANDLE logFile = CreateFileW(log.c_str(), GENERIC_WRITE, FILE_SHARE_READ, &sa, CREATE_ALWAYS, FILE_ATTRIBUTE_NORMAL, nullptr);
+	STARTUPINFOW si{ sizeof(si) };
+	si.dwFlags = STARTF_USESTDHANDLES;
+	si.hStdOutput = writePipe;
+	si.hStdError = logFile != INVALID_HANDLE_VALUE ? logFile : writePipe;
+	si.hStdInput = GetStdHandle(STD_INPUT_HANDLE);
+	PROCESS_INFORMATION pi{};
+	std::vector<wchar_t> buffer(command.begin(), command.end()); buffer.push_back(0);
+	const BOOL started = CreateProcessW(nullptr, buffer.data(), nullptr, nullptr, TRUE, CREATE_NO_WINDOW,
+		nullptr, ImporterExe(root).parent_path().c_str(), &si, &pi);
+	CloseHandle(writePipe);
+	if (logFile != INVALID_HANDLE_VALUE) CloseHandle(logFile);
+	if (!started) { CloseHandle(readPipe); throw std::runtime_error("Cannot start the content converter."); }
+	// A watcher ends the converter on cancel; its closed pipe ends the read loop.
+	std::atomic<bool> finished{ false };
+	std::thread watcher([&]() {
+		while (!finished) {
+			if (WaitForSingleObject(pi.hProcess, 100) == WAIT_OBJECT_0) break;
+			if (cancel && cancel->load()) { TerminateProcess(pi.hProcess, 1); break; }
+		}
+	});
+	std::string pending, error;
+	char chunk[512]; DWORD got = 0;
+	while (ReadFile(readPipe, chunk, sizeof(chunk), &got, nullptr) && got) {
+		pending.append(chunk, got);
+		for (size_t end; (end = pending.find('\n')) != std::string::npos; pending.erase(0, end + 1)) {
+			std::string line = pending.substr(0, end);
+			if (!line.empty() && line.back() == '\r') line.pop_back();
+			if (line.rfind("PROGRESS ", 0) == 0) progress((uint64_t)std::max(0, std::min(100, atoi(line.c_str() + 9))), 100);
+			else if (line.rfind("ERROR ", 0) == 0) error = line.substr(6);
+		}
+	}
+	WaitForSingleObject(pi.hProcess, INFINITE);
+	finished = true; watcher.join();
+	DWORD code = 1; GetExitCodeProcess(pi.hProcess, &code);
+	CloseHandle(pi.hThread); CloseHandle(pi.hProcess); CloseHandle(readPipe);
+	if (cancel && cancel->load()) throw std::runtime_error("Import cancelled.");
+	if (code != 0) throw std::runtime_error(error.empty() ? "The content conversion failed." : error);
+}
+
 void ImportExtra(Extra extra, const fs::path& gameFolder, const fs::path& root,
 		const std::function<void(uint64_t, uint64_t)>& progress, const std::atomic<bool>* cancel) {
 	const auto source = CheckExtraSource(extra, gameFolder);
 	if (!source.check.problem.empty()) throw std::runtime_error(Utf8(source.check.problem));
-	const auto stage = ExtraStage(root, extra);
+	const auto base = root/EngineDirectory/L"base";
+	fs::path stage;
+	std::error_code ec;
+	// Conversion is 80% of the progress bar, installing the result the rest.
+	auto scaled = [&](uint64_t done, uint64_t total, uint64_t from, uint64_t span) {
+		progress(from + (total ? done * span / total : span), 1000);
+	};
+	if (fs::is_regular_file(ImporterExe(root), ec)) {
+		const auto work = ImportWork(root);
+		fs::create_directories(work);
+		stage = work/(std::wstring(ExtraKey(extra)) + L"-output");
+		std::vector<std::wstring> args;
+		if (extra == Extra::Doom3)
+			args = { L"doom3", L"--game", source.folder.wstring(), L"--prey-base", base.wstring(), L"--output", stage.wstring() };
+		else
+			args = { L"portal", L"--game", source.folder.wstring(), L"--crowbar", CrowbarExe(root).wstring(),
+				L"--output", stage.wstring(), L"--work", (work/L"portal-work").wstring() };
+		RunImporter(root, args, [&](uint64_t d, uint64_t t) { scaled(d, t, 0, 800); }, cancel,
+			work/(std::wstring(ExtraKey(extra)) + L".log"));
+	} else {
+		stage = ExtraStage(root, extra);
+	}
 	auto files = StagedFiles(stage);
-	if (files.empty()) throw std::runtime_error(Utf8(std::wstring(L"This build cannot convert the ") + ExtraName(extra) + L" yet."));
+	if (files.empty()) throw std::runtime_error(Utf8(std::wstring(L"This build cannot convert the ") + ExtraName(extra) + L"."));
 	if (extra == Extra::Doom3 && !source.check.expansion)
 		files.erase(std::remove_if(files.begin(), files.end(), SuperShotgunFile), files.end());
-	const auto base = root/EngineDirectory/L"base";
+	// Files this content installed before are replaced freely; any other
+	// existing file is a shipped one, kept aside for removal.
+	std::set<std::wstring> ours;
+	{
+		std::ifstream in(ExtraRecord(root, extra), std::ios::binary);
+		std::string line; while (std::getline(in, line)) if (!line.empty()) ours.insert(Wide(line));
+	}
+	const auto replaced = ReplacedFolder(root, extra);
 	uint64_t total = 0, done = 0;
 	for (const auto& f : files) total += fs::file_size(stage/f);
 	std::string record;
 	for (const auto& f : files) {
 		if (cancel && cancel->load()) throw std::runtime_error("Import cancelled.");
 		const auto dest = base/f;
+		if (fs::is_regular_file(dest, ec) && !ours.count(f) && !fs::exists(replaced/f, ec)) {
+			fs::create_directories((replaced/f).parent_path());
+			fs::copy_file(dest, replaced/f);
+		}
 		fs::create_directories(dest.parent_path());
 		const fs::path part = dest.wstring() + L".part";
 		fs::copy_file(stage/f, part, fs::copy_options::overwrite_existing);
 		fs::rename(part, dest);
 		record += Utf8(f) + "\n";
-		done += fs::file_size(dest); progress(done, total);
+		done += fs::file_size(dest); scaled(done, total, 800, 200);
 	}
 	// Written last: content counts as installed only once every file is in place.
 	Atomic(ExtraRecord(root, extra), record);
+	if (stage.parent_path() == ImportWork(root)) fs::remove_all(stage, ec);
 }
 
 void RemoveExtra(Extra extra, const fs::path& root) {
@@ -224,6 +319,14 @@ void RemoveExtra(Extra extra, const fs::path& root) {
 		for (auto dir = path.parent_path(); dir != base && fs::is_empty(dir, ec); dir = dir.parent_path()) fs::remove(dir, ec);
 	}
 	in.close();
+	// Put back the shipped files the import replaced.
+	const auto replaced = ReplacedFolder(root, extra);
+	for (const auto& f : StagedFiles(replaced)) {
+		fs::create_directories((base/f).parent_path());
+		fs::copy_file(replaced/f, base/f, fs::copy_options::overwrite_existing);
+	}
+	fs::remove_all(replaced, ec);
+	if (fs::is_empty(replaced.parent_path(), ec)) fs::remove(replaced.parent_path(), ec);
 	fs::remove(ExtraRecord(root, extra), ec);
 }
 
@@ -526,13 +629,16 @@ void VerifyRetailSetup(const fs::path& output) {
 	require(CheckExtraSource(Extra::Doom3, doom/L"base").folder == doom, "Doom 3 base folder not normalized");
 	require(!CheckExtraSource(Extra::Doom3, prey).check.problem.empty(), "Prey accepted as Doom 3");
 	const auto stage = root/L"setup-content/doom3";
-	for (auto name : { L"def/doom3_shotgun.def", L"def/doom3_supershotgun.def", L"models/w/doublebarrel_view/v.md5mesh", L"doom3-import-manifest.json" }) {
+	for (auto name : { L"def/doom3_shotgun.def", L"def/doom3_supershotgun.def", L"models/w/doublebarrel_view/v.md5mesh", L"doom3-import-manifest.json", L"guis/hud/icons.gui" }) {
 		fs::create_directories((stage/name).parent_path()); std::ofstream(stage/name) << "x";
 	}
 	ImportRetail(prey, root, [](uint64_t, uint64_t) {}, nullptr);
 	require(!ExtraInstalled(root, Extra::Doom3), "Doom 3 content reported before install");
-	ImportExtra(Extra::Doom3, doom, root, [](uint64_t, uint64_t) {}, nullptr);
 	const auto base = root/EngineDirectory/L"base";
+	auto contents = [](const fs::path& f) { std::ifstream in(f, std::ios::binary); return std::string(std::istreambuf_iterator<char>(in), {}); };
+	fs::create_directories(base/L"guis/hud"); std::ofstream(base/L"guis/hud/icons.gui") << "shipped";
+	ImportExtra(Extra::Doom3, doom, root, [](uint64_t, uint64_t) {}, nullptr);
+	require(contents(base/L"guis/hud/icons.gui") == "x", "Imported file did not replace the shipped one");
 	require(ExtraInstalled(root, Extra::Doom3) && fs::exists(base/L"def/doom3_shotgun.def"), "Doom 3 content not installed");
 	require(!fs::exists(base/L"def/doom3_supershotgun.def") && !fs::exists(base/L"models/w"), "Super Shotgun installed without the expansion");
 	WriteTestZip(doom/L"d3xp/pak000.pk4", { "models/md5/weapons/doublebarrel_view/new/dbviewmesh.md5mesh" });
@@ -540,6 +646,7 @@ void VerifyRetailSetup(const fs::path& output) {
 	require(fs::exists(base/L"def/doom3_supershotgun.def"), "Super Shotgun missing with the expansion");
 	RemoveExtra(Extra::Doom3, root);
 	require(!ExtraInstalled(root, Extra::Doom3) && !fs::exists(base/L"def/doom3_shotgun.def") && !fs::exists(base/L"models"), "Doom 3 content not removed");
+	require(contents(base/L"guis/hud/icons.gui") == "shipped" && !fs::exists(root/EngineDirectory/L"replaced"), "Shipped file not restored after removal");
 	require(RetailReady(root), "Removing optional content touched the retail data");
 	bool noConverter = false;
 	try { ImportExtra(Extra::Portal, doom, root, [](uint64_t, uint64_t) {}, nullptr); } catch (const std::exception&) { noConverter = true; }
@@ -551,5 +658,5 @@ void VerifyRetailSetup(const fs::path& output) {
 	(void)FindRetailCandidates();	// must not throw on this machine
 	std::error_code ec; fs::remove_all(work, ec);
 	Atomic(output/L"setup-pass.txt", "PASS: retail validation (missing/damaged archives, base folder, trailing separator), import with progress, "
-		"no partial files, repeat import, cancellation, optional content install/expansion/removal, drive-letter variants, detection.\n");
+		"no partial files, repeat import, cancellation, optional content install/expansion/removal with shipped-file restore, drive-letter variants, detection.\n");
 }

@@ -10,7 +10,7 @@ import struct
 import subprocess
 import sys
 from PIL import Image
-from source_assets import VPK
+from source_assets import VPK, portal_files, hl2_files
 from smd_to_md5 import convert
 
 
@@ -44,7 +44,7 @@ def main():
     install, crowbar, destination, work = map(Path,sys.argv[1:])
     # Complete conversion before touching the user's installed files.
     output = work/'generated-viewmodel'
-    vpk = VPK(install/'portal/portal_pak_dir.vpk')
+    vpk = portal_files(install)
     source, decompiled = work/'source', work/'decompiled'
     for name in vpk.entries:
         if name.startswith('models/weapons/v_portalgun.'):
@@ -60,7 +60,7 @@ def main():
     textures.mkdir(parents=True,exist_ok=True)
     for name in ('bluelight','orangelight','portalgun_effects'):
         vtf_image(vpk.read('materials/sprites/'+name+'.vtf')).save(textures/(name+'.tga'))
-    shared = VPK(install/'hl2/hl2_textures_dir.vpk')
+    shared = hl2_files(install)
     for name in ('energyball','portal_1_particle','portal_2_particle'):
         asset='materials/effects/'+name+'.vtf'
         vtf_image((vpk if asset in vpk.entries else shared).read(asset)).save(textures/(name+'.tga'))

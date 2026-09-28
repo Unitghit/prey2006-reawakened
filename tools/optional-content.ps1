@@ -13,7 +13,9 @@ function Get-OptionalContent {
 	}
 	# Portal importer outputs (tools/portalgun/import_viewmodel.py, import_worldmodel.py,
 	# import_reticle.py). The wall openings come from retail Prey, and the shot
-	# entities (def/portalgun_shots.def) are portal tool mechanics; both stay in base.
+	# entities and particles (portalgun_shots.def/.prt) ship with Reawakened.
+	# materials/portalgun_shots.mtr also ships, with a retail-texture fallback
+	# that the import replaces.
 	$patterns = @(
 		'^models/reawakened/portalgun/(view|world)/',
 		'^textures/reawakened/portalgun/',
@@ -21,7 +23,6 @@ function Get-OptionalContent {
 		'^guis/assets/portalgun/',
 		'^def/portalgun_view\.def$',
 		'^materials/portalgun_(view|shots|reticle)\.mtr$',
-		'^particles/portalgun_shots\.prt$',
 		'^script/reawakened/weapon_portalgun_v1\.script$',
 		'^sound/portalgun_view\.sndshd$'
 	)
