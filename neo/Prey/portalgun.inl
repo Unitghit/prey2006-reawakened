@@ -967,7 +967,7 @@ bool hhPlayer::PlaceGunPortal(int color, const idDict *shot, int *previewCandida
         RW_GunPortalVisual(other, false);
     }
     RW_GunPortalVisual(portal, true);
-    gameLocal.Printf("PORTALGUN placed %s at %s normal %s paired=%d\n", color ? "orange" : "blue", portal->GetOrigin().ToString(), normal.ToString(), other != NULL);
+    gameLocal.DPrintf("PORTALGUN placed %s at %s normal %s paired=%d\n", color ? "orange" : "blue", portal->GetOrigin().ToString(), normal.ToString(), other != NULL);
     return true;
 }
 CLASS_DECLARATION(idEntity, hhPortalShot)
@@ -1080,7 +1080,7 @@ void hhPortalShot::Think() {
             spawnArgs.SetInt("shot_end", start+Max(16, int((hit.endpos-remote).Length()*1000.0f/4000.0f)));
             spawnArgs.SetInt("shot_trail_start", start);
             SetOrigin(remote); SetAxis(direction.ToMat3());
-            gameLocal.Printf("PORTALGUN_SHOT portal=%s hops=%d\n", portal->GetName(), hops);
+            gameLocal.DPrintf("PORTALGUN_SHOT portal=%s hops=%d\n", portal->GetName(), hops);
             continue;
         }
         blocked = obstacle.fraction < 1 && (obstacle.endpos-target).LengthSqr() > Square(2.0f);
@@ -1099,7 +1099,7 @@ void hhPortalShot::Think() {
         const bool success = !blocked && owner->PlaceGunPortal(color, &spawnArgs);
         if (blocked || spawnArgs.GetBool("shot_hit")) RW_PortalShotImpact(GetOrigin(),
             blocked ? obstacle.c.normal : spawnArgs.GetVector("shot_normal"), color, success);
-        gameLocal.Printf("PORTALGUN_SHOT impact %s success=%d blocked=%d\n", color ? "orange" : "blue", success, blocked);
+        gameLocal.DPrintf("PORTALGUN_SHOT impact %s success=%d blocked=%d\n", color ? "orange" : "blue", success, blocked);
         Hide(); BecomeInactive(TH_THINK); PostEventMS(&EV_Remove, 0); return;
     }
     Present();
@@ -1164,7 +1164,7 @@ void hhPlayer::FireGunPortal(int color) {
     if (gameLocal.SpawnEntityDef(args, &shot) && shot) {
         spawnArgs.SetInt(va("rw_shot_serial_%d", color), serial);
         spawnArgs.SetInt("rw_portal_view_fire", color+1);
-        gameLocal.Printf("PORTALGUN_SHOT launch %s travel=%d\n", color ? "orange" : "blue", args.GetInt("shot_end")-gameLocal.time);
+        gameLocal.DPrintf("PORTALGUN_SHOT launch %s travel=%d\n", color ? "orange" : "blue", args.GetInt("shot_end")-gameLocal.time);
     }
 }
 

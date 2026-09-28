@@ -3116,7 +3116,7 @@ void idCommonLocal::Init( int argc, char **argv ) {
 			session->StartMenu( true );
 		}
 		StartupStage( "menu_or_commands" );
-		Printf( "STARTUP_TIMINGS total=%d%s\n", Sys_Milliseconds() - initGameStart, startupTimings.c_str() );
+		DPrintf( "STARTUP_TIMINGS total=%d%s\n", Sys_Milliseconds() - initGameStart, startupTimings.c_str() );
 
 		// print all warnings queued during initialization
 		PrintWarnings();

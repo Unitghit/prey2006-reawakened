@@ -134,7 +134,7 @@ std::vector<std::pair<std::wstring,std::wstring>> Variables(const Values& v) {
         {L"com_unlockedFPS",L"1"},{L"r_glowMode",L"2"},{L"r_skipGlowOverlay",v.at(L"bloom")==L"off"?L"1":L"0"},{L"r_glowResolution",v.at(L"bloom")==L"original"?L"256":L"0"},
         {L"r_glowStrength",L"0.5"},{L"r_glowAlpha",L"0.55"},{L"r_glowAlphaChange",L"0.85"},{L"r_glowSteps",L"8"},
         {L"r_correctspecular",L"1"},{L"r_normalizebumpmap",L"1"},{L"r_cubemapNormalize",L"0"},{L"r_portalMaxDepth",v.at(L"r_portalDeepViews")==L"0"?L"3":L"6"},
-        {L"r_glowPortals",L"1"},{L"g_portalLighter",L"1"},{L"g_portalWeaponLighting",L"1"},{L"g_portalPreserveMotion",L"1"},{L"g_nightmare",L"1"},{L"g_lateMouse",L"0"}
+        {L"r_glowPortals",L"1"},{L"g_portalLighter",L"1"},{L"g_portalMuzzleFlash",L"1"},{L"g_portalWeaponLighting",L"1"},{L"g_portalPreserveMotion",L"1"},{L"g_nightmare",L"1"},{L"g_lateMouse",L"0"}
     };
     result.insert(result.end(),fixed.begin(),fixed.end());
     for (auto key : Smooth) result.emplace_back(key,v.at(L"smoothMotion"));

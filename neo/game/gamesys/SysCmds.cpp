@@ -2833,15 +2833,15 @@ static void Cmd_RocketInfo_f(const idCmdArgs &args) {
 }
 
 void idGameLocal::InitConsoleCommands( void ) {
-	cmdSystem->AddCommand("plasmaInfo", Cmd_PlasmaInfo_f, CMD_FL_GAME, "show independent slot-6 ammo; developer: seed, pickup");
+	cmdSystem->AddCommand("plasmaInfo", Cmd_PlasmaInfo_f, CMD_FL_GAME|CMD_FL_CHEAT, "show independent slot-6 ammo; developer: seed, pickup");
 	cmdSystem->AddCommand("portalGun", Cmd_PortalGun_f, CMD_FL_GAME, "portal tool: select, blue, orange, or status");
-	cmdSystem->AddCommand("difficultyInfo", Cmd_DifficultyInfo_f, CMD_FL_GAME, "show active difficulty; developer-only optional DDA test value");
-	cmdSystem->AddCommand("superShotgunInfo", Cmd_SuperShotgunInfo_f, CMD_FL_GAME, "show independent Super Shotgun ammo; developer: seed, pickup");
-	cmdSystem->AddCommand("rocketInfo", Cmd_RocketInfo_f, CMD_FL_GAME, "show independent slot-7 ammo; developer: seed, pickup");
-	cmdSystem->AddCommand("chaingunInfo", Cmd_ChaingunInfo_f, CMD_FL_GAME, "show independent slot-5 ammo; developer: seed, pickup, altpickup");
-	cmdSystem->AddCommand("weaponAmmoInfo", Cmd_WeaponAmmoInfo_f, CMD_FL_GAME, "show independent ammo pools; developer: seed, pickup, useRifle, useShells, reload");
-	cmdSystem->AddCommand("bfgInfo", Cmd_BFGInfo_f, CMD_FL_GAME, "BFG state; developer: seed total; target name");
-	cmdSystem->AddCommand( "weaponPackInfo", Cmd_WeaponPackInfo_f, CMD_FL_GAME, "show addon state; developer: slot, key1..7, next, prev, spirit" );
+	cmdSystem->AddCommand("difficultyInfo", Cmd_DifficultyInfo_f, CMD_FL_GAME|CMD_FL_CHEAT, "show active difficulty; developer-only optional DDA test value");
+	cmdSystem->AddCommand("superShotgunInfo", Cmd_SuperShotgunInfo_f, CMD_FL_GAME|CMD_FL_CHEAT, "show independent Super Shotgun ammo; developer: seed, pickup");
+	cmdSystem->AddCommand("rocketInfo", Cmd_RocketInfo_f, CMD_FL_GAME|CMD_FL_CHEAT, "show independent slot-7 ammo; developer: seed, pickup");
+	cmdSystem->AddCommand("chaingunInfo", Cmd_ChaingunInfo_f, CMD_FL_GAME|CMD_FL_CHEAT, "show independent slot-5 ammo; developer: seed, pickup, altpickup");
+	cmdSystem->AddCommand("weaponAmmoInfo", Cmd_WeaponAmmoInfo_f, CMD_FL_GAME|CMD_FL_CHEAT, "show independent ammo pools; developer: seed, pickup, useRifle, useShells, reload");
+	cmdSystem->AddCommand("bfgInfo", Cmd_BFGInfo_f, CMD_FL_GAME|CMD_FL_CHEAT, "BFG state; developer: seed total; target name");
+	cmdSystem->AddCommand( "weaponPackInfo", Cmd_WeaponPackInfo_f, CMD_FL_GAME|CMD_FL_CHEAT, "show addon state; developer: slot, key1..7, next, prev, spirit" );
 	cmdSystem->AddCommand( "game_memory",			idClass::DisplayInfo_f,		CMD_FL_GAME,				"displays game class info" );
 	cmdSystem->AddCommand( "listClasses",			idClass::ListClasses_f,		CMD_FL_GAME,				"lists game classes" );
 	cmdSystem->AddCommand( "listThreads",			idThread::ListThreads_f,	CMD_FL_GAME|CMD_FL_CHEAT,	"lists script threads" );

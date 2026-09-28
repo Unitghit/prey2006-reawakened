@@ -256,7 +256,7 @@ static void CompleteThreadedOggDecodes() {
 	}
 	oggJobs.clear();
 	oggNext = 0;
-	common->Printf( "%5i sounds decoded on worker threads, %i on the main thread, %i discarded\n", threaded, fallback, discarded );
+	common->DPrintf( "%5i sounds decoded on worker threads, %i on the main thread, %i discarded\n", threaded, fallback, discarded );
 	if ( s_verifyThreadedDecode.GetBool() ) {
 		common->Printf( "THREADED_SOUND_VERIFY checked=%d mismatches=%d\n", threaded, mismatched );
 	}

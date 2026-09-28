@@ -26,7 +26,7 @@ const std::vector<Setting>& Options() {
         {L"Gameplay",L"Difficulty override",L"g_forceCherokee",L"0",L"Respect saved difficulty restores the mode stored in each save. Overrides apply to new levels and loaded saves. Adaptive Hard scales from 50% to 100%; Adaptive Cherokee from 75% to 100% and omits health spores/basins on new levels. Existing saves retain their already-spawned pickups. Subsequent saves record the chosen mode.",{{L"Respect saved difficulty (default)",L"0"},{L"Always Cherokee",L"1"},{L"Always Normal",L"2"},{L"Adaptive Hard (50-100%)",L"3"},{L"Adaptive Cherokee (75-100%)",L"4"}}},
         {L"Performance",L"Asset preloading",L"com_assetPreload",L"1",L"Experimental. Learns archive assets used during play and prepares them in the background on later visits. Uses up to 128 MB of cache. Applies on map or save load.",{{L"Enabled (experimental)",L"1"},{L"Disabled",L"0"}}},
         {L"Performance",L"Threaded texture loading",L"image_threadedDecode",L"1",L"Reads and decodes textures, builds their mipmaps and normal maps on background CPU threads while a level loads; upload order and results are unchanged. Other textures use the original loader. Applies on map or save load.",{{L"Enabled (default)",L"1"},{L"Disabled",L"0"}}},
-        {L"Performance",L"Hitch logging",L"com_hitchTrace",L"1",L"Records slow CPU frames and asset operations in the game log to help investigate occasional stalls. Logging adds some overhead.",{{L"Enabled",L"1"},{L"Disabled",L"0"}}},
+        {L"Performance",L"Hitch logging",L"com_hitchTrace",L"0",L"Records slow CPU frames and asset operations in the game log to help investigate occasional stalls. Logging adds some overhead.",{{L"Disabled (default)",L"0"},{L"Enabled",L"1"}}},
     };
     return options;
 }

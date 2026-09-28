@@ -74,8 +74,8 @@ idCVar	idSessionLocal::com_disableAutoSaves( "com_disableAutoSaves", "0", CVAR_S
 static idCVar com_unlockedFPS( "com_unlockedFPS", "0", CVAR_SYSTEM | CVAR_BOOL | CVAR_ARCHIVE, "experimental single-player rendering independent of game ticks" );
 static idCVar com_maxFPS( "com_maxFPS", "-1", CVAR_SYSTEM | CVAR_INTEGER | CVAR_ARCHIVE, "unlocked rendering limit; -1 caps 3 FPS below display refresh, 0 is uncapped (vsync still applies)", -1, 1000 );
 static idCVar com_fpsTrace( "com_fpsTrace", "0", CVAR_SYSTEM | CVAR_BOOL, "record gameplay frame/tick timing to fps-trace.csv; set 0 to close" );
-static idCVar com_fpsTestTurn( "com_fpsTestTurn", "0", CVAR_SYSTEM | CVAR_FLOAT, "diagnostic yaw input in degrees per second (single player only)", -360.0f, 360.0f );
-static idCVar com_fpsTestAttack( "com_fpsTestAttack", "0", CVAR_SYSTEM | CVAR_INTEGER, "diagnostic held attack: 0 off, 1 primary, 2 alternate (isolated single-player tests)" );
+static idCVar com_fpsTestTurn( "com_fpsTestTurn", "0", CVAR_SYSTEM | CVAR_FLOAT | CVAR_CHEAT, "diagnostic yaw input in degrees per second (single player only)", -360.0f, 360.0f );
+static idCVar com_fpsTestAttack( "com_fpsTestAttack", "0", CVAR_SYSTEM | CVAR_INTEGER | CVAR_CHEAT, "diagnostic held attack: 0 off, 1 primary, 2 alternate (isolated single-player tests)" );
 static idFile *fpsTraceFile = NULL;
 static double nextPresentationMsec = 0.0;
 static int presentationCap = -1;
@@ -1769,7 +1769,7 @@ void idSessionLocal::ExecuteMapChange( bool noFadeWipe ) {
 
 	int	msec = Sys_Milliseconds() - start;
 	common->Printf( "%6d msec to load %s\n", msec, mapString.c_str() );
-	common->Printf( "LOAD_TIMINGS map=%s total=%d world=%d game=%d media=%d images=%d sounds=%d decls=%d settle=%d\n",
+	common->DPrintf( "LOAD_TIMINGS map=%s total=%d world=%d game=%d media=%d images=%d sounds=%d decls=%d settle=%d\n",
 		mapString.c_str(), msec, timeWorld, timeGame, timeMedia, timeImages, timeSounds, timeDecls, timeSettle );
 
 	// let the renderSystem generate interactions now that everything is spawned
@@ -1830,7 +1830,7 @@ void idSessionLocal::ExecuteMapChange( bool noFadeWipe ) {
 	mapSpawned = true;
 	Sys_ClearEvents();
 	FS_PreloadStart( currentMapName.c_str() );
-	common->Printf( "LOAD_WALL map=%s total=%d fade=%d loading_gui=%d load=%d progress_bar=%d\n",
+	common->DPrintf( "LOAD_WALL map=%s total=%d fade=%d loading_gui=%d load=%d progress_bar=%d\n",
 		currentMapName.c_str(), Sys_Milliseconds() - wallStart, wallFade, wallLoadingGui, msec, wallProgressBar );
 	if (cvarSystem->GetCVarBool("com_hitchTrace")) common->Printf("HITCH_MAP wall=%u phase=ready map=%s\n",Sys_Milliseconds(),currentMapName.c_str());
 }
@@ -2253,10 +2253,10 @@ void idSessionLocal::RetryAfterDeath() {
         else valid = false;
         fileSystem->CloseFile(file);
         if (!valid) continue;
-        common->Printf("DEATH_RETRY save=%s\n", candidates[i].c_str());
+        common->DPrintf("DEATH_RETRY save=%s\n", candidates[i].c_str());
         if (LoadGame(candidates[i])) return;
     }
-    common->Printf("DEATH_RETRY restart=%s\n", currentMap.c_str());
+    common->DPrintf("DEATH_RETRY restart=%s\n", currentMap.c_str());
     mapSpawnData.persistentPlayerInfo[0] = startInfo;
     MoveToNewMap(currentMap);
 }

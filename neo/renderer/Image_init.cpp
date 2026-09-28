@@ -2432,8 +2432,8 @@ void idImageManager::EndLevelLoad() {
 	common->Printf( "%5i new loaded\n", loadCount );
 	R_TextureCacheReport();
 	if ( image_threadedDecode.GetBool() ) {
-		common->Printf( "%5i decoded on worker threads (%i with mipmaps built there)\n", threadedCount, preparedCount );
-		common->Printf( "IMAGE_STAGE wait=%d worker_finish=%d main_load=%d main_count=%d\n",
+		common->DPrintf( "%5i decoded on worker threads (%i with mipmaps built there)\n", threadedCount, preparedCount );
+		common->DPrintf( "IMAGE_STAGE wait=%d worker_finish=%d main_load=%d main_count=%d\n",
 			waitMsec, workerFinishMsec, mainLoadMsec, mainLoadCount );
 		if ( image_verifyThreadedDecode.GetBool() ) {
 			common->Printf( "THREADED_DECODE_VERIFY checked=%d mismatches=%d\n", threadedCount, verifyMismatch );
