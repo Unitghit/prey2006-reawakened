@@ -498,6 +498,14 @@ void idEvent::ServiceEvents( void ) {
 			break;
 		}
 
+		// A saved event may refer to a transient object that was not saved.
+		// Never dispatch a member callback through the resulting null target.
+		if ( !event->object ) {
+			gameLocal.Warning( "Discarding event '%s' without a target", event->eventdef->GetName() );
+			event->Free();
+			continue;
+		}
+
 		// copy the data into the local args array and set up pointers
 		ev = event->eventdef;
 		formatspec = ev->GetArgFormat();
@@ -811,6 +819,14 @@ void idEvent::Restore( idRestoreGame *savefile ) {
 			assert( size == event->eventdef->GetArgSize() );
 		} else {
 			event->data = NULL;
+		}
+
+		// Consume the complete record before discarding it, preserving save
+		// alignment. In particular, delayed removal of an unsaved temporary
+		// object must not survive load and crash later during combat.
+		if ( !event->object ) {
+			gameLocal.Warning( "Discarding restored event '%s' without a target", event->eventdef->GetName() );
+			event->Free();
 		}
 	}
 }
