@@ -345,7 +345,8 @@ void hhTarget_ControlVehicle::Spawn() {
 void hhTarget_ControlVehicle::Event_Activate( idEntity *activator ) {
 	hhVehicle *vehicle = NULL;
 
-	if (activator->IsType(hhPlayer::Type)) {
+	// Reawakened: delayed activations can arrive after the activator is gone.
+	if (activator && activator->IsType(hhPlayer::Type)) {
 		hhPlayer *player = static_cast<hhPlayer*>(activator);
 
 		// Search target list to find vehicle
@@ -618,7 +619,8 @@ void hhTarget_EndLevel::Event_Activate(idEntity *activator) {
 		guiLoading->StateChanged(gameLocal.time);
 
 		// HUMANHEAD CJR:  If the player hits this and they are spiritwalking, stop the spiritwalk before loading the next level
-		if ( activator->IsType( hhPlayer::Type ) ) {
+		// Reawakened: a missing activator must not stop the level transition below.
+		if ( activator && activator->IsType( hhPlayer::Type ) ) {
 			hhPlayer *player = static_cast<hhPlayer *>( activator );
 			if ( player ) {
 

@@ -795,9 +795,13 @@ idEntity::Event_DamageEntity
 ===============
 */
 void idEntity::Event_DamageEntity( idEntity *target, const char *damageDefName ) {
-	assert( target );
 	assert( damageDefName );
 
+	// Reawakened: this is posted with a delay; the target may have been removed
+	// (or not restored from a save) by the time it fires.
+	if ( !target ) {
+		return;
+	}
 	target->Damage( this, this, idVec3( 0, 0, 0 ), damageDefName, 1.0f, INVALID_JOINT );
 }
 

@@ -2955,8 +2955,10 @@ idFuncRadioChatter::Event_ResetRadioHud
 ================
 */
 void idFuncRadioChatter::Event_ResetRadioHud( idEntity *activator ) {
-	idPlayer *player = ( activator->IsType( idPlayer::Type ) ) ? static_cast<idPlayer *>( activator ) : gameLocal.GetLocalPlayer();
-	player->hud->HandleNamedEvent( "radioChatterDown" );
+	idPlayer *player = ( activator && activator->IsType( idPlayer::Type ) ) ? static_cast<idPlayer *>( activator ) : gameLocal.GetLocalPlayer();
+	if ( player && player->hud ) {
+		player->hud->HandleNamedEvent( "radioChatterDown" );
+	}
 	ActivateTargets( activator );
 }
 
