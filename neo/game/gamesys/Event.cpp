@@ -668,6 +668,16 @@ void idEvent::Save( idSaveGame *savefile ) {
 		savefile->WriteInt( event->time );
 		savefile->WriteString( event->eventdef->GetName() );
 		savefile->WriteString( event->typeinfo->classname );
+		// A pending event whose target is not in the saved object list restores
+		// without a target and is discarded on load. Name it so the omission can
+		// be traced to the object type that is not being saved.
+		if ( !savefile->IsObjectSaved( event->object ) ) {
+			const idClass *obj = event->object;
+			const idEntity *ent = ( obj && obj->IsType( idEntity::Type ) ) ? static_cast<const idEntity *>( obj ) : NULL;
+			gameLocal.Warning( "SAVE_EVENT_ORPHAN event=%s class=%s name=%s due_in=%dms entnum=%d hidden=%d",
+				event->eventdef->GetName(), obj ? obj->GetClassname() : "null", ent ? ent->GetName() : "-",
+				event->time - gameLocal.time, ent ? ent->entityNumber : -1, ent ? ent->IsHidden() : -1 );
+		}
 		savefile->WriteObject( event->object );
 		savefile->WriteInt( event->eventdef->GetArgSize() );
 		format = event->eventdef->GetArgFormat();

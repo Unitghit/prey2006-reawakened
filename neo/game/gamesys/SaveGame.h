@@ -46,6 +46,7 @@ public:
 
 	void					AddObject( const idClass *obj );
 	void					WriteObjectList( void );
+	bool					IsObjectSaved( const idClass *obj ) const { return obj && objects.FindIndex( obj ) > 0; }
 
 	void					Write( const void *buffer, int len );
 	void					WriteInt( const int value );

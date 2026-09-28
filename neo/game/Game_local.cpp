@@ -538,6 +538,21 @@ void idGameLocal::SaveGame( idFile *f ) {
 		}
 	}
 
+	// Reawakened: an entity is only reached above through its team master's
+	// chain. If that chain no longer links it (a stale teamMaster after an
+	// unbind or rebind), the entity and any events queued on it were silently
+	// left out of the save, and those events restored without a target.
+	for( i = 0; i < MAX_GENTITIES; i++ ) {
+		ent = entities[i];
+		if ( ent && !savegame.IsObjectSaved( ent ) ) {
+			idEntity *master = ent->GetTeamMaster();
+			idEntity *bind = ent->GetBindMaster();
+			Warning( "SAVE_TEAM_ORPHAN class=%s name=%s teamMaster=%s bindMaster=%s",
+				ent->GetClassname(), ent->GetName(), master ? master->GetName() : "none", bind ? bind->GetName() : "none" );
+			savegame.AddObject( ent );
+		}
+	}
+
 	idList<idThread *> threads;
 	threads = idThread::GetThreads();
 

@@ -2162,10 +2162,12 @@ void idEntity::Unbind( void ) {
 	} else if ( next ) {
 		// If we were the teamMaster, then the nodes that were not bound to me are now
 		// a disconnected chain.  Make them into their own team.
-		for( ent = next; ent->teamChain != NULL; ent = ent->teamChain ) {
+		// Reawakened: include the last node. The original loop stopped before it,
+		// leaving it pointing at a master whose chain no longer contains it, so
+		// savegames skipped it (and restored its queued events without a target).
+		for( ent = next; ent != NULL; ent = ent->teamChain ) {
 			ent->teamMaster = next;
 		}
-		next->teamMaster = next;
 	}
 
 	// If we don't have anyone on our team, then clear the team variables.
@@ -2555,6 +2557,10 @@ void idEntity::QuitTeam( void ) {
 
 	// check if I'm the teamMaster
 	if ( teamMaster == this ) {
+		// Reawakened: JoinTeam( this ) makes a master with no teammates.
+		if ( !teamChain ) {
+			// nothing to hand over
+		} else
 		// do we have more than one teammate?
 		if ( !teamChain->teamChain ) {
 			// no, break up the team
