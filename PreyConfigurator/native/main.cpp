@@ -1,4 +1,6 @@
 #include "settings.h"
+#include "setup.h"
+#include "games.h"
 #include <commctrl.h>
 #include <shellapi.h>
 #include <algorithm>
@@ -6,7 +8,7 @@
 #include <stdexcept>
 
 static HINSTANCE instance;
-static constexpr int RestoreId=2001, SaveId=2002, PlayId=2003;
+static constexpr int RestoreId=2001, SaveId=2002, PlayId=2003, ContentId=2004;
 static constexpr wchar_t MainClass[]=L"PreySettingsNative", PageClass[]=L"PreySettingsPage";
 static UINT WindowDpi(HWND window) {
     using Fn=UINT(WINAPI*)(HWND);
@@ -31,7 +33,7 @@ struct Row { HWND label{},combo{}; RECT labelRect{},comboRect{}; };
 struct Group { std::wstring name; HWND title{}; RECT rect{}; };
 struct App {
     fs::path root;
-    HWND window{},page{},title{},status{},tooltip{},buttons[3]{};
+    HWND window{},page{},title{},status{},tooltip{},buttons[4]{};
     HFONT font{},bold{},heading{};
     UINT dpi=96;
     std::vector<Row> rows;
@@ -109,6 +111,8 @@ struct App {
             const auto& key=Options()[i].key; bool enabled=true;
             if(key==L"resolution") enabled=v[L"r_fullscreen"]!=L"desktop";
             if(key==L"joy_invertLook" || key==L"joy_deadZone") enabled=v[L"in_useGamepad"]==L"1";
+            // Needs the optional Doom 3 content; offered again once it is installed.
+            if(key==L"weaponPack" && !ExtraInstalled(root,Extra::Doom3)) {enabled=false;SendMessageW(rows[i].combo,CB_SETCURSEL,0,0);}
             EnableWindow(rows[i].combo,enabled);
         }
     }
@@ -149,9 +153,9 @@ struct App {
     int Footer(int width,bool place,int top) {
         int statusHeight=Measure(statusText,font,std::max(1,width)).cy;
         int y=statusHeight+D(3),x=0,rowHeight=0;
-        const wchar_t* texts[]={L"Restore defaults",L"Save settings",L"Save & Play"};
+        const wchar_t* texts[]={L"Restore defaults",L"Save settings",L"Save & Play",L"Game content..."};
         buttonRects.clear();
-        for(int i=0;i<3;++i) {
+        for(int i=0;i<4;++i) {
             SIZE size=Measure(texts[i],font);int w=size.cx+D(22),h=size.cy+D(18);
             if(x && x+w>width) {x=0;y+=rowHeight+D(3);rowHeight=0;}
             buttonRects.push_back({D(18)+x,top+y,D(18)+x+w,top+y+h});
@@ -226,6 +230,10 @@ struct App {
     }
     void Action(int id) {
         if(id==RestoreId) {SetValues(Defaults());Status(L"Defaults selected. Click Save to apply.");return;}
+        if(id==ContentId) {
+            if(!RunSetup(instance,root,window)) {DestroyWindow(window);return;}
+            Dependencies();Status(ExtraInstalled(root,Extra::Doom3)?L"Game content updated.":L"Game content updated. Doom 3 weapons need the optional Doom 3 content.");return;
+        }
         Values v=Read();Save(root,v);Status(L"Saved. Use Play-Prey2006-Custom.bat or Save & Play.");
         if(id==PlayId) {Launch(root/EngineDirectory/L"prey06.exe",Arguments(root,v));DestroyWindow(window);}
     }
@@ -279,7 +287,7 @@ static LRESULT CALLBACK MainProc(HWND h,UINT msg,WPARAM wp,LPARAM lp) {
                 if(id>=100 && id<100+(int)app->rows.size()) {
                     if(event==CBN_SELCHANGE) {app->Dependencies();app->Status(L"Unsaved changes");}
                     if(event==CBN_SETFOCUS) app->Reveal(id-100);
-                } else if(id>=RestoreId && id<=PlayId && event==BN_CLICKED) app->Action(id);
+                } else if(id>=RestoreId && id<=ContentId && event==BN_CLICKED) app->Action(id);
                 return 0;
             }
             case WM_DPICHANGED: {
@@ -319,6 +327,8 @@ void App::Create() {
     buttons[0]=Control(L"BUTTON",L"Restore defaults",WS_TABSTOP|BS_PUSHBUTTON,window,RestoreId);
     buttons[1]=Control(L"BUTTON",L"Save settings",WS_TABSTOP|BS_PUSHBUTTON,window,SaveId);
     buttons[2]=Control(L"BUTTON",L"Save && Play",WS_TABSTOP|BS_PUSHBUTTON,window,PlayId);
+    buttons[3]=Control(L"BUTTON",L"Game content...",WS_TABSTOP|BS_PUSHBUTTON,window,ContentId);
+    Tip(buttons[3],L"Add or remove the optional Doom 3 and Portal content.");
     Fonts(WindowDpi(window));
     Values values=Defaults();
     try {values=Load(root);if(fs::exists(root/L"Prey-settings.json")) statusText=L"Saved settings loaded.";}
@@ -413,11 +423,29 @@ int WINAPI wWinMain(HINSTANCE inst,HINSTANCE,PWSTR,int show) {
     instance=inst;int argc=0;auto argv=CommandLineToArgvW(GetCommandLineW(),&argc);
     std::vector<std::wstring> args;for(int i=1;i<argc;++i)args.emplace_back(argv[i]);LocalFree(argv);
     wchar_t module[32768];GetModuleFileNameW(nullptr,module,32768);fs::path root=fs::path(module).parent_path();
-    bool verify=false,migrate=false;
+    bool verify=false,migrate=false,setup=false;
     for(size_t i=0;i<args.size();++i) {
         if(args[i]==L"--root" && i+1<args.size())root=fs::absolute(args[++i]);
         else if(args[i]==L"--verify")verify=true;
         else if(args[i]==L"--migrate")migrate=true;
+        else if(args[i]==L"--setup")setup=true;
+        else if(args[i]==L"--list-games" && i+1<args.size()) {
+            // Test hook: detected installations per game, then how each extra
+            // folder argument is judged for every game.
+            const fs::path out=fs::absolute(args[++i]);std::string report;
+            for(Game g:AllGames) {
+                report+=Utf8(GameName(g))+":\n";
+                for(const auto& p:FindGame(g)) report+="  found "+Utf8(p.wstring())+(CheckGame(g,p).expansion?" (+expansion)":"")+"\n";
+            }
+            for(++i;i<args.size();++i) {
+                report+="check "+Utf8(args[i])+"\n";
+                for(Game g:AllGames) {
+                    const fs::path folder=NormalizeGameFolder(g,args[i]);const auto c=CheckGame(g,folder);
+                    report+="  "+Utf8(GameName(g))+": "+(c.problem.empty()?"OK"+std::string(c.expansion?" (+expansion)":"")+" at "+Utf8(folder.wstring()):Utf8(c.problem))+"\n";
+                }
+            }
+            Atomic(out,report);return 0;
+        }
     }
     try {
         if(migrate){Save(root,Load(root));return 0;}
@@ -427,9 +455,12 @@ int WINAPI wWinMain(HINSTANCE inst,HINSTANCE,PWSTR,int show) {
         wc.lpfnWndProc=MainProc;wc.lpszClassName=MainClass;RegisterClassExW(&wc);
         wc.lpfnWndProc=PageProc;wc.lpszClassName=PageClass;wc.hIcon=nullptr;wc.hIconSm=nullptr;RegisterClassExW(&wc);
         if(verify) {
-            auto output=root/L"validation/configurator-native";VerifyConfiguration(output);
+            auto output=root/L"validation/configurator-native";VerifyConfiguration(output);VerifyRetailSetup(output);VerifyGames(output);
             App app(root);app.Create();app.Verify(output);DestroyWindow(app.window);return 0;
         }
+        // First run: bring in the player's retail Prey data (and any optional
+        // content) before showing settings. --setup opens it even when installed.
+        if((setup || !RetailReady(root)) && !RunSetup(instance,root)) return 0;
         // Show while cloaked and paint every control synchronously, then uncloak:
         // the window appears complete instead of as an empty frame or row by row.
         App app(root);app.Create();Cloak(app.window,TRUE);ShowWindow(app.window,show);

@@ -196,7 +196,7 @@ std::vector<std::wstring> Arguments(const fs::path& root, const Values& v) {
          !fs::exists(root/EngineDirectory/L"base/def/doom3_chaingun.def") ||
          !fs::exists(root/EngineDirectory/L"base/def/doom3_plasmagun.def") ||
          !fs::exists(root/EngineDirectory/L"base/def/doom3_rocketlauncher.def"))) {
-        throw std::runtime_error("Import the original Doom 3 weapon assets with --save-compatible before enabling this option. See tools/doom3/README.md.");
+        throw std::runtime_error("The Doom 3 weapons need the optional Doom 3 content. Add it with Game content... first.");
     }
     std::vector<std::wstring> args;
     auto set = [&](const std::wstring& key, const std::wstring& value) { args.insert(args.end(),{L"+set",key,value}); };
