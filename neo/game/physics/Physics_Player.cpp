@@ -45,6 +45,8 @@ static idCVar g_halfLifeAutoHop( "g_halfLifeAutoHop", "0", CVAR_GAME | CVAR_BOOL
     "Hold jump to bunny hop in the optional Half-Life movement modes" );
 static idCVar g_movementTrace( "g_movementTrace", "0", CVAR_GAME | CVAR_BOOL,
     "Developer-only player movement samples for isolated physics tests" );
+static idCVar g_movementTraceTag( "g_movementTraceTag", "", CVAR_GAME,
+    "Developer-only: when set, movement samples are also appended to movement-trace.txt with this tag" );
 
 int idPhysics_Player::HalfLifeMovement() const {
     const int mode = g_bunnyHop.GetInteger();
@@ -696,9 +698,9 @@ void idPhysics_Player::AirMove( void ) {
 		// Quake 1 caps speed projected onto the wish direction at 30, but
 		// computes acceleration from the uncapped wish speed. Tangential
 		// steering can build total speed; opposing input can brake it.
-		const float upward = -(current.velocity * gravityNormal);
-		// Source's airborne surface-friction reduction near the jump apex.
-		const float airScale = HalfLifeMovement() == 4 && !groundPlane && upward > 0.0f && upward <= 140.0f ? 0.25f : 1.0f;
+		// Source's airborne surface friction (CategorizePosition): 0.25 once
+		// rising at 140 or less, kept until the player lands again.
+		const float airScale = HalfLifeMovement() == 4 && sourceSlowAir ? 0.25f : 1.0f;
 		current.velocity += wishdir * PreyQuakeAirAcceleration(
 			wishspeed, current.velocity * wishdir, frametime * airScale );
 	} else {
@@ -1305,6 +1307,13 @@ bool idPhysics_Player::CheckJump( void ) {
 	}
 
 	//HUMANHEAD
+	if (HalfLifeMovement() == 3) {
+		// PM_PreventMegaBunnyJumping: jumping above 1.7x max speed cuts the
+		// whole velocity to 65% of that limit.
+		const float limit = 1.7f * playerSpeed;
+		const float speed = current.velocity.Length();
+		if (limit > 0.0f && speed > limit) current.velocity *= (limit / speed) * 0.65f;
+	}
 	if (HalfLifeMovement()) {
 		// Jump height is independent of a landing's residual vertical speed.
 		current.velocity -= gravityNormal * (current.velocity * gravityNormal);
@@ -1319,6 +1328,11 @@ bool idPhysics_Player::CheckJump( void ) {
 		}
 	}
 	current.velocity += DetermineJumpVelocity();
+	if (HalfLifeMovement() == 4) {
+		// Source adds the jump speed after StartGravity's half-frame of gravity
+		// (CheckJumpButton "+="), so each jump starts that much slower.
+		current.velocity += MovementGravity() * (frametime * 0.5f);
+	}
 	// HUMANHEAD END
 
 	return true;
@@ -1589,11 +1603,28 @@ void idPhysics_Player::MovePlayer( int msec ) {
 	// move the player velocity back into the world frame
 	current.velocity += current.pushVelocity;
 	current.pushVelocity.Zero();
+	if (HalfLifeMovement() != 4 || walking || groundPlane) {
+		sourceSlowAir = false;
+	} else {
+		// Source evaluates this before FinishGravity's half step.
+		const float upward = -(current.velocity * gravityNormal) + MovementGravity().Length() * frametime * 0.5f;
+		if (upward > 0.0f && upward <= 140.0f) sourceSlowAir = true;
+	}
 	if (g_movementTrace.GetBool() && developer.GetBool() && !gameLocal.isMultiplayer) {
-		gameLocal.Printf("MOVEMENT %d mode=%d dt=%d ground=%d origin=%s velocity=%s gravity=%s jump=%d\n",
+		const char *line = va("MOVEMENT %d mode=%d dt=%d ground=%d origin=%s velocity=%s gravity=%s jump=%d cmd=%d %d %d %d yaw=%.3f tag=%s\n",
 			gameLocal.time, g_bunnyHop.GetInteger(), msec, walking ? 1 : 0,
 			current.origin.ToString(4), current.velocity.ToString(4), MovementGravity().ToString(4),
-			(current.movementFlags & PMF_JUMPED) ? 1 : 0);
+			(current.movementFlags & PMF_JUMPED) ? 1 : 0,
+			command.forwardmove, command.rightmove, command.upmove, command.buttons, viewAngles.yaw,
+			g_movementTraceTag.GetString());
+		gameLocal.Printf("%s", line);
+		// Console dumps wrap long lines; tagged runs also append to a file in the save path.
+		if (g_movementTraceTag.GetString()[0]) {
+			if (idFile *file = fileSystem->OpenFileAppend("movement-trace.txt", false, "fs_savepath")) {
+				file->Write(line, strlen(line));
+				fileSystem->CloseFile(file);
+			}
+		}
 	}
 }
 
@@ -1668,6 +1699,7 @@ idPhysics_Player::idPhysics_Player
 idPhysics_Player::idPhysics_Player( void ) {
 	painkillerChain = false;
 	painkillerGroundMsec = 0;
+	sourceSlowAir = false;
 	debugLevel = false;
 	clipModel = NULL;
 	clipMask = 0;
@@ -1786,6 +1818,7 @@ idPhysics_Player::Restore
 void idPhysics_Player::Restore( idRestoreGame *savefile ) {
 	painkillerChain = false;
 	painkillerGroundMsec = 0;
+	sourceSlowAir = false;
 
 	idPhysics_Player_RestorePState( savefile, current );
 	idPhysics_Player_RestorePState( savefile, saved );

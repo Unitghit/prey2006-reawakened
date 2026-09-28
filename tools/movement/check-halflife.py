@@ -22,7 +22,9 @@ def samples(text, phase):
 def lateral(row):
     return math.hypot(*row['vel'][:2])
 
-for mode, height, gravity in [(0, 64, 1066), (3, 45, 800), (4, 160**2/1200, 600)]:
+# Half-Life 2: Source adds the 160 jump speed after half a frame of gravity
+# (CheckJumpButton after StartGravity); at 60 Hz that peaks at 20.07 units.
+for mode, height, gravity in [(0, 64, 1066), (3, 45, 800), (4, 20.07, 600)]:
     # Console dumps wrap text at screen columns, sometimes inside numbers.
     text = (root / f"movement{mode}.log").read_text(errors="replace").replace("\n", "")
     assert not re.search(r"ERROR:|shutting down:|Unknown command", text)

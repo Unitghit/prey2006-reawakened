@@ -195,6 +195,8 @@ protected:	//HUMANHEAD
 	// Transient hop-chain state; not part of the save format.
 	bool painkillerChain;
 	int painkillerGroundMsec;
+	// Source (Half-Life 2 mode): reduced air control once slowly rising, until landing.
+	bool sourceSlowAir;
 
 	// walk movement
 	bool					walking;

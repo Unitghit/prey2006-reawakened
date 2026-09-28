@@ -46,7 +46,7 @@ joints identical and vertices within 0.13 units (BFG stores four 8-bit weights
 per vertex); 64 of 65 animations bit-identical; diffuse and specular maps within
 DXT error; normal maps within about 2 degrees on used texels.
 
-Enable **Gameplay > Doom 3 weapons > Enabled (prototype)** in the launcher.
+Enable **Gameplay > Doom 3 weapons > Enabled** in the launcher.
 Owning the Hunter Rifle unlocks the Shotgun. Owning the Leech Gun unlocks the
 Machine Gun, including in existing saves. Old rifle-only Machine Gun grants
 are hidden until the Leech Gun is acquired; their ammo remains stored.
