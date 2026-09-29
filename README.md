@@ -2,7 +2,7 @@
 
 **Unlocked FPS, corrected bloom, increased portal render distance, and dynamic flashlight shadows.**
 
-An enhanced version of Prey (2006), built on the [Prey2006 source port](https://github.com/FriskTheFallenHuman/Prey2006), with additional fixes adapted from [openPREY](https://github.com/themuffinator/openPREY).
+An enhanced version of Prey (2006), built on FriskTheFallenHuman's [Prey2006 source port](https://github.com/FriskTheFallenHuman/Prey2006), with additional fixes adapted from themuffinator's [openPREY](https://github.com/themuffinator/openPREY). See [CREDITS.md](CREDITS.md) for the full lineage.
 
 ## Status
 

@@ -5,6 +5,9 @@ An enhanced version of Prey (2006) for Windows: unlocked frame rate with smooth
 motion, corrected lighting and bloom, deeper portal rendering, a portal gun,
 optional Doom 3 weapons, Half-Life style movement, and many fixes.
 
+Built on FriskTheFallenHuman's Prey2006 source port, with fixes adapted from
+themuffinator's openPREY. Full credits are in THIRD-PARTY-NOTICES.txt.
+
 You need your own copy of Prey (2006) for PC (Steam, GOG or retail disc).
 No Prey, Doom 3 or Portal game files are included in this download.
 

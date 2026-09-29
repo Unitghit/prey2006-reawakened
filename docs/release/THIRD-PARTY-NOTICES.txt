@@ -10,8 +10,8 @@ Credits
   adapted fixes.
 - Upstream lineage credited by Prey2006: PreyDoom, PreyVR, com.n0n3m4.diii4a
   and dhewm3.
-- Reawakened enhancements and testing: Unitghit, developed with assistance
-  from OpenAI Codex.
+- Reawakened enhancements and testing: Unitghit, with AI coding
+  agents.
 
 No Prey, Doom 3 or Portal game data is distributed. Setup reads it from the
 player's own installations; the files it builds from them stay on that
