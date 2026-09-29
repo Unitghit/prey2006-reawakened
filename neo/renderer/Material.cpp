@@ -2500,6 +2500,21 @@ bool idMaterial::Parse( const char *text, const int textLength ) {
 		editorAlpha = 1.0;
 	}
 
+	// Reawakened: retail decal materials authored without their decal macro. Their
+	// surfaces lie exactly on other geometry, so without a depth bias they
+	// z-fight with it, increasingly with distance. Give them what
+	// decal_alphatest_macro would: a polygon offset and no shadows.
+	static const char *const unbiasedDecals[] = {
+		"textures/decals/fta_masher",	// masher slab blood, Feeding Tower B
+	};
+	for ( i = 0; i < (int)( sizeof( unbiasedDecals ) / sizeof( unbiasedDecals[0] ) ); i++ ) {
+		if ( !TestMaterialFlag( MF_POLYGONOFFSET ) && !idStr::Icmp( GetName(), unbiasedDecals[i] ) ) {
+			SetMaterialFlag( MF_POLYGONOFFSET );
+			SetMaterialFlag( MF_NOSHADOWS );
+			polygonOffset = 1;
+		}
+	}
+
 	// the sorts can make reasonable defaults
 	if ( sort == SS_BAD ) {
 		if ( TestMaterialFlag(MF_POLYGONOFFSET) ) {
