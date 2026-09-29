@@ -175,7 +175,7 @@ struct App {
     int Footer(int width,bool place,int top) {
         int statusHeight=Measure(statusText,font,std::max(1,width)).cy;
         int y=statusHeight+D(3),x=0,rowHeight=0;
-        const wchar_t* texts[]={L"Restore defaults",L"Save settings",L"Save & Play",L"Game content..."};
+        const wchar_t* texts[]={L"Restore defaults",L"Save settings",L"Save & Play",L"Import games..."};
         buttonRects.clear();
         {
             SIZE size=Measure(L"Show advanced options",font);int w=size.cx+MulDiv(28,(int)dpi,96),h=size.cy+D(18);
@@ -259,7 +259,7 @@ struct App {
         if(id==RestoreId) {auto d=Defaults();if(showAdvanced)d[L"showAdvanced"]=L"1";SetValues(d);Status(L"Defaults selected. Click Save to apply.");return;}
         if(id==ContentId) {
             if(!RunSetup(instance,root,window)) {DestroyWindow(window);return;}
-            Dependencies();Status(ExtraInstalled(root,Extra::Doom3)?L"Game content updated.":L"Game content updated. Doom 3 weapons need the optional Doom 3 content.");return;
+            Dependencies();Status(ExtraInstalled(root,Extra::Doom3)?L"Imported games updated.":L"Imported games updated. The Doom 3 weapons need the optional Doom 3 content.");return;
         }
         Values v=Read();Save(root,v);Status(L"Saved. Use Play-Prey2006-Custom.bat or Save & Play.");
         if(id==PlayId && !InstallPathProblem(root).empty()) throw std::runtime_error(Utf8(InstallPathProblem(root)));
@@ -357,8 +357,8 @@ void App::Create() {
     buttons[0]=Control(L"BUTTON",L"Restore defaults",WS_TABSTOP|BS_PUSHBUTTON,window,RestoreId);
     buttons[1]=Control(L"BUTTON",L"Save settings",WS_TABSTOP|BS_PUSHBUTTON,window,SaveId);
     buttons[2]=Control(L"BUTTON",L"Save && Play",WS_TABSTOP|BS_PUSHBUTTON,window,PlayId);
-    buttons[3]=Control(L"BUTTON",L"Game content...",WS_TABSTOP|BS_PUSHBUTTON,window,ContentId);
-    Tip(buttons[3],L"Add or remove the optional Doom 3 and Portal content.");
+    buttons[3]=Control(L"BUTTON",L"Import games...",WS_TABSTOP|BS_PUSHBUTTON,window,ContentId);
+    Tip(buttons[3],L"Add or remove the optional Doom 3 and Portal content, converted from your own copies of those games.");
     advanced=Control(L"BUTTON",L"Show advanced options",WS_TABSTOP|BS_AUTOCHECKBOX,window,AdvancedId);
     Tip(advanced,L"Shadow, portal rendering and dependent options. Hidden options keep their saved values.");
     Fonts(WindowDpi(window));

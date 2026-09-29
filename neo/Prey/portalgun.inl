@@ -454,6 +454,29 @@ static bool RW_PortalFits(const hhPortal *portal, const idTraceModel *trm, const
     }
     return true;
 }
+bool RW_PortalCoverPlane(const idPlane &wall, const idVec3 &query, idPlane &cover);
+// Whether a hull at either position penetrates the player-clip cover in front
+// of this portal's surface (standing on top of the cover does not count).
+static bool RW_HullInPortalCover(const hhPortal *portal, const idTraceModel *trm, const idMat3 &axis,
+    const idVec3 &start, const idVec3 &end) {
+    const idVec3 normal = portal->GetAxis()[0];
+    const idPlane surface(normal, normal*portal->GetOrigin() - portal->spawnArgs.GetFloat("rw_portal_surface_offset"));
+    // Covers are at most 32 units deep (RW_PortalCoverPlane); skip the probe
+    // for hulls that cannot reach one.
+    float nearest = idMath::INFINITY;
+    for (int k = 0; k < 8; ++k) {
+        const idVec3 corner(trm->bounds[(k&1)!=0].x, trm->bounds[(k&2)!=0].y, trm->bounds[(k&4)!=0].z);
+        nearest = Min(nearest, Min(surface.Distance(start + corner*axis), surface.Distance(end + corner*axis)));
+    }
+    if (nearest > 32.5f) return false;
+    idPlane cover;
+    if (!RW_PortalCoverPlane(surface, start + trm->bounds.GetCenter() * axis, cover)) return false;
+    for (int k = 0; k < 8; ++k) {
+        const idVec3 corner(trm->bounds[(k&1)!=0].x, trm->bounds[(k&2)!=0].y, trm->bounds[(k&4)!=0].z);
+        if (cover.Distance(start + corner*axis) < -0.01f || cover.Distance(end + corner*axis) < -0.01f) return true;
+    }
+    return false;
+}
 bool RW_PortalHoldPlayerAxis(const idEntity *entity) {
     if (!RW_PortalGunEnabled() ||
         !entity || !entity->IsType(hhPlayer::Type)) return false;
@@ -531,7 +554,11 @@ bool RW_PortalClipPlane(const idEntity *entity, const idTraceModel *trm, const i
         // Never open unrelated, remote or backside world geometry.
         const float eyeOffset = RW_GroundPortalEyeOffset(portal, entity);
         const bool groundCrossing = eyeOffset > 0 && d0 + eyeOffset >= -8 && d1 + eyeOffset <= 0 && d1 < d0;
-        if (d0 < -90 || d0 > 90 || (d1 < -90 && !groundCrossing) || d1 > 90) continue;
+        if (d0 < -90 || (d1 < -90 && !groundCrossing)) continue;
+        // A tall hull leaving a ceiling opening can pass the approach band while
+        // its near end is still inside a player-clip cover (a slab under the
+        // ceiling). Closing the cutout there embeds it and the player is stuck.
+        if ((d0 > 90 || d1 > 90) && !RW_HullInPortalCover(portal, trm, axis, start, end)) continue;
         if (!RW_PortalFits(portal, trm, axis, start, entity->IsType(hhPlayer::Type))) continue;
         if (!RW_PortalFits(portal, trm, axis, end, entity->IsType(hhPlayer::Type))) {
             // Once a hull straddles the wall, the oval edge must be a real
@@ -545,7 +572,9 @@ bool RW_PortalClipPlane(const idEntity *entity, const idTraceModel *trm, const i
                 const float depth = d0 + portal->spawnArgs.GetFloat("rw_portal_surface_offset") + (corner * axis) * normal;
                 minDepth = Min(minDepth, depth); maxDepth = Max(maxDepth, depth);
             }
-            if (minDepth >= 0.25f || maxDepth < -0.25f) continue;
+            // Inside a cover the aperture is the only opening, so its edge
+            // stays a boundary until the hull has cleared the cover as well.
+            if ((minDepth >= 0.25f && !RW_HullInPortalCover(portal, trm, axis, start, start)) || maxDepth < -0.25f) continue;
             float low = 0, high = 1;
             for (int k = 0; k < 20; ++k) {
                 const float mid = (low + high) * 0.5f;

@@ -1,7 +1,7 @@
 # Content importer
 
 `reawakened-import.exe` converts the optional content from the player's own games.
-The launcher's Setup / Game content window runs it hidden, from `engine\importer\`,
+The launcher's Setup / Import games window runs it hidden, from `engine\importer\`,
 and installs its output into `engine\base`:
 
 - `doom3`: the original Doom 3 (with or without Resurrection of Evil) or the BFG

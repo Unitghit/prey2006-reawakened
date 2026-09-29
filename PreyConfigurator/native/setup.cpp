@@ -553,7 +553,7 @@ bool RunSetup(HINSTANCE instance, const fs::path& root, HWND owner) {
 
 	SetupUi ui; ui.root = root; ui.owner = owner; ui.manage = RetailReady(root) && SetupComplete(root);
 	const DWORD style = WS_OVERLAPPED | WS_CAPTION | WS_SYSMENU | WS_MINIMIZEBOX;
-	HWND window = CreateWindowExW(WS_EX_CONTROLPARENT, wc.lpszClassName, ui.manage ? L"Prey2006 Reawakened Game Content" : L"Prey2006 Reawakened Setup",
+	HWND window = CreateWindowExW(WS_EX_CONTROLPARENT, wc.lpszClassName, ui.manage ? L"Prey2006 Reawakened Import Games" : L"Prey2006 Reawakened Setup",
 		style, CW_USEDEFAULT, CW_USEDEFAULT, 10, 10, owner, nullptr, instance, &ui);
 	if (!window) throw std::runtime_error("Cannot create setup window");
 
@@ -571,7 +571,7 @@ bool RunSetup(HINSTANCE instance, const fs::path& root, HWND owner) {
 		HWND c = CreateWindowExW(0, cls, text, WS_CHILD | WS_VISIBLE | st, x, yy, w, hgt, window, (HMENU)(INT_PTR)id, instance, nullptr);
 		SendMessageW(c, WM_SETFONT, (WPARAM)f, TRUE); return c;
 	};
-	add(L"STATIC", ui.manage ? L"Game content" : L"Set up Prey2006 Reawakened", SS_NOPREFIX, margin, y, inner, S(28), 0, ui.heading); y += S(34);
+	add(L"STATIC", ui.manage ? L"Import games" : L"Set up Prey2006 Reawakened", SS_NOPREFIX, margin, y, inner, S(28), 0, ui.heading); y += S(34);
 	add(L"STATIC", L"Reawakened runs on the data from your own copy of Prey (2006). Doom 3 and Portal are optional: they "
 		L"add the Doom 3 weapons and the Portal gun's model. The frame rate, fixes and every other improvement work without them. "
 		L"Steam and non-Steam copies both work. Your installed games are never changed.",
