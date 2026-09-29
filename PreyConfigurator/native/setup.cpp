@@ -27,6 +27,16 @@ std::wstring InstallPathProblem(const fs::path& root) {
 	return L"";
 }
 
+static fs::path SetupMarker(const fs::path& root) { return root/L"userdata/setup-complete"; }
+bool SetupComplete(const fs::path& root) {
+	std::error_code ec;
+	return fs::exists(SetupMarker(root), ec) || (RetailReady(root) && fs::exists(root/L"Prey-settings.json", ec));
+}
+void MarkSetupComplete(const fs::path& root) {
+	fs::create_directories(SetupMarker(root).parent_path());
+	Atomic(SetupMarker(root), "Setup completed.\n");
+}
+
 bool RetailReady(const fs::path& root) {
 	std::error_code ec;
 	for (auto name : RetailPaks) if (!fs::is_regular_file(RetailTarget(root)/name, ec)) return false;
@@ -426,8 +436,9 @@ void Refresh(SetupUi& ui) {
 	}
 	const bool changes = !Plan(ui).empty();
 	const auto pathProblem = InstallPathProblem(ui.root);
-	EnableWindow(ui.install, ready && changes && !ui.busy && pathProblem.empty());
-	if (!ui.busy) SetWindowTextW(ui.status, !pathProblem.empty() ? pathProblem.c_str() : !ready ? L"" : changes ? (ui.manage ? L"Ready. Click Apply." : L"Ready. Click Install.") : ui.manage ? L"No changes." : L"");
+	// First run can finish with nothing to change (Prey already imported).
+	EnableWindow(ui.install, ready && (changes || !ui.manage) && !ui.busy && pathProblem.empty());
+	if (!ui.busy) SetWindowTextW(ui.status, !pathProblem.empty() ? pathProblem.c_str() : !ready ? L"" : changes ? (ui.manage ? L"Ready. Click Apply." : L"Ready. Click Install.") : ui.manage ? L"No changes." : L"Ready. Click Install to continue.");
 }
 
 void Browse(SetupUi& ui, int r) {
@@ -540,7 +551,7 @@ bool RunSetup(HINSTANCE instance, const fs::path& root, HWND owner) {
 	wc.hIcon = (HICON)LoadImageW(instance, MAKEINTRESOURCEW(1), IMAGE_ICON, 0, 0, LR_DEFAULTSIZE);
 	RegisterClassExW(&wc);
 
-	SetupUi ui; ui.root = root; ui.owner = owner; ui.manage = RetailReady(root);
+	SetupUi ui; ui.root = root; ui.owner = owner; ui.manage = RetailReady(root) && SetupComplete(root);
 	const DWORD style = WS_OVERLAPPED | WS_CAPTION | WS_SYSMENU | WS_MINIMIZEBOX;
 	HWND window = CreateWindowExW(WS_EX_CONTROLPARENT, wc.lpszClassName, ui.manage ? L"Prey2006 Reawakened Game Content" : L"Prey2006 Reawakened Setup",
 		style, CW_USEDEFAULT, CW_USEDEFAULT, 10, 10, owner, nullptr, instance, &ui);
@@ -611,7 +622,10 @@ bool RunSetup(HINSTANCE instance, const fs::path& root, HWND owner) {
 	DeleteObject(ui.font); DeleteObject(ui.bold); DeleteObject(ui.heading);
 	UnregisterClassW(wc.lpszClassName, instance);
 	if (SUCCEEDED(com)) CoUninitialize();
-	return RetailReady(root);
+	// First run completes only through Install; Quit leaves the launcher.
+	const bool complete = RetailReady(root) && (ui.manage || ui.done == L"ok");
+	if (complete) MarkSetupComplete(root);
+	return complete;
 }
 
 // ---------------------------------------------------------------------------
@@ -690,11 +704,14 @@ void VerifyRetailSetup(const fs::path& output) {
 
 	require(InstallPathProblem(L"C:\\Games\\Prey2006 Reawakened").empty(), "Short installation path rejected");
 	require(!InstallPathProblem(fs::path(L"C:\\") / std::wstring(180, L'x')).empty(), "Over-long installation path accepted");
+	require(RetailReady(root) && !SetupComplete(root), "Setup counted complete before the player finished it");
+	MarkSetupComplete(root);
+	require(SetupComplete(root), "Completed setup not recorded");
 	const auto variants = DriveVariants(L"Q:\\Games\\Prey 2006");
 	require(!variants.empty() && std::all_of(variants.begin(), variants.end(), [](const fs::path& p) {
 		return p.relative_path() == fs::path(L"Games\\Prey 2006"); }), "Drive variants wrong");
 	(void)FindRetailCandidates();	// must not throw on this machine
 	std::error_code ec; fs::remove_all(work, ec);
 	Atomic(output/L"setup-pass.txt", "PASS: retail validation (missing/damaged archives, base folder, trailing separator), import with progress, "
-		"no partial files, repeat import, cancellation, optional content install/expansion/removal with shipped-file restore, installation path length, drive-letter variants, detection.\n");
+		"no partial files, repeat import, cancellation, optional content install/expansion/removal with shipped-file restore, installation path length, first-run completion, drive-letter variants, detection.\n");
 }

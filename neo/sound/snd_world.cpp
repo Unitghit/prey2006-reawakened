@@ -1831,6 +1831,17 @@ void idSoundWorldLocal::AddChannelContribution( idSoundEmitterLocal *sound, idSo
 	// do we have anything to add?
 	//
 	if ( volume < SND_EPSILON && chan->lastVolume < SND_EPSILON ) {
+		// Reawakened: a silent (e.g. out of range) streamed sound is not refilled,
+		// so its source starves and would resume from where it went quiet. Keep its
+		// position following time and restart it there once audible, so sounds
+		// started together (the Roadhouse jukebox speakers) stay in sync. Sounds in
+		// a single hardware buffer keep playing on their own and need nothing.
+		const bool streaming = !( ( !looping && sample->hardwareBuffer )
+			|| ( looping && shader->numLeadins == 0 && shader->entries[0]->hardwareBuffer ) );
+		if ( streaming && current44kHz > chan->trigger44kHzTime ) {
+			chan->openalStreamingOffset = ( current44kHz - chan->trigger44kHzTime + 7 ) & ~7;	// as in ReadFromSaveGame
+			chan->triggered = true;
+		}
 		return;
 	}
 	chan->lastVolume = volume;

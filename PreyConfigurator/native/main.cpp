@@ -517,7 +517,7 @@ int WINAPI wWinMain(HINSTANCE inst,HINSTANCE,PWSTR,int show) {
         }
         // First run: bring in the player's retail Prey data (and any optional
         // content) before showing settings. --setup opens it even when installed.
-        if((setup || !RetailReady(root)) && !RunSetup(instance,root)) return 0;
+        if((setup || !RetailReady(root) || !SetupComplete(root)) && !RunSetup(instance,root)) return 0;
         // Show while cloaked and paint every control synchronously, then uncloak:
         // the window appears complete instead of as an empty frame or row by row.
         App app(root);app.Create();Cloak(app.window,TRUE);ShowWindow(app.window,show);

@@ -11,6 +11,11 @@
 extern const wchar_t* const RetailPaks[7];
 
 bool RetailReady(const fs::path& root);
+// Setup runs on an installation's first launch until the player completes it once
+// (a marker in userdata). Installs from before the marker count once they have
+// retail data and saved settings.
+bool SetupComplete(const fs::path& root);
+void MarkSetupComplete(const fs::path& root);
 // Why Prey's engine cannot run from this installation folder (path too long for its
 // file functions), or an empty string.
 std::wstring InstallPathProblem(const fs::path& root);
