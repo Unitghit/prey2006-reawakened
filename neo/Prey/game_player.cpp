@@ -444,6 +444,64 @@ void hhPlayer::CycleWeaponGroup(int direction) {
     }
 }
 
+static idCVar g_weaponUnlockTips("g_weaponUnlockTips", "1", CVAR_GAME | CVAR_BOOL | CVAR_ARCHIVE,
+	"show a tip when the portal gun or a Doom 3 weapon becomes available");
+
+// Announce newly available optional weapons once per campaign in Prey's tutorial
+// tip box. The announced flags travel with the other rw_weapon_ keys through
+// saves and level changes. A campaign tip already on screen is never replaced;
+// the announcement waits for it to close.
+void hhPlayer::UpdateUnlockTips() {
+	if (gameLocal.isMultiplayer || *cvarSystem->GetCVarString("fs_game") || !hud) { return; }
+	const int end = spawnArgs.GetInt("rw_unlock_tip_end");
+	if (end) {
+		if (gameLocal.time >= end) {
+			// Only close our own tip; the game may have replaced it meanwhile.
+			if (tipUp && !idStr::Cmp(hud->State().GetString("tip"), spawnArgs.GetString("rw_unlock_tip_text"))) { HideTip(); }
+			spawnArgs.SetInt("rw_unlock_tip_end", 0);
+		}
+		return;
+	}
+	if (!g_weaponUnlockTips.GetBool() || tipUp || gameLocal.inCinematic || health <= 0 ||
+		IsSpiritOrDeathwalking() || InVehicle() || bFrozen) { return; }
+	idStr text;
+	int group = 0, pending = 0;
+	if (cvarSystem->GetCVarBool("g_portalGun") && (inventory.weapons & (1 << 1)) && !spawnArgs.GetBool("rw_weapon_portal_announced")) {
+		spawnArgs.SetBool("rw_weapon_portal_announced", true);
+		text = "Portal gun unlocked";
+		group = 1;
+		pending = 1;
+	} else if (g_doom3Shotgun.GetBool()) {
+		static const struct { int slot; const char *name, *label; } doomWeapons[] = {
+			{8, "d3shotgun", "shotgun"}, {10, "d3machinegun", "machine gun"}, {11, "d3chaingun", "chaingun"},
+			{13, "d3plasmagun", "plasma gun"}, {14, "d3rocketlauncher", "rocket launcher"},
+			{15, "d3supershotgun", "super shotgun"}, {16, "d3bfg", "BFG 9000"} };
+		const char *labels[2] = { NULL, NULL };
+		for (int i = 0; i < int(sizeof(doomWeapons) / sizeof(doomWeapons[0])); ++i) {
+			const char *announced = va("rw_weapon_%s_announced", doomWeapons[i].name);
+			if (!(inventory.weapons & (1 << doomWeapons[i].slot)) || spawnArgs.GetBool(announced)) { continue; }
+			spawnArgs.SetBool(announced, true);
+			const int slotGroup = WeaponGroup(doomWeapons[i].slot);
+			if (pending < 2) { labels[pending] = doomWeapons[i].label; }
+			group = !pending || group == slotGroup ? slotGroup : 0;
+			++pending;
+		}
+		// One weapon pickup can unlock two (the rifle adds the shotgun and machine
+		// gun). More at once, from a save made before this feature or newly
+		// enabled weapons, share one short tip instead of a long queue.
+		if (pending == 1) { text = idStr::Icmp(labels[0], "BFG 9000") ? va("Doom 3 %s unlocked", labels[0]) : "BFG 9000 unlocked"; }
+		else if (pending == 2) { text = va("Doom 3 %s and %s unlocked", labels[0], labels[1]); }
+		else if (pending > 2) { text = "Doom 3 weapons unlocked"; }
+	}
+	if (!pending) { return; }
+	idStr keyMaterial, key;
+	bool keyWide = false;
+	if (group >= 1 && group <= 7) { gameLocal.GetTip(va("_impulse%d", group), keyMaterial, key, keyWide); }
+	ShowTip(keyMaterial.c_str(), text.c_str(), key.c_str(), NULL, keyWide, 0, 0);
+	spawnArgs.Set("rw_unlock_tip_text", text.c_str());
+	spawnArgs.SetInt("rw_unlock_tip_end", gameLocal.time + 4500);
+}
+
 void hhPlayer::RestorePersistantInfo( void ) {
 	int num;
 
@@ -5289,6 +5347,7 @@ void hhPlayer::Think( void ) {
 
     UpdatePortalGunView();
     UpdatePortalGunReticle();
+	UpdateUnlockTips();
 	if (InVehicle()) {
 		UpdateHud( GetVehicleInterfaceLocal()->GetHUD() );
 	}

@@ -193,6 +193,7 @@ public:
 	// Overridden Methods
 	virtual void		RestorePersistantInfo( void );
 	void				SynchronizeDoom3Shotgun();
+	void				UpdateUnlockTips();
 	bool WeaponGroupsEnabled() const;
 	int WeaponGroup(int weaponNum) const;
 	int WeaponVariant(int weaponNum) const;

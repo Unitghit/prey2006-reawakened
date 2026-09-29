@@ -127,6 +127,7 @@ struct App {
             if(key==L"resolution") enabled=v[L"r_fullscreen"]!=L"desktop";
             if(key==L"joy_invertLook" || key==L"joy_deadZone") enabled=v[L"in_useGamepad"]==L"1";
             if(key==L"g_portalGunReticle") enabled=v[L"g_portalGun"]==L"1";
+            if(key==L"g_weaponUnlockTips") enabled=v[L"g_portalGun"]==L"1" || v[L"weaponPack"]!=L"off";
             if(key==L"g_halfLifeAutoHop") enabled=v[L"g_bunnyHop"]==L"3" || v[L"g_bunnyHop"]==L"4";
             // Needs the optional Doom 3 content; offered again once it is installed.
             if(key==L"weaponPack" && !ExtraInstalled(root,Extra::Doom3)) {enabled=false;SendMessageW(rows[i].combo,CB_SETCURSEL,0,0);}
