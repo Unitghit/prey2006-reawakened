@@ -572,10 +572,8 @@ bool RunSetup(HINSTANCE instance, const fs::path& root, HWND owner) {
 		SendMessageW(c, WM_SETFONT, (WPARAM)f, TRUE); return c;
 	};
 	add(L"STATIC", ui.manage ? L"Import games" : L"Set up Prey2006 Reawakened", SS_NOPREFIX, margin, y, inner, S(28), 0, ui.heading); y += S(34);
-	add(L"STATIC", L"Reawakened runs on the data from your own copy of Prey (2006). Doom 3 and Portal are optional: they "
-		L"add the Doom 3 weapons and the Portal gun's model. The frame rate, fixes and every other improvement work without them. "
-		L"Steam and non-Steam copies both work. Your installed games are never changed.",
-		SS_NOPREFIX, margin, y, inner, S(70), 0, ui.font); y += S(78);
+	add(L"STATIC", L"Uses your own copies of the games. Steam and non-Steam both work, and your installed games are never changed.",
+		SS_NOPREFIX, margin, y, inner, S(36), 0, ui.font); y += S(44);
 
 	const wchar_t* titles[RowCount] = { L"Prey (2006)  (required)", L"Doom 3 weapons  (optional)", L"Portal gun model  (optional)" };
 	const wchar_t* hints[RowCount] = { L"Its seven data archives (base\\pak000.pk4 to pak006.pk4) are copied into Reawakened.",

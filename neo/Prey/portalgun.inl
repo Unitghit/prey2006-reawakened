@@ -95,6 +95,22 @@ static bool RW_PortalOccupantTrace(trace_t &result, idEntity *entity, const idVe
     }
     return result.fraction<1;
 }
+// Whether moving two occupants creates an overlap between their parts. Ragdolls
+// are compared limb by limb: bodies lying tangled together always overlap as
+// whole boxes, which would otherwise block every clearance for the second one.
+// Parts that already touch where they lie may keep touching.
+static bool RW_OccupantMovesOverlap(const idEntity *a, const idVec3 &moveA, const idEntity *b, const idVec3 &moveB) {
+    const idPhysics *pa = a->GetPhysics(), *pb = b->GetPhysics();
+    const int na = RW_PortalRagdoll(a) ? pa->GetNumClipModels() : 1, nb = RW_PortalRagdoll(b) ? pb->GetNumClipModels() : 1;
+    for (int i = 0; i < na; ++i) {
+        const idBounds boundsA = pa->GetAbsBounds(na > 1 ? i : -1);
+        for (int j = 0; j < nb; ++j) {
+            const idBounds boundsB = pb->GetAbsBounds(nb > 1 ? j : -1);
+            if (boundsA.Translate(moveA).IntersectsBounds(boundsB.Translate(moveB)) && !boundsA.IntersectsBounds(boundsB)) return true;
+        }
+    }
+    return false;
+}
 // Resolve movable occupants before moving either endpoint. Validate every move
 // first, so a blocked object cannot leave a half-updated pair or moved neighbors.
 static bool RW_ClearPortalOccupants(hhPortal *first, hhPortal *second) {
@@ -155,11 +171,9 @@ static bool RW_ClearPortalOccupants(hhPortal *first, hhPortal *second) {
                     bool blocked = RW_PortalOccupantTrace(trace, entity, end, end);
                     rw_portalClosingQuery = oldClosingQuery;
                     // Independently clear destinations must not overlap one another.
-                    const idBounds destination = physics->GetAbsBounds().Translate(end-physics->GetOrigin());
-                    for (int k = 0; !blocked && k < occupants.Num(); ++k) {
-                        const idPhysics *other = occupants[k]->GetPhysics();
-                        blocked = destination.IntersectsBounds(other->GetAbsBounds().Translate(positions[k]-other->GetOrigin()));
-                    }
+                    for (int k = 0; !blocked && k < occupants.Num(); ++k)
+                        blocked = RW_OccupantMovesOverlap(entity, end-physics->GetOrigin(),
+                            occupants[k], positions[k]-occupants[k]->GetPhysics()->GetOrigin());
                     clear = !blocked;
                 }
             }
