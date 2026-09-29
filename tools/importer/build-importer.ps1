@@ -18,7 +18,7 @@ $dist = Split-Path $Output -Parent
 
 # Importer data files are read next to their modules (Path(__file__).with_name).
 $data = @()
-foreach ($folder in 'doom3', 'portalgun') {
+foreach ($folder in 'doom3', 'portalgun', 'materials') {
 	Get-ChildItem -LiteralPath (Join-Path $tools $folder) -File | Where-Object { $_.Extension -in '.def', '.script', '.mtr' } |
 		ForEach-Object { $data += '--add-data'; $data += "$($_.FullName);." }
 }
@@ -27,7 +27,7 @@ New-Item -ItemType Directory -Force $work | Out-Null
 $ErrorActionPreference = 'Continue'
 python -m PyInstaller --noconfirm --clean --onedir --console --name reawakened-import `
 	--distpath $dist --workpath $work --specpath $work `
-	--paths (Join-Path $tools 'doom3') --paths (Join-Path $tools 'portalgun') `
+	--paths (Join-Path $tools 'doom3') --paths (Join-Path $tools 'portalgun') --paths (Join-Path $tools 'materials') `
 	--exclude-module tkinter --exclude-module unittest --exclude-module pydoc `
 	@data (Join-Path $PSScriptRoot 'reawakened_import.py') *> (Join-Path $work 'pyinstaller.log')
 $built = $LASTEXITCODE

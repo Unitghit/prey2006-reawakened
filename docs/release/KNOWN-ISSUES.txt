@@ -1,0 +1,11 @@
+Prey2006 Reawakened - known issues
+==================================
+
+- Feeding Tower: blood sprayed onto the masher slabs can flicker as they move
+  away from you.
+- The portal gun can bypass scripted events and reach places the campaign did
+  not expect. Save before experimenting.
+- Saves made while the Doom 3 weapons or portal gun were in use need that
+  content to load; add it again with "Import games..." if you removed it.
+- Multiplayer has not been tested.
+- Windows 10/11 x64 only. Linux (native or Proton) has not been tested.

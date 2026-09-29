@@ -6,7 +6,7 @@ An enhanced version of Prey (2006), built on the [Prey2006 source port](https://
 
 ## Status
 
-Private release preparation. Full campaign testing is in progress, approximately one third of the way through the first playthrough. This is not a finished or fully verified release. No retail game files, saves, keys, or game downloads are provided.
+Version 1.0.0, release candidate. The full campaign has been played through on Windows. No retail game files, saves, keys, or game downloads are provided: Setup imports Prey's data from the player's own copy, and the optional Doom 3 and Portal content from theirs. See the [changelog](CHANGELOG.md) and [known issues](docs/release/KNOWN-ISSUES.txt).
 
 ## Enhancements
 
@@ -19,12 +19,13 @@ Private release preparation. Full campaign testing is in progress, approximately
 - Windowed fullscreen, MSAA selection, and a display-aware cap with 3 FPS of headroom.
 - Optional English translation of alien screen text.
 - Cherokee difficulty unlocked, with an optional difficulty override.
-- A lightweight native settings launcher.
+- A lightweight native settings launcher with guided Setup.
+- A portal gun, optional Doom 3 weapons, and Half-Life style movement.
 - Fixes for loading crashes, in-world GUI interactions, eye textures, and numerous portal rendering problems.
 
 ## Building and installation
 
-See [BUILDING.md](BUILDING.md). The source snapshot intentionally excludes upstream sample maps and game artwork. Local installation must obtain required retail assets from a user's PC copy of Prey. The guided Setup.exe is tracked in the [release checklist](docs/RELEASE_CHECKLIST.md); it is not available yet.
+See [BUILDING.md](BUILDING.md). `tools/package-release.ps1` builds the release archives (portable zip, source zip and checksums) from a clean build of the current commit; see the [release checklist](docs/RELEASE_CHECKLIST.md). The launcher's Setup imports the required retail data from the player's PC copy of Prey on first launch.
 
 Windows x64 is the current playtested target. Native Linux and Proton gameplay are not yet release-tested. The launcher has previously passed isolated Wine checks.
 

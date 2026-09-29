@@ -24,6 +24,7 @@ std::set<std::string> ZipNames(const fs::path& archive) {
 	if (!in) return names;
 	in.seekg(0, std::ios::end);
 	const uint64_t size = (uint64_t)in.tellg();
+	if (size < 22) return names;	// smaller than the end-of-directory record: not a complete archive
 	const size_t tail = (size_t)std::min<uint64_t>(size, 65536 + 22);
 	std::vector<unsigned char> end(tail);
 	if (!ReadAt(in, size - tail, end.data(), tail)) return names;

@@ -6,9 +6,12 @@ source games are only read.
 
   reawakened-import doom3  --game DIR --prey-base DIR [--prey-base DIR ...] --output DIR
   reawakened-import portal --game DIR --crowbar EXE --output DIR --work DIR
+  reawakened-import prey   --prey-base DIR --output DIR
 
 Doom 3 accepts the original game (with or without Resurrection of Evil) or the
-BFG Edition. Portal accepts Steam (VPK) or unpacked copies.
+BFG Edition. Portal accepts Steam (VPK) or unpacked copies. Prey builds the
+files Reawakened derives from the player's imported Prey archives (the portal
+gun's openings and the Jen seam repair); setup runs it after importing Prey.
 
 Output protocol (stdout, one per line): "PROGRESS <0-100> <text>", then
 "DONE <file count>" or "ERROR <message>". Exit code 0 on success.
@@ -22,7 +25,7 @@ import traceback
 from pathlib import Path
 
 HERE = Path(getattr(sys, '_MEIPASS', Path(__file__).resolve().parent.parent))
-for sub in ('doom3', 'portalgun'):
+for sub in ('doom3', 'portalgun', 'materials'):
     sys.path.insert(0, str(HERE/sub))
 
 
@@ -81,6 +84,25 @@ def import_portal(args):
     return output
 
 
+def build_prey(args):
+    output = fresh(args.output)
+    if not any(Path(args.prey_base).glob('pak00[0-6].pk4')):
+        raise RuntimeError('The Prey data archives are missing.')
+    report(10, 'Building the portal gun openings')
+    import build_assets
+    with contextlib.redirect_stdout(sys.stderr):
+        build_assets.build(Path(args.prey_base), output)
+    report(55, 'Building the Jen seam repair')
+    import build_jen_seam
+    run_main(build_jen_seam, ['--base', args.prey_base, '--output', output/'zz_reawakened_jen_seam.pk4'])
+    report(95, 'Checking built files')
+    for required in ('def/reawakened_portalgun_opening.def', 'models/reawakened/portalgun/blue.ase',
+                     'zz_reawakened_jen_seam.pk4'):
+        if not (output/required).is_file():
+            raise RuntimeError('Building the Prey files did not complete.')
+    return output
+
+
 def main():
     parser = argparse.ArgumentParser(prog='reawakened-import')
     sub = parser.add_subparsers(dest='game_kind', required=True)
@@ -93,9 +115,12 @@ def main():
     p.add_argument('--crowbar', required=True, type=Path)
     p.add_argument('--output', required=True, type=Path)
     p.add_argument('--work', required=True, type=Path)
+    r = sub.add_parser('prey')
+    r.add_argument('--prey-base', required=True, type=Path)
+    r.add_argument('--output', required=True, type=Path)
     args = parser.parse_args()
     try:
-        output = import_doom3(args) if args.game_kind == 'doom3' else import_portal(args)
+        output = {'doom3': import_doom3, 'portal': import_portal, 'prey': build_prey}[args.game_kind](args)
         count = sum(1 for f in output.rglob('*') if f.is_file())
         report(100, 'Done')
         print(f'DONE {count}', flush=True)

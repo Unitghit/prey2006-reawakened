@@ -31,6 +31,13 @@ std::vector<fs::path> DriveVariants(const fs::path& path);
 // Links (same volume) or copies the archives; each file appears only when complete.
 void ImportRetail(const fs::path& preyFolder, const fs::path& root,
 	const std::function<void(uint64_t done, uint64_t total)>& progress, const std::atomic<bool>* cancel);
+// Files Reawakened derives from the imported Prey archives (the portal gun's
+// openings, the Jen seam repair). They are never shipped: the bundled converter
+// builds them after the retail import, or on the next setup of an installation
+// that lacks them. Needed only when this installation has the converter.
+bool PreyFilesNeeded(const fs::path& root);
+void BuildPreyFiles(const fs::path& root,
+	const std::function<void(uint64_t done, uint64_t total)>& progress, const std::atomic<bool>* cancel);
 
 // Optional content. Reawakened (frame rate, fixes, portal tool mechanics) works
 // without either; each adds assets converted from the player's own copy.

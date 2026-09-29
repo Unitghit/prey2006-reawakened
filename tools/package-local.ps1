@@ -78,6 +78,16 @@ foreach ($game in 'doom3', 'portal') {
 	}
 	$removed[$game] = $files.Count
 }
+# Files derived from retail Prey are never packaged: setup builds them from the
+# player's own archives (reawakened-import prey). Includes the portal test-wall
+# material, used only by the development test maps.
+$derived = @(Get-ChildItem -LiteralPath $baseOut -Recurse -File | Where-Object {
+	$relative = $_.FullName.Substring($baseOut.Length + 1).Replace('\', '/')
+	$relative -match '^models/reawakened/portalgun/[^/]+$' -or $relative -match '^def/reawakened_portalgun_opening\.def$' -or
+	$relative -match '^materials/reawakened_portalgun(_retail|_energy)?\.mtr$' -or
+	$relative -in 'zz_reawakened_jen_seam.pk4', 'reawakened-prey-files.txt'
+})
+$derived | Remove-Item -Force
 Get-ChildItem -LiteralPath $baseOut -Recurse -Directory | Sort-Object { $_.FullName.Length } -Descending |
 	Where-Object { -not (Get-ChildItem -LiteralPath $_.FullName -Force) } | Remove-Item
 if ($haveImporter -and -not $StageContent) {
@@ -88,7 +98,7 @@ Copy-Item -LiteralPath $Launcher -Destination (Join-Path $Output 'Prey2006 Reawa
 $retail = @(0..6 | Where-Object { Test-Path -LiteralPath (Join-Path $baseOut "pak00$_.pk4") }).Count
 $size = (Get-ChildItem -LiteralPath $Output -Recurse -File | Measure-Object Length -Sum).Sum / 1MB
 Write-Output ("Local test package: {0} ({1:N0} MB, retail archives present: {2}/7)" -f $Output, $size, $retail)
-Write-Output ("Optional content removed from engine: Doom 3 {0} files, Portal {1} files; {2} shipped files restored" -f $removed['doom3'], $removed['portal'], $restored)
+Write-Output ("Optional content removed from engine: Doom 3 {0} files, Portal {1} files; {2} shipped files restored; {3} Prey-derived files left to setup" -f $removed['doom3'], $removed['portal'], $restored, $derived.Count)
 if ($stage) {
 	Write-Output 'Setup installs optional content from setup-content (pre-converted). Local testing only: do not publish.'
 } else {

@@ -56,6 +56,10 @@ std::wstring RetailProblem(const fs::path& preyFolder) {
 		const auto file = preyFolder/L"base"/name;
 		if (!fs::is_regular_file(file, ec)) return L"This is not a Prey (2006) installation: base\\" + std::wstring(name) + L" is missing.";
 		if (!IsArchive(file)) return L"base\\" + std::wstring(name) + L" is damaged or not a Prey data archive.";
+		// The archive's directory is at its end: an interrupted download or copy loses it.
+		if (ZipNames(file).empty())
+			return L"base\\" + std::wstring(name) + L" is incomplete or damaged. Repair the game's files (Steam: Properties, "
+				L"Installed Files, Verify integrity; GOG: Manage installation, Verify / Repair), then try again.";
 	}
 	// Other id Tech 4 games (Doom 3) use the same archive names; require Prey's own content.
 	const auto names = ZipNames(preyFolder/L"base/pak000.pk4");
@@ -340,6 +344,42 @@ void ImportExtra(Extra extra, const fs::path& gameFolder, const fs::path& root,
 	if (stage.parent_path() == LongPath(ImportWork(root))) fs::remove_all(stage, ec);
 }
 
+static fs::path PreyRecord(const fs::path& root) { return root/EngineDirectory/L"base/reawakened-prey-files.txt"; }
+bool PreyFilesNeeded(const fs::path& root) {
+	std::error_code ec;
+	return fs::is_regular_file(ImporterExe(root), ec) && !fs::is_regular_file(PreyRecord(root), ec);
+}
+
+void BuildPreyFiles(const fs::path& root,
+		const std::function<void(uint64_t, uint64_t)>& progress, const std::atomic<bool>* cancel) {
+	if (!RetailReady(root)) throw std::runtime_error("Prey's data must be imported first.");
+	const auto work = ImportWork(root);
+	fs::create_directories(work);
+	const auto stage = work/L"prey-output";
+	RunImporter(root, { L"prey", L"--prey-base", (root/EngineDirectory/L"base").wstring(), L"--output", stage.wstring() },
+		[&](uint64_t d, uint64_t t) { progress(t ? d * 800 / t : 800, 1000); }, cancel, work/L"prey.log");
+	const auto files = StagedFiles(stage);
+	if (files.empty()) throw std::runtime_error("Building the files from Prey's data failed.");
+	// Derived from this installation's own archives: always replaced, never kept aside.
+	const auto base = LongPath(root/EngineDirectory/L"base"), from = LongPath(stage);
+	std::string record;
+	size_t done = 0;
+	for (const auto& f : files) {
+		if (cancel && cancel->load()) throw std::runtime_error("Import cancelled.");
+		const auto dest = Under(base, f);
+		fs::create_directories(dest.parent_path());
+		const fs::path part = dest.wstring() + L".part";
+		fs::copy_file(Under(from, f), part, fs::copy_options::overwrite_existing);
+		fs::rename(part, dest);
+		record += Utf8(f) + "\n";
+		progress(800 + ++done * 200 / files.size(), 1000);
+	}
+	// Written last: the files count as built only once every one is in place.
+	Atomic(PreyRecord(root), record);
+	std::error_code ec;
+	fs::remove_all(from, ec);
+}
+
 void RemoveExtra(Extra extra, const fs::path& root) {
 	const auto base = LongPath(root/EngineDirectory/L"base");
 	std::vector<std::wstring> files;
@@ -403,6 +443,8 @@ std::vector<Step> Plan(const SetupUi& ui) {
 		const auto& row = ui.rows[r];
 		if (Included(ui, r) && !row.installed) steps.push_back({ r, false, r == PreyRow ? NormalizeRetailFolder(Text(row.path)) : CheckExtraSource(RowExtra(r), Text(row.path)).folder });
 		if (!Included(ui, r) && row.installed) steps.push_back({ r, true, {} });
+		// Prey already imported but its derived files not yet built: build only those.
+		if (r == PreyRow && row.installed && PreyFilesNeeded(ui.root)) steps.push_back({ r, false, {} });
 	}
 	return steps;
 }
@@ -414,7 +456,8 @@ void Refresh(SetupUi& ui) {
 		const bool include = Included(ui, r);
 		const bool needsFolder = include && !row.installed;
 		std::wstring message;
-		if (row.installed) message = include ? L"Installed." : L"Will be removed.";
+		if (row.installed && r == PreyRow && PreyFilesNeeded(ui.root)) message = L"Installed. Install also builds a few files Reawakened makes from it.";
+		else if (row.installed) message = include ? L"Installed." : L"Will be removed.";
 		else if (!include) message = L"Not installed. Reawakened works without it; you can add it later from the launcher.";
 		else if (Text(row.path).empty()) { message = L"Not found automatically. Click Browse and select the game's installation folder."; row.valid = false; }
 		else if (r == PreyRow) {
@@ -489,7 +532,13 @@ void StartInstall(SetupUi& ui) {
 			for (; index < steps.size(); ++index) {
 				const auto& s = steps[index];
 				report(0, 1);
-				if (s.row == PreyRow) ImportRetail(s.folder, root, report, &ui.cancel);
+				if (s.row == PreyRow) {
+					// Copying the archives is most of the work; building from them the rest.
+					const bool copy = !s.folder.empty();
+					if (copy) ImportRetail(s.folder, root, [&](uint64_t d, uint64_t t) { report(t ? d * 700 / t : 700, 1000); }, &ui.cancel);
+					if (PreyFilesNeeded(root))
+						BuildPreyFiles(root, [&](uint64_t d, uint64_t t) { const uint64_t from = copy ? 700 : 0; report(from + (t ? d * (1000 - from) / t : 1000 - from), 1000); }, &ui.cancel);
+				}
 				else if (s.remove) RemoveExtra(RowExtra(s.row), root);
 				else ImportExtra(RowExtra(s.row), s.folder, root, report, &ui.cancel);
 			}
@@ -551,7 +600,8 @@ bool RunSetup(HINSTANCE instance, const fs::path& root, HWND owner) {
 	wc.hIcon = (HICON)LoadImageW(instance, MAKEINTRESOURCEW(1), IMAGE_ICON, 0, 0, LR_DEFAULTSIZE);
 	RegisterClassExW(&wc);
 
-	SetupUi ui; ui.root = root; ui.owner = owner; ui.manage = RetailReady(root) && SetupComplete(root);
+	// After an update that needs files built from Prey, this is setup, not import management.
+	SetupUi ui; ui.root = root; ui.owner = owner; ui.manage = RetailReady(root) && SetupComplete(root) && !PreyFilesNeeded(root);
 	const DWORD style = WS_OVERLAPPED | WS_CAPTION | WS_SYSMENU | WS_MINIMIZEBOX;
 	HWND window = CreateWindowExW(WS_EX_CONTROLPARENT, wc.lpszClassName, ui.manage ? L"Prey2006 Reawakened Import Games" : L"Prey2006 Reawakened Setup",
 		style, CW_USEDEFAULT, CW_USEDEFAULT, 10, 10, owner, nullptr, instance, &ui);
@@ -634,11 +684,7 @@ void VerifyRetailSetup(const fs::path& output) {
 	const fs::path work = output/(L"retail setup Unicode 雪 " + std::to_wstring(GetTickCount64()));
 	const fs::path prey = work/L"Prey 2006", root = work/L"Reawakened";
 	fs::create_directories(prey/L"base");
-	for (auto name : RetailPaks) {
-		std::ofstream out(prey/L"base"/name, std::ios::binary);
-		out.write("PK\x03\x04", 4);
-		out << Utf8(name) << std::string(4096, 'x');
-	}
+	for (auto name : RetailPaks) WriteTestZip(prey/L"base"/name, { Utf8(name) + ".txt" });
 	WriteTestZip(prey/L"base/pak000.pk4", { "maps/game/roadhouse.map", "script/prey_util2.script" });
 	require(RetailProblem(prey).empty(), "Valid retail folder rejected");
 	WriteTestZip(work/L"Doom 3/base/pak000.pk4", { "def/player.def" });
@@ -651,7 +697,11 @@ void VerifyRetailSetup(const fs::path& output) {
 	fs::rename(prey/L"base/pak003.bak", prey/L"base/pak003.pk4");
 	{ std::ofstream bad(prey/L"base/pak005.pk4", std::ios::binary | std::ios::trunc); bad << "not an archive"; }
 	require(!RetailProblem(prey).empty(), "Damaged archive accepted");
-	{ std::ofstream good(prey/L"base/pak005.pk4", std::ios::binary | std::ios::trunc); good.write("PK\x03\x04", 4); good << std::string(64, 'y'); }
+	// Valid start, missing end: an interrupted download or copy.
+	WriteTestZip(prey/L"base/pak005.pk4", { "pak005.pk4.txt" });
+	fs::resize_file(prey/L"base/pak005.pk4", fs::file_size(prey/L"base/pak005.pk4") - 30);
+	require(RetailProblem(prey).find(L"incomplete") != std::wstring::npos, "Incomplete archive accepted");
+	WriteTestZip(prey/L"base/pak005.pk4", { "pak005.pk4.txt" });
 
 	require(!RetailReady(root), "Empty installation reported ready");
 	uint64_t last = 0, total = 0;
@@ -710,6 +760,6 @@ void VerifyRetailSetup(const fs::path& output) {
 		return p.relative_path() == fs::path(L"Games\\Prey 2006"); }), "Drive variants wrong");
 	(void)FindRetailCandidates();	// must not throw on this machine
 	std::error_code ec; fs::remove_all(work, ec);
-	Atomic(output/L"setup-pass.txt", "PASS: retail validation (missing/damaged archives, base folder, trailing separator), import with progress, "
+	Atomic(output/L"setup-pass.txt", "PASS: retail validation (missing/damaged/incomplete archives, base folder, trailing separator), import with progress, "
 		"no partial files, repeat import, cancellation, optional content install/expansion/removal with shipped-file restore, installation path length, first-run completion, drive-letter variants, detection.\n");
 }
