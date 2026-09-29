@@ -396,7 +396,7 @@ try_again:
 
 	#if SDL_VERSION_ATLEAST(3, 0, 0)
 		SDL_PropertiesID props = SDL_CreateProperties();
-		SDL_SetStringProperty(props, SDL_PROP_WINDOW_CREATE_TITLE_STRING, ENGINE_VERSION);
+		SDL_SetStringProperty(props, SDL_PROP_WINDOW_CREATE_TITLE_STRING, WINDOW_TITLE);
 		SDL_SetNumberProperty(props, SDL_PROP_WINDOW_CREATE_X_NUMBER, SDL_WINDOWPOS_UNDEFINED_DISPLAY(selectedDisplay));
 		SDL_SetNumberProperty(props, SDL_PROP_WINDOW_CREATE_Y_NUMBER, SDL_WINDOWPOS_UNDEFINED_DISPLAY(selectedDisplay));
 		SDL_SetNumberProperty(props, SDL_PROP_WINDOW_CREATE_WIDTH_NUMBER, parms.width);
@@ -474,7 +474,7 @@ try_again:
 		}
 
 	#else // SDL2
-		window = SDL_CreateWindow(ENGINE_VERSION,
+		window = SDL_CreateWindow(WINDOW_TITLE,
 									SDL_WINDOWPOS_UNDEFINED_DISPLAY(selectedDisplay),
 									SDL_WINDOWPOS_UNDEFINED_DISPLAY(selectedDisplay),
 									parms.width, parms.height, flags);
@@ -575,7 +575,7 @@ try_again:
 			common->Printf( "Got a %swindow with resolution %g x %g\n", fsStr, glConfig.winWidth, glConfig.winHeight );
 		}
 #else // SDL1.2 window creation
-		SDL_WM_SetCaption(ENGINE_VERSION, ENGINE_VERSION);
+		SDL_WM_SetCaption(WINDOW_TITLE, WINDOW_TITLE);
 
 		SetSDLIcon(); // for SDL1.2  this must be done before creating the window
 
