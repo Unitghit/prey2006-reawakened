@@ -7719,8 +7719,19 @@ void hhPlayer::LockWeapon( int weaponNum ) {
 		gameLocal.Error( "Attempted to unlock unknown weapon '%d'", weaponNum );
 	}
 
-	int flag = ( 1 << ( weaponNum - 1 ) ); 
+	// Reawakened: with the portal gun on, the wrench stays usable from Tommy's
+	// tool pickup, where the roadhouse script raises it and then locks it again
+	// until the Dalton fight. Slot 1 then switches between the wrench and the
+	// portal gun. Once the fight hands the wrench over, locks apply as before.
+	if ( weaponNum == 1 && cvarSystem->GetCVarBool( "g_portalGun" ) && !gameLocal.isMultiplayer &&
+		spawnArgs.GetBool( "rw_weapon_wrench_locked_seen" ) && !spawnArgs.GetBool( "rw_weapon_wrench_released" ) ) {
+		gameLocal.DPrintf( "WEAPONLOCK 1 kept unlocked for the portal gun (flags %d)\n", weaponFlags );
+		return;
+	}
+
+	int flag = ( 1 << ( weaponNum - 1 ) );
 	if ( weaponFlags & flag ) { // Only lock if not already locked
+		gameLocal.DPrintf( "WEAPONLOCK %d locked\n", weaponNum );
 		weaponFlags &= ~flag;
 		if ( idealWeapon == weaponNum ) {
 			if (weapon.IsValid()) {
@@ -7745,7 +7756,13 @@ void hhPlayer::UnlockWeapon( int weaponNum ) {
 		gameLocal.Error( "Attempted to unlock unknown weapon '%d'", weaponNum );
 	}
 
-	int flag = ( 1 << ( weaponNum - 1 ) ); 
+	// The story's own wrench unlock (the Dalton fight) ends the pickup override above.
+	if ( weaponNum == 1 && spawnArgs.GetBool( "rw_weapon_wrench_locked_seen" ) ) {
+		spawnArgs.SetBool( "rw_weapon_wrench_released", true );
+		gameLocal.DPrintf( "WEAPONLOCK 1 released by the story\n" );
+	}
+
+	int flag = ( 1 << ( weaponNum - 1 ) );
 	if ( weaponFlags & flag ) {
 		// Already unlocked
 		return;
