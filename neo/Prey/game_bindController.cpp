@@ -125,7 +125,9 @@ void hhBindController::Think() {
 		// This to insure that oriented players don't get out of sync
 		hhPlayer *player = static_cast<hhPlayer *>(GetRider());
 		idAngles angles = player->GetUntransformedViewAngles();
-		player->SetOrientation(GetOrigin(), GetAxis(), angles.ToMat3()[0], angles);
+		// Reawakened: this per-tick resync follows continuous motion (the capture
+		// slab rides), so keep the render smoothing history; attach/detach reset it.
+		player->SetOrientation(GetOrigin(), GetAxis(), angles.ToMat3()[0], angles, true);
 	}
 }
 
