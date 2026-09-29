@@ -448,8 +448,8 @@ static idCVar g_weaponUnlockTips("g_weaponUnlockTips", "1", CVAR_GAME | CVAR_BOO
 	"show a tip when the portal gun or a Doom 3 weapon becomes available");
 
 // Announce newly available optional weapons once per campaign in Prey's tutorial
-// tip box. The announced flags travel with the other rw_weapon_ keys through
-// saves and level changes. A campaign tip already on screen is never replaced;
+// tip box, once they can actually be selected. The announced flags travel with
+// the other rw_weapon_ keys through saves and level changes. A campaign tip already on screen is never replaced;
 // the announcement waits for it to close.
 void hhPlayer::UpdateUnlockTips() {
 	if (gameLocal.isMultiplayer || *cvarSystem->GetCVarString("fs_game") || !hud) { return; }
@@ -457,16 +457,26 @@ void hhPlayer::UpdateUnlockTips() {
 	if (end) {
 		if (gameLocal.time >= end) {
 			// Only close our own tip; the game may have replaced it meanwhile.
-			if (tipUp && !idStr::Cmp(hud->State().GetString("tip"), spawnArgs.GetString("rw_unlock_tip_text"))) { HideTip(); }
+			// Level setup can clear tipUp without closing the window, so test the text.
+			if (!idStr::Cmp(hud->State().GetString("tip"), spawnArgs.GetString("rw_unlock_tip_text"))) {
+				HideTip();
+				hud->SetStateString("tip", "");
+			}
 			spawnArgs.SetInt("rw_unlock_tip_end", 0);
 		}
 		return;
 	}
-	if (!g_weaponUnlockTips.GetBool() || tipUp || gameLocal.inCinematic || health <= 0 ||
-		IsSpiritOrDeathwalking() || InVehicle() || bFrozen) { return; }
+	// A new game starts with the wrench carried and briefly unlocked, before the
+	// intro script locks it. Only the later unlock (the Dalton fight hands it
+	// over) counts, so first see it locked. Tracked whether or not the portal
+	// gun is enabled, so enabling it later in the campaign still announces it.
+	if ((inventory.weapons & (1 << 1)) && IsLocked(1)) { spawnArgs.SetBool("rw_weapon_wrench_locked_seen", true); }
+	if (!g_weaponUnlockTips.GetBool() || tipUp || gameLocal.inCinematic || health <= 0 || hiddenWeapon ||
+		IsSpiritOrDeathwalking() || InVehicle() || bFrozen || gameLocal.GameState() != GAMESTATE_ACTIVE) { return; }
 	idStr text;
 	int group = 0, pending = 0;
-	if (cvarSystem->GetCVarBool("g_portalGun") && (inventory.weapons & (1 << 1)) && !spawnArgs.GetBool("rw_weapon_portal_announced")) {
+	if (cvarSystem->GetCVarBool("g_portalGun") && GroupWeaponSelectable(1) && spawnArgs.GetBool("rw_weapon_wrench_locked_seen") &&
+		!spawnArgs.GetBool("rw_weapon_portal_announced")) {
 		spawnArgs.SetBool("rw_weapon_portal_announced", true);
 		text = "Portal gun unlocked";
 		group = 1;
@@ -479,7 +489,7 @@ void hhPlayer::UpdateUnlockTips() {
 		const char *labels[2] = { NULL, NULL };
 		for (int i = 0; i < int(sizeof(doomWeapons) / sizeof(doomWeapons[0])); ++i) {
 			const char *announced = va("rw_weapon_%s_announced", doomWeapons[i].name);
-			if (!(inventory.weapons & (1 << doomWeapons[i].slot)) || spawnArgs.GetBool(announced)) { continue; }
+			if (!GroupWeaponSelectable(doomWeapons[i].slot) || spawnArgs.GetBool(announced)) { continue; }
 			spawnArgs.SetBool(announced, true);
 			const int slotGroup = WeaponGroup(doomWeapons[i].slot);
 			if (pending < 2) { labels[pending] = doomWeapons[i].label; }
