@@ -262,6 +262,7 @@ struct App {
             if(!RunSetup(instance,root,window)) {DestroyWindow(window);return;}
             Dependencies();Status(ExtraInstalled(root,Extra::Doom3)?L"Imported games updated.":L"Imported games updated. The Doom 3 weapons need the optional Doom 3 content.");return;
         }
+        if(auto problem=InstallWriteProblem(root);!problem.empty()) throw std::runtime_error(Utf8(problem));
         Values v=Read();Save(root,v);Status(L"Saved. Use Play-Prey2006-Custom.bat or Save & Play.");
         if(id==PlayId && !InstallPathProblem(root).empty()) throw std::runtime_error(Utf8(InstallPathProblem(root)));
         if(id==PlayId) {Launch(root/EngineDirectory/L"prey06.exe",Arguments(root,v));DestroyWindow(window);}

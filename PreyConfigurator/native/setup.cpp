@@ -1,6 +1,7 @@
 #include "setup.h"
 #include "games.h"
 #include <commctrl.h>
+#include <sddl.h>
 #include <shobjidl.h>
 #include <algorithm>
 #include <fstream>
@@ -25,6 +26,18 @@ std::wstring InstallPathProblem(const fs::path& root) {
 		return L"This folder's path is " + std::to_wstring(length) + L" characters long, too long for Prey's engine (170 at most). "
 			L"Move the Reawakened folder somewhere shorter, such as C:\\Games\\Prey2006 Reawakened, and start it from there.";
 	return L"";
+}
+
+std::wstring InstallWriteProblem(const fs::path& root) {
+	// Settings, saves and imported data are all written inside the installation.
+	std::error_code ec;
+	const fs::path folder = fs::is_directory(root/L"userdata", ec) ? root/L"userdata" : root;
+	const fs::path probe = folder/(L".write-test-" + std::to_wstring(GetCurrentProcessId()) + L"-" + std::to_wstring(GetTickCount64()));
+	const HANDLE file = CreateFileW(probe.c_str(), GENERIC_WRITE, 0, nullptr, CREATE_NEW,
+		FILE_ATTRIBUTE_TEMPORARY | FILE_FLAG_DELETE_ON_CLOSE, nullptr);
+	if (file != INVALID_HANDLE_VALUE) { CloseHandle(file); return L""; }
+	return L"Windows does not allow saving in this folder (for example, anything inside Program Files). "
+		L"Move the Reawakened folder somewhere you can save files, such as C:\\Games\\Prey2006 Reawakened, and start it from there.";
 }
 
 static fs::path SetupMarker(const fs::path& root) { return root/L"userdata/setup-complete"; }
@@ -478,7 +491,8 @@ void Refresh(SetupUi& ui) {
 		if (row.include) EnableWindow(row.include, !ui.busy);
 	}
 	const bool changes = !Plan(ui).empty();
-	const auto pathProblem = InstallPathProblem(ui.root);
+	auto pathProblem = InstallPathProblem(ui.root);
+	if (pathProblem.empty()) pathProblem = InstallWriteProblem(ui.root);
 	// First run can finish with nothing to change (Prey already imported).
 	EnableWindow(ui.install, ready && (changes || !ui.manage) && !ui.busy && pathProblem.empty());
 	if (!ui.busy) SetWindowTextW(ui.status, !pathProblem.empty() ? pathProblem.c_str() : !ready ? L"" : changes ? (ui.manage ? L"Ready. Click Apply." : L"Ready. Click Install.") : ui.manage ? L"No changes." : L"Ready. Click Install to continue.");
@@ -752,6 +766,22 @@ void VerifyRetailSetup(const fs::path& output) {
 
 	require(InstallPathProblem(L"C:\\Games\\Prey2006 Reawakened").empty(), "Short installation path rejected");
 	require(!InstallPathProblem(fs::path(L"C:\\") / std::wstring(180, L'x')).empty(), "Over-long installation path accepted");
+	require(InstallWriteProblem(work).empty(), "Writable installation folder rejected");
+	{
+		// A folder whose ACL denies creating files, as in Program Files for a normal user.
+		const fs::path locked = work/L"locked install";
+		fs::create_directories(locked/L"userdata");
+		PSECURITY_DESCRIPTOR sd = nullptr;
+		require(ConvertStringSecurityDescriptorToSecurityDescriptorW(L"D:P(D;OICI;FA;;;WD)", SDDL_REVISION_1, &sd, nullptr) != FALSE, "Security descriptor failed");
+		const bool lockedOk = SetFileSecurityW((locked/L"userdata").c_str(), DACL_SECURITY_INFORMATION, sd) != FALSE;
+		LocalFree(sd);
+		require(lockedOk, "Could not lock the test folder");
+		const bool rejected = !InstallWriteProblem(locked).empty();
+		PSECURITY_DESCRIPTOR open = nullptr;
+		ConvertStringSecurityDescriptorToSecurityDescriptorW(L"D:(A;OICI;FA;;;WD)", SDDL_REVISION_1, &open, nullptr);
+		SetFileSecurityW((locked/L"userdata").c_str(), DACL_SECURITY_INFORMATION, open); LocalFree(open);
+		require(rejected, "Unwritable installation folder accepted");
+	}
 	require(RetailReady(root) && !SetupComplete(root), "Setup counted complete before the player finished it");
 	MarkSetupComplete(root);
 	require(SetupComplete(root), "Completed setup not recorded");

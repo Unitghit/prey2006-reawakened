@@ -24,7 +24,8 @@ Requirements
 
 Installing
 ----------
-1. Extract this folder anywhere you like, for example C:\Games.
+1. Extract this folder anywhere you can save files, for example C:\Games
+   (not inside Program Files).
    Keep the folder path reasonably short (under about 170 characters).
 2. Run "Prey2006 Reawakened Launcher.exe".
 3. Setup opens on the first launch. It finds your games automatically; if a
@@ -50,6 +51,7 @@ The launcher
 Where your files are
 --------------------
 - Settings and saves: the userdata folder in this installation.
+- Game log (useful for bug reports): userdata\qconsolelog.txt
 - Prey's data: engine\base (pak000-pak006.pk4, from your copy of Prey).
 To back up your progress, copy the userdata folder.
 

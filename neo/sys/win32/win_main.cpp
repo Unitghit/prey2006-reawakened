@@ -740,6 +740,8 @@ void Sys_DLL_Unload( uintptr_t dllHandle ) {
 	}
 }
 
+static const char *Win_ConsoleLogPath( void );
+
 /*
 ================
 Sys_Init
@@ -761,11 +763,7 @@ void Sys_Init( void ) {
 #if 0
 	cmdSystem->AddCommand( "setAsyncSound", Sys_SetAsyncSound_f, CMD_FL_SYSTEM, "set the async sound option" );
 #endif
-	{
-		idStr savepath;
-		Sys_GetPath( PATH_SAVE, savepath );
-		common->Printf( "Logging console output to %s/qconsolelog.txt\n", savepath.c_str() );
-	}
+	common->Printf( "Logging console output to %s\n", Win_ConsoleLogPath() );
 
 	//
 	// Windows version
@@ -1026,6 +1024,10 @@ static char stdoutPath[MAX_PATH];
 static char stderrPath[MAX_PATH];
 #define DIR_SEPERATOR TEXT("/")
 
+static const char *Win_ConsoleLogPath( void ) {
+	return stdoutPath[0] ? stdoutPath : "(not redirected)";
+}
+
 
 /* Remove the output files if there was no output written */
 static void cleanup_output(void) {
@@ -1064,15 +1066,40 @@ static void cleanup_output(void) {
 	}
 }
 
+/* A portable install passes "+set fs_savepath <dir>"; its logs belong there too.
+   The directory must already exist. */
+static bool savepath_from_args(int argc, char *argv[], char *dst, size_t size)
+{
+	for (int i = 1; i + 1 < argc; ++i) {
+		if (idStr::Icmp(argv[i], "fs_savepath") != 0 || (idStr::Icmp(argv[i - 1], "+set") != 0 && idStr::Icmp(argv[i - 1], "+seta") != 0)) {
+			continue;
+		}
+		struct _stat st;
+		if (!argv[i + 1][0] || strlen(argv[i + 1]) >= size || _stat(argv[i + 1], &st) == -1 || !(st.st_mode & _S_IFDIR)) {
+			return false;
+		}
+		SDL_strlcpy(dst, argv[i + 1], size);
+		for (char *c = dst; *c; ++c) {
+			if (*c == '\\') *c = '/';
+		}
+		size_t len = strlen(dst);
+		while (len > 1 && dst[len - 1] == '/') dst[--len] = '\0';
+		return true;
+	}
+	return false;
+}
+
 /* Redirect the output (stdout and stderr) to a file */
-static void redirect_output(void)
+static void redirect_output(int argc, char *argv[])
 {
 	char path[MAX_PATH];
 	struct _stat st;
 
 	/* DG: use "My Documents/My Games/prey06" to write stdout.txt and stderr.txt
 	*     instead of the binary, which might not be writable */
-	Win_GetHomeDir(path, sizeof(path));
+	if (!savepath_from_args(argc, argv, path, sizeof(path))) {
+		Win_GetHomeDir(path, sizeof(path));
+	}
 
 	if (_stat(path, &st) == -1) {
 		/* oops, "My Documents/My Games/prey06" doesn't exist - does My Games/ at least exist? */
@@ -1181,7 +1208,7 @@ NOTE: Currently argv[] are ANSI strings, not UTF-8 strings as usual in SDL2 and 
 int SDL_main(int argc, char *argv[]) {
 	// as the very first thing, redirect stdout to qconsolelog.txt (and stderr to stderr.txt)
 	// so we can log
-	redirect_output();
+	redirect_output(argc, argv);
 	atexit(cleanup_output);
 
 	// now that stdout is redirected to qconsolelog.txt,

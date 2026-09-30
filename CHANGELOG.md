@@ -13,7 +13,8 @@ fixes adapted from openPREY.
   Doom 3 weapons (original, Resurrection of Evil or BFG Edition) and the Portal
   gun's model and sounds. Add or remove them any time with "Import games...".
 - Native settings launcher with descriptions, an Advanced view and Save & Play.
-- Works from long, spaced and non-English folder paths.
+- Works from long, spaced and non-English folder paths, and explains when a
+  folder cannot be used (too long, or not writable such as Program Files).
 
 ### Frame rate and presentation
 - Unlocked frame rate with a display-matched cap and VSync option.
@@ -60,3 +61,4 @@ fixes adapted from openPREY.
 - Stuck or trapped player cases around portals, rails and floors.
 - Streamed sounds (the Roadhouse jukebox) staying in sync.
 - In-world screen interaction and cursor issues.
+- The game log is written to the userdata folder instead of Documents.

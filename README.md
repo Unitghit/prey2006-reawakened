@@ -1,34 +1,48 @@
 # Prey2006 Reawakened
 
-**Unlocked FPS, corrected bloom, increased portal render distance, and dynamic flashlight shadows.**
+A remaster of Prey (2006) for modern Windows PCs, with a portal gun.
 
-An enhanced version of Prey (2006), built on FriskTheFallenHuman's [Prey2006 source port](https://github.com/FriskTheFallenHuman/Prey2006), with additional fixes adapted from themuffinator's [openPREY](https://github.com/themuffinator/openPREY). See [CREDITS.md](CREDITS.md) for the full lineage.
+It runs at any frame rate, fixes the lighting and bloom, draws portals further and deeper, and fixes a long list of crashes and glitches. On top of that you can turn on a Portal-style portal gun, the Doom 3 weapons, and a few classic movement styles.
 
-## Status
+This is a fork of FriskTheFallenHuman's [Prey2006](https://github.com/FriskTheFallenHuman/Prey2006) source port, with fixes adapted from themuffinator's [openPREY](https://github.com/themuffinator/openPREY).
 
-Version 1.0.0, release candidate. The full campaign has been played through on Windows. No retail game files, saves, keys, or game downloads are provided: Setup imports Prey's data from the player's own copy, and the optional Doom 3 and Portal content from theirs. See the [changelog](CHANGELOG.md) and [known issues](docs/release/KNOWN-ISSUES.txt).
+## Features
 
-## Enhancements
+- Unlocked frame rate, with smooth motion for the camera, weapons, vehicles and portal crossings
+- Corrected lighting, specular and bloom
+- Longer portal draw distance and portals inside portals (up to six deep)
+- Optional dynamic shadows for the flashlight and muzzle flashes
+- Portal gun: works on Prey's walls, floors and ceilings, and carries you, enemies, ragdolls and projectiles through with momentum
+- Doom 3 weapons alongside Prey's own (needs Doom 3)
+- Movement styles from Quake, Painkiller, Half-Life and Half-Life 2
+- Xbox controller support, English translation of the alien screens, Cherokee difficulty unlocked
+- A launcher that finds your copy of Prey and sets everything up
 
-- Unlocked FPS with smoother camera, weapons, objects, and portal transitions.
-- Corrected retail lighting, weapon rendering, and resolution-scaled bloom.
-- Increased portal render distance, nested portal rendering, and skyboxes and bloom through portals.
-- Lighting for weapons and flashlight across portals.
-- Optional dynamic flashlight shadows.
-- Xbox controller support alongside keyboard and mouse.
-- Windowed fullscreen, MSAA selection, and a display-aware cap with 3 FPS of headroom.
-- Optional English translation of alien screen text.
-- Cherokee difficulty unlocked, with an optional difficulty override.
-- A lightweight native settings launcher with guided Setup.
-- A portal gun, optional Doom 3 weapons, and Half-Life style movement.
-- Fixes for loading crashes, in-world GUI interactions, eye textures, and numerous portal rendering problems.
+The full list is in the [changelog](CHANGELOG.md).
 
-## Building and installation
+## Installing
 
-See [BUILDING.md](BUILDING.md). `tools/package-release.ps1` builds the release archives (portable zip, source zip and checksums) from a clean build of the current commit; see the [release checklist](docs/RELEASE_CHECKLIST.md). The launcher's Setup imports the required retail data from the player's PC copy of Prey on first launch.
+You need Prey (2006) for PC from Steam, GOG or disc, and 64-bit Windows 10 or 11. No game files are included.
 
-Windows x64 is the current playtested target. Native Linux and Proton gameplay are not yet release-tested. The launcher has previously passed isolated Wine checks.
+1. Download the zip from [Releases](https://github.com/Unitghit/prey2006-reawakened/releases) and extract it anywhere.
+2. Run `Prey2006 Reawakened Launcher.exe`.
+3. Setup finds your games and installs. It never modifies your original install.
+4. Choose your settings and hit Save & Play.
 
-## Credits and licensing
+If you own Doom 3 or Portal, Setup can also convert the Doom 3 weapons, or the portal gun's model and sounds, from your copies. The portal gun works without Portal, just without a gun model.
 
-See [CREDITS.md](CREDITS.md) and [licensing review](docs/LICENSING.md). Existing source notices and bundled dependency licenses are retained. A copy of the upstream GPL text is in [COPYING.txt](COPYING.txt); it is not a blanket claim that every included component or retail asset has the same license.
+Your saves, settings and log file are kept in the `userdata` folder. To update, extract the new version over the old one.
+
+## Known issues
+
+See [KNOWN-ISSUES.txt](docs/release/KNOWN-ISSUES.txt). Windows is the only tested platform; Linux and Proton haven't been tested yet.
+
+## Building
+
+See [BUILDING.md](BUILDING.md).
+
+## Credits and license
+
+Prey was made by Human Head Studios, on id Software's Doom 3 engine. Full credits are in [CREDITS.md](CREDITS.md).
+
+The upstream license text is in [COPYING.txt](COPYING.txt). [LICENSING.md](docs/LICENSING.md) covers which license applies to which part, including the bundled libraries.

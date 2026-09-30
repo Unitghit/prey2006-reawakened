@@ -19,6 +19,9 @@ void MarkSetupComplete(const fs::path& root);
 // Why Prey's engine cannot run from this installation folder (path too long for its
 // file functions), or an empty string.
 std::wstring InstallPathProblem(const fs::path& root);
+// Why nothing can be saved in this installation folder (such as Program Files), or
+// an empty string.
+std::wstring InstallWriteProblem(const fs::path& root);
 // A Prey installation folder containing base/pak000..pak006.pk4 (valid archives).
 // Returns an empty string when valid, otherwise a player-readable reason.
 std::wstring RetailProblem(const fs::path& preyFolder);
