@@ -417,6 +417,27 @@ extern "C" { // DG: I need this in SDL_win32_main.c
 		int len;
 		WCHAR profile[MAX_OSPATH];
 
+		/* A Reawakened installation (<install>/engine/prey06.exe) keeps saves,
+		   settings and logs in <install>/userdata, however the game is started. */
+		DWORD exeLen = GetModuleFileNameW(NULL, profile, MAX_OSPATH);
+		if (exeLen > 0 && exeLen < MAX_OSPATH) {
+			for (int i = 0; i < 2; ++i) {
+				WCHAR *slash = wcsrchr(profile, L'\\');
+				if (slash) *slash = L'\0';
+			}
+			if (wcslen(profile) + 10 < MAX_OSPATH) {
+				wcscat(profile, L"\\userdata");
+				const DWORD attributes = GetFileAttributesW(profile);
+				if (attributes != INVALID_FILE_ATTRIBUTES && (attributes & FILE_ATTRIBUTE_DIRECTORY)) {
+					len = WPath2A(dst, size, profile);
+					if (len > 0) {
+						for (char *c = dst; *c; ++c) if (*c == '\\') *c = '/';
+						return len;
+					}
+				}
+			}
+		}
+
 		/* Get the path to "My Documents" directory */
 		SHGetFolderPathW(NULL, CSIDL_PERSONAL, NULL, 0, profile);
 

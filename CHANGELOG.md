@@ -61,4 +61,5 @@ fixes adapted from openPREY.
 - Stuck or trapped player cases around portals, rails and floors.
 - Streamed sounds (the Roadhouse jukebox) staying in sync.
 - In-world screen interaction and cursor issues.
-- The game log is written to the userdata folder instead of Documents.
+- Saves, settings and the game log always stay in the installation's userdata
+  folder, including when prey06.exe is started directly.
