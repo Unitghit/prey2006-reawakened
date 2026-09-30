@@ -116,7 +116,8 @@ $source = Join-Path $releaseRoot "$name-source.zip"
 git -C $projectRoot archive --format=zip --prefix="$name-source/" -o $source HEAD
 if ($LASTEXITCODE -ne 0) { throw 'git archive failed' }
 $sums = foreach ($file in $zip, $source) { '{0}  {1}' -f (Get-FileHash -LiteralPath $file -Algorithm SHA256).Hash.ToLower(), (Split-Path $file -Leaf) }
-Set-Content -LiteralPath (Join-Path $releaseRoot 'SHA256SUMS.txt') -Encoding ascii -Value $sums
+# LF line endings: sha256sum -c rejects CRLF entries.
+[System.IO.File]::WriteAllText((Join-Path $releaseRoot 'SHA256SUMS.txt'), (($sums -join "`n") + "`n"), (New-Object System.Text.ASCIIEncoding))
 
 $files = (Get-ChildItem -LiteralPath $folder -Recurse -File).Count
 Write-Output ("Release {0} from {1}: {2} files; audit passed" -f $Version, $commit.Substring(0, 10), $files)
