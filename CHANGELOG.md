@@ -1,5 +1,13 @@
 # Changelog
 
+## 1.0.1
+
+- Fixed portals that could no longer be placed after a dead enemy's ragdoll
+  fell partly through a floor portal.
+- Xbox controllers work out of the box: a default controller layout is
+  applied when no controller bindings are set. Your own bindings are kept.
+- New launcher option: No fall damage (Gameplay, single-player).
+
 ## 1.0.0
 
 First release of Prey2006 Reawakened, built on the Prey2006 source port with
@@ -52,11 +60,9 @@ fixes adapted from openPREY.
   (checked against Valve's movement code), with optional automatic jumping.
 - Adaptive Hard and Cherokee difficulties and a difficulty override.
 - Optional retry from checkpoint instead of spirit resurrection.
-- Optional no fall damage.
 - Optional English translation of alien screen text.
 - On-screen messages when the portal gun and Doom 3 weapons unlock.
-- Xbox controller support alongside keyboard and mouse, with a default
-  controller layout when no controller bindings are set.
+- Xbox controller support alongside keyboard and mouse.
 
 ### Fixes
 - Crashes on some loads and saves, and in scripted scenes.
