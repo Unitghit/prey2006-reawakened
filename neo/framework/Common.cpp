@@ -3266,6 +3266,34 @@ void idCommonLocal::InitGame( void ) {
 	// run cfg execution
 	cmdSystem->ExecuteCommandBuffer();
 
+	// Reawakened: a configuration without any controller bindings (a new install,
+	// or one made before controller support) gets the default Xbox-style layout.
+	// Bindings the player has made, even a single one, are never replaced.
+	bool gamepadBound = false;
+	for ( int key = K_FIRST_JOY; key <= K_LAST_JOY && !gamepadBound; key++ ) {
+		gamepadBound = idKeyInput::GetBinding( key )[0] != '\0';
+	}
+	if ( !gamepadBound ) {
+		static const char *defaultGamepad[][2] = {
+			{ "JOY_STICK1_UP", "_forward" }, { "JOY_STICK1_DOWN", "_back" },
+			{ "JOY_STICK1_LEFT", "_moveleft" }, { "JOY_STICK1_RIGHT", "_moveright" },
+			{ "JOY_STICK2_UP", "_lookup" }, { "JOY_STICK2_DOWN", "_lookdown" },
+			{ "JOY_STICK2_LEFT", "_left" }, { "JOY_STICK2_RIGHT", "_right" },
+			{ "JOY_TRIGGER2", "_attack" }, { "JOY_TRIGGER1", "_attackalt" },
+			{ "JOY_BTN_SOUTH", "_moveup" }, { "JOY_BTN_EAST", "_movedown" }, { "JOY_BTN_RSTICK", "_movedown" },
+			{ "JOY_BTN_WEST", "_impulse16" },		// lighter
+			{ "JOY_BTN_NORTH", "_impulse54" },		// spirit walk
+			{ "JOY_BTN_LSTICK", "_impulse25" },		// crawler grenade
+			{ "JOY_BTN_LSHOULDER", "_impulse15" }, { "JOY_BTN_RSHOULDER", "_impulse14" },	// previous / next weapon
+			{ "JOY_DPAD_UP", "_impulse1" }, { "JOY_DPAD_RIGHT", "_impulse2" },
+			{ "JOY_DPAD_DOWN", "_impulse3" }, { "JOY_DPAD_LEFT", "_impulse4" },
+		};
+		for ( int i = 0; i < sizeof( defaultGamepad ) / sizeof( defaultGamepad[0] ); i++ ) {
+			idKeyInput::SetBinding( idKeyInput::StringToKeyNum( defaultGamepad[i][0] ), defaultGamepad[i][1] );
+		}
+		Printf( "No controller bindings found; applied the default controller layout.\n" );
+	}
+
 	// re-override anything from the config files with command line args
 	StartupVariable( NULL, false );
 	StartupStage( "config_console" );

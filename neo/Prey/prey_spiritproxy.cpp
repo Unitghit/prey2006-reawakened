@@ -698,6 +698,10 @@ void hhSpiritProxy::CrashLand( const idVec3 &oldOrigin, const idVec3 &oldVelocit
 		selfDamageName = player->spawnArgs.GetString( "def_damageFatalFall" );
 	}
 
+	// The launcher's "No fall damage" option also covers the body left behind while spirit walking.
+	if ( !gameLocal.isMultiplayer && cvarSystem->GetCVarBool( "g_noFallDamage" ) ) {
+		noDamage = true;
+	}
 	if( *selfDamageName && damageScale > 0.0f && !noDamage ) {
 		pain_debounce_time = gameLocal.time + pain_delay + 1;  // ignore pain since we'll play our landing anim
 		hhPlayer *tmp = player.GetEntity();

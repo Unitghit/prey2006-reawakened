@@ -95,6 +95,18 @@ static bool RW_PortalOccupantTrace(trace_t &result, idEntity *entity, const idVe
     }
     return result.fraction<1;
 }
+// Limbs that fell through a floor portal can slide under the surrounding floor,
+// so their straight path back out is blocked although the lifted body would fit.
+// The body is placed, not dragged: for a ragdoll only the root's path must be
+// free (it cannot tunnel through a wall); every limb's destination is still
+// checked against the closed surface afterwards.
+static bool RW_PortalRagdollRootClear(idEntity *entity, const idVec3 &end) {
+    if (!RW_PortalRagdoll(entity)) return false;
+    const idPhysics_AF *af = static_cast<const idPhysics_AF *>(entity->GetPhysics());
+    trace_t root;
+    gameLocal.clip.Translation(root, af->GetOrigin(0), end+(af->GetOrigin(0)-af->GetOrigin()), af->GetClipModel(0), af->GetAxis(0), af->GetBody(0)->GetClipMask(), entity);
+    return root.fraction >= 1;
+}
 // Whether moving two occupants creates an overlap between their parts. Ragdolls
 // are compared limb by limb: bodies lying tangled together always overlap as
 // whole boxes, which would otherwise block every clearance for the second one.
@@ -159,7 +171,7 @@ static bool RW_ClearPortalOccupants(hhPortal *first, hhPortal *second) {
                     end = outward + normal*((sample%5)*8.0f) + (portal->GetAxis()[1]*idMath::Cos(angle) +
                         portal->GetAxis()[2]*idMath::Sin(angle))*(ring*4.0f);
                     trace_t trace;
-                    if (RW_PortalOccupantTrace(trace, entity, physics->GetOrigin(), end)) {
+                    if (RW_PortalOccupantTrace(trace, entity, physics->GetOrigin(), end) && !RW_PortalRagdollRootClear(entity, end)) {
                         // A swept move may finish against a nearby surface
                         // after the entire hull has already cleared the opening.
                         if (trace.fraction <= 0 || back+(trace.endpos-physics->GetOrigin())*normal <= 2.25f) continue;

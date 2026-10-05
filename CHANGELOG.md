@@ -52,9 +52,11 @@ fixes adapted from openPREY.
   (checked against Valve's movement code), with optional automatic jumping.
 - Adaptive Hard and Cherokee difficulties and a difficulty override.
 - Optional retry from checkpoint instead of spirit resurrection.
+- Optional no fall damage.
 - Optional English translation of alien screen text.
 - On-screen messages when the portal gun and Doom 3 weapons unlock.
-- Xbox controller support alongside keyboard and mouse.
+- Xbox controller support alongside keyboard and mouse, with a default
+  controller layout when no controller bindings are set.
 
 ### Fixes
 - Crashes on some loads and saves, and in scripted scenes.

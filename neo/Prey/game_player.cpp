@@ -6,6 +6,8 @@
 
 static idCVar g_noSpiritResurrections("g_noSpiritResurrections", "0", CVAR_GAME | CVAR_BOOL,
     "single-player final death instead of spirit resurrection; does not disable spirit walk");
+static idCVar g_noFallDamage("g_noFallDamage", "0", CVAR_GAME | CVAR_BOOL,
+    "single-player: landings never hurt the player (landing sounds and effects remain)");
 static idCVar g_doom3Shotgun("g_doom3Shotgun", "0", CVAR_GAME | CVAR_BOOL,
 	"enable the locally installed save-compatible Doom 3 shotgun");
 static idCVar g_weaponPackTrace("g_weaponPackTrace", "0", CVAR_GAME | CVAR_BOOL,
@@ -2599,6 +2601,9 @@ void hhPlayer::CrashLand( const idVec3 &oldOrigin, const idVec3 &oldVelocity ) {
 		selfDamageName = spawnArgs.GetString( "def_damageFatalFall" );
 	}
 
+	if ( !gameLocal.isMultiplayer && g_noFallDamage.GetBool() ) {
+		noDamage = true;
+	}
 	if( *selfDamageName && damageScale > 0.0f && !noDamage ) {
 		pain_debounce_time = gameLocal.time + pain_delay + 1;  // ignore pain since we'll play our landing anim
 		Damage( NULL, NULL, fallDir, selfDamageName, damageScale, INVALID_JOINT );

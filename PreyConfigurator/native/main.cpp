@@ -406,7 +406,7 @@ void App::Verify(const fs::path& output) {
                 size_t n=i+1;while(n<rows.size() && !Visible(n))++n;
                 if(n<rows.size())require(std::max(a.bottom,b.bottom)<=std::min(rows[n].labelRect.top,rows[n].comboRect.top),"Overlapping rows");
             }
-            require(visible==(shown?rows.size():14),"Wrong number of visible options");
+            require(visible==(shown?rows.size():15),"Wrong number of visible options");
             ScrollTo(contentHeight);require(scroll+pageHeight>=contentHeight,"Cannot scroll to last setting");
             auto current=Read();current.erase(L"showAdvanced");auto expected=initial;expected.erase(L"showAdvanced");
             require(current==expected,"Layout changed a setting");
