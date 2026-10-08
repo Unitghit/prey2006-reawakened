@@ -2773,6 +2773,59 @@ static void Cmd_PortalGun_f(const idCmdArgs &args) {
     }
 }
 
+// Dynamic shadows from the lighter and from muzzle flashes (yours and enemies'),
+// switched together. With no argument it toggles: any of them on turns all off.
+static void Cmd_DynamicShadows_f(const idCmdArgs &args) {
+	static const char *cvars[] = { "g_lighterShadows", "g_muzzleFlashShadows", "g_npcMuzzleFlashShadows" };
+	bool enable = true;
+	if ( args.Argc() > 1 ) {
+		enable = atoi( args.Argv( 1 ) ) != 0;
+	} else {
+		for ( int i = 0; i < 3; i++ ) {
+			if ( cvarSystem->GetCVarBool( cvars[i] ) ) {
+				enable = false;
+			}
+		}
+	}
+	for ( int i = 0; i < 3; i++ ) {
+		cvarSystem->SetCVarBool( cvars[i], enable );
+	}
+	gameLocal.Printf( "Dynamic shadows from the lighter and muzzle flashes: %s\n", enable ? "on" : "off" );
+}
+
+// Portals as in retail Prey or as configured. Original: the authored view
+// distances (1x) and the original recursion rule, which never renders through a
+// portal already being looked through, at full resolution. Reawakened: the values
+// in use before switching to original (by default the launcher's 8x, six layers).
+// With no argument it toggles.
+static void Cmd_PortalQuality_f(const idCmdArgs &args) {
+	static float savedDistance = 8.0f;
+	static int savedDeepViews = 2, savedMaxDepth = 6;
+	const bool original = cvarSystem->GetCVarBool( "r_portalRetailRecursion" );
+	const bool enhance = args.Argc() > 1 ? atoi( args.Argv( 1 ) ) != 0 : original;
+	if ( enhance ) {
+		if ( original ) {
+			cvarSystem->SetCVarFloat( "r_portalDistanceScale", savedDistance );
+			cvarSystem->SetCVarInteger( "r_portalDeepViews", savedDeepViews );
+			cvarSystem->SetCVarInteger( "r_portalMaxDepth", savedMaxDepth );
+		}
+		cvarSystem->SetCVarBool( "r_portalRetailRecursion", false );
+		gameLocal.Printf( "Portals: Reawakened (distance %gx, up to %d layers)\n",
+			cvarSystem->GetCVarFloat( "r_portalDistanceScale" ), cvarSystem->GetCVarInteger( "r_portalMaxDepth" ) );
+	} else {
+		if ( !original ) {
+			savedDistance = cvarSystem->GetCVarFloat( "r_portalDistanceScale" );
+			savedDeepViews = cvarSystem->GetCVarInteger( "r_portalDeepViews" );
+			savedMaxDepth = cvarSystem->GetCVarInteger( "r_portalMaxDepth" );
+		}
+		cvarSystem->SetCVarFloat( "r_portalDistanceScale", 1.0f );
+		cvarSystem->SetCVarInteger( "r_portalDeepViews", 0 );
+		cvarSystem->SetCVarInteger( "r_portalMaxDepth", 8 );
+		cvarSystem->SetCVarBool( "r_portalRetailRecursion", true );
+		gameLocal.Printf( "Portals: original (authored distances, retail recursion)\n" );
+	}
+}
+
 static void Cmd_SuperShotgunInfo_f(const idCmdArgs &args) {
 	hhPlayer *player = static_cast<hhPlayer *>(gameLocal.GetLocalPlayer());
 	if (!player || !player->inventory.UsesIndependentWeaponAmmo(player)) { return; }
@@ -2835,6 +2888,8 @@ static void Cmd_RocketInfo_f(const idCmdArgs &args) {
 void idGameLocal::InitConsoleCommands( void ) {
 	cmdSystem->AddCommand("plasmaInfo", Cmd_PlasmaInfo_f, CMD_FL_GAME|CMD_FL_CHEAT, "show independent slot-6 ammo; developer: seed, pickup");
 	cmdSystem->AddCommand("portalGun", Cmd_PortalGun_f, CMD_FL_GAME, "portal tool: select, blue, orange, or status");
+	cmdSystem->AddCommand("dynamicShadows", Cmd_DynamicShadows_f, CMD_FL_GAME, "toggle dynamic shadows from the lighter and muzzle flashes; 0 or 1 sets them");
+	cmdSystem->AddCommand("portalQuality", Cmd_PortalQuality_f, CMD_FL_GAME, "toggle portals between retail Prey (original distances and recursion) and Reawakened; 0 or 1 sets them");
 	cmdSystem->AddCommand("difficultyInfo", Cmd_DifficultyInfo_f, CMD_FL_GAME|CMD_FL_CHEAT, "show active difficulty; developer-only optional DDA test value");
 	cmdSystem->AddCommand("superShotgunInfo", Cmd_SuperShotgunInfo_f, CMD_FL_GAME|CMD_FL_CHEAT, "show independent Super Shotgun ammo; developer: seed, pickup");
 	cmdSystem->AddCommand("rocketInfo", Cmd_RocketInfo_f, CMD_FL_GAME|CMD_FL_CHEAT, "show independent slot-7 ammo; developer: seed, pickup");

@@ -108,6 +108,8 @@ static bool R_PortalViewerPassesRetailGate( const renderEntity_t &portalEntity )
 }
 
 static idCVar r_portalTrace("r_portalTrace", "0", CVAR_RENDERER | CVAR_BOOL, "log portal subview decisions");
+static idCVar r_portalRetailRecursion("r_portalRetailRecursion", "0", CVAR_RENDERER | CVAR_BOOL,
+    "original portal recursion: never render through a portal already being looked through (as retail Prey)");
 
 static idCVar r_portalMaxDepth("r_portalMaxDepth", "3", CVAR_RENDERER | CVAR_ARCHIVE | CVAR_INTEGER,
     "maximum portal view layers, including the first portal", 1, 8);
@@ -948,10 +950,14 @@ bool	R_GenerateSurfaceSubview( drawSurf_t *drawSurf ) {
 	// Mirrors and texture subviews retain their cycle guard. A direct portal
 	// may legitimately reappear from a different transformed viewpoint; its
 	// recursion is bounded by r_portalMaxDepth instead of surface identity.
-	for ( parms = (shader->GetSort() == SS_SUBVIEW && shader->GetSubviewClass() == SC_PORTAL)
+	// r_portalRetailRecursion restores the original rule for comparisons. Animated
+	// portal models get new geometry in every view, so a portal is matched by its
+	// entity and surface material rather than by geometry.
+	const bool directPortal = shader->GetSort() == SS_SUBVIEW && shader->GetSubviewClass() == SC_PORTAL;
+	for ( parms = (directPortal && !r_portalRetailRecursion.GetBool())
 		? NULL : tr.viewDef ; parms ; parms = parms->superView ) {
 		if ( parms->subviewSurface
-			&& parms->subviewSurface->geo == drawSurf->geo
+			&& ( parms->subviewSurface->geo == drawSurf->geo || ( directPortal && parms->subviewSurface->material == shader ) )
 			&& parms->subviewSurface->space->entityDef == drawSurf->space->entityDef ) {
 			break;
 		}
