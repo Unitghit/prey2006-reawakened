@@ -61,8 +61,8 @@ IDI_ICON1               ICON                    "res\\prey.ico"
 //
 
 VS_VERSION_INFO VERSIONINFO
- FILEVERSION 1,0,1,0
- PRODUCTVERSION 1,0,1,0
+ FILEVERSION 1,0,2,0
+ PRODUCTVERSION 1,0,2,0
  FILEFLAGSMASK 0x3fL
 #ifdef _DEBUG
  FILEFLAGS 0x1L
@@ -79,12 +79,12 @@ BEGIN
         BEGIN
             VALUE "CompanyName", "Human Head Studios"
             VALUE "FileDescription", "Prey2006 Reawakened"
-            VALUE "FileVersion", "1.0.1"
+            VALUE "FileVersion", "1.0.2"
             VALUE "InternalName", "PREY"
             VALUE "LegalCopyright", "Copyright (C) 2006 Human Head Studios, Inc."
             VALUE "OriginalFilename", "prey06.exe"
             VALUE "ProductName", "Prey2006 Reawakened"
-            VALUE "ProductVersion", "1.0.1"
+            VALUE "ProductVersion", "1.0.2"
         END
     END
     BLOCK "VarFileInfo"

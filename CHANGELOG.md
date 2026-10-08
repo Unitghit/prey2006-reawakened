@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 1.0.2
 
 - Controller menu navigation: the D-pad moves between menu items, tabs and
   popup buttons, A selects, left/right change sliders and choices, and LB/RB

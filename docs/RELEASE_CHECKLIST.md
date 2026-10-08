@@ -1,6 +1,6 @@
 # Release checklist
 
-Version 1.0.1. Build the archives with `tools/package-release.ps1 -Build` from a
+Version 1.0.2. Build the archives with `tools/package-release.ps1 -Build` from a
 clean, committed tree; it produces the portable zip, a source zip of the same
 commit and SHA-256 checksums in `output/release`, and fails if the package
 contains retail data, data derived from it, imported content or user files.

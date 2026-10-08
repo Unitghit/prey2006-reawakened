@@ -37,7 +37,7 @@ If you have questions concerning this license or the applicable additional terms
 #define GAME_NAME						"Prey"		// appears in errors
 #define	ENGINE_VERSION					"Prey 1.5.4"	// printed in console and written to savegames
 #define	WINDOW_TITLE					"Prey2006 Reawakened"	// game window title
-#define	REAWAKENED_VERSION				"1.0.1"	// release version; keep in sync with the launcher and .rc files
+#define	REAWAKENED_VERSION				"1.0.2"	// release version; keep in sync with the launcher and .rc files
 
 #ifdef ID_REPRODUCIBLE_BUILD
 	// for reproducible builds we hardcode values that would otherwise come from __DATE__ and __TIME__
