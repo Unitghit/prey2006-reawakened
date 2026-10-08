@@ -49,7 +49,7 @@ New-Item -ItemType Directory -Force $releaseRoot | Out-Null
 $engineStage = Join-Path $projectRoot 'build/release-engine'
 if (Test-Path -LiteralPath $engineStage) { Remove-Item -LiteralPath $engineStage -Recurse -Force }
 New-Item -ItemType Directory -Force (Join-Path $engineStage 'base') | Out-Null
-foreach ($file in 'prey06.exe', 'SDL2.dll', 'OpenAL32.dll') { Copy-Item -LiteralPath (Join-Path $preview "engine/$file") -Destination $engineStage }
+foreach ($file in 'prey06.exe', 'SDL2.dll', 'OpenAL32.dll', 'gamecontrollerdb.txt') { Copy-Item -LiteralPath (Join-Path $preview "engine/$file") -Destination $engineStage }
 foreach ($file in 'game00.pk4', 'pak007.pk4') { Copy-Item -LiteralPath (Join-Path $preview "engine/base/$file") -Destination (Join-Path $engineStage 'base') }
 Copy-Item -LiteralPath $gameDll -Destination $engineStage
 & (Join-Path $PSScriptRoot 'package-local.ps1') -Engine $engineStage -Output $folder -Launcher $launcher -Importer $importer | Out-Null
@@ -65,6 +65,7 @@ New-Item -ItemType Directory -Force $licenses | Out-Null
 $libs = Join-Path $projectRoot 'neo/libs'
 Copy-Item -LiteralPath (Join-Path $projectRoot 'COPYING.txt') -Destination (Join-Path $licenses 'COPYING.txt')
 Copy-Item -LiteralPath (Join-Path $libs 'SDL2/LICENSE.txt') -Destination (Join-Path $licenses 'SDL2.txt')
+Copy-Item -LiteralPath (Join-Path $libs 'SDL_GameControllerDB/LICENSE') -Destination (Join-Path $licenses 'SDL_GameControllerDB.txt')
 Copy-Item -LiteralPath (Join-Path $libs 'OpenalSoft/COPYING') -Destination (Join-Path $licenses 'OpenAL-Soft.txt')
 Copy-Item -LiteralPath (Join-Path $libs 'Curl/COPYING') -Destination (Join-Path $licenses 'curl.txt')
 Copy-Item -LiteralPath (Join-Path $libs 'imgui/LICENSE.txt') -Destination (Join-Path $licenses 'imgui.txt')

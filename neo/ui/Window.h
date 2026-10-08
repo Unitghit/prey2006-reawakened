@@ -240,6 +240,13 @@ public:
 	idWindow *GetParent() { return parent; }
 	idUserInterfaceLocal *GetGui() {return gui;};
 	bool Contains(float x, float y);
+	// Reawakened: controller navigation between interactive menu items
+	struct navTarget_t { idRectangle rect; idWindow *window; bool arrows; };
+	bool NavigationRect(idRectangle &r);
+	bool NavigationRect(const idRectangle &sr, idRectangle &r);
+	bool DrawnLastFrame();
+	virtual void CollectNavigable(idList<navTarget_t> &out);
+	bool TakesArrowKeys();
 	size_t Size();
 	virtual size_t Allocated();
 	idStr* GetStrPtrByName(const char *_name);
@@ -401,6 +408,7 @@ protected:
 	void ConvertRegEntry(const char *name, idParser *src, idStr &out, int tabs);
 
 	float actualX;					// physical coords
+	int   navDrawSerial = -1;		// Reawakened: gui redraw in which this window was last drawn
 	float actualY;					// ''
 	int	  childID;					// this childs id
 	unsigned int flags;             // visible, focus, mouseover, cursor, border, etc..

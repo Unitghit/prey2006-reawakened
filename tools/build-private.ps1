@@ -16,6 +16,7 @@ $verify=Start-Process -FilePath $settings -ArgumentList ('--root "'+$projectRoot
 if($verify.ExitCode -ne 0){throw 'Settings verification failed'}
 Copy-Item -LiteralPath $settings -Destination "$stage/Prey2006 Reawakened Launcher.exe" -Force
 # Copy only runtime libraries built from this source checkout.
+Copy-Item -LiteralPath "$projectRoot/neo/libs/SDL_GameControllerDB/gamecontrollerdb.txt" -Destination "$stage/engine/gamecontrollerdb.txt" -Force
 foreach($spec in @(@('SDL2.dll','libs/SDL2/Release/SDL2.dll'),@('OpenAL32.dll','libs/OpenalSoft/Release/OpenAL32.dll'))) {
     Copy-Item -LiteralPath (Join-Path "$projectRoot/build/engine" $spec[1]) -Destination (Join-Path "$stage/engine" $spec[0]) -Force
 }

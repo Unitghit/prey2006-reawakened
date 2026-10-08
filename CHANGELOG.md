@@ -1,5 +1,22 @@
 # Changelog
 
+## Unreleased
+
+- Controller menu navigation: the D-pad moves between menu items, tabs and
+  popup buttons, A selects, left/right change sliders and choices, and LB/RB
+  switch between a menu's main tabs.
+- In-game controller bindings show the same button names as the launcher (A button,
+  LB, L stick up; Cross, L1 on PlayStation; ZL on Nintendo).
+- Controllers missing from SDL's built-in list are recognised through the bundled
+  SDL_GameControllerDB mappings.
+- Controller window in the launcher (Controls > Configure controller...): shows the
+  connected controller with its own button names (Xbox, PlayStation, Nintendo) and
+  assigns each action by pressing a button on it. Shares the game's bindings.
+- Controller menu navigation can be turned off in the launcher (Advanced).
+- Console commands for comparisons: `dynamicShadows` toggles lighter and
+  muzzle-flash shadows; `portalQuality` switches portals between retail Prey
+  (original distances and recursion) and Reawakened.
+
 ## 1.0.1
 
 - Fixed portals that could no longer be placed after a dead enemy's ragdoll

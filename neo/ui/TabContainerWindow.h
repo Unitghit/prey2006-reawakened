@@ -50,6 +50,9 @@ class hhTabContainerWindow : public idWindow {
 		void				UpdateTab(bool onlyOffset = false);
         void 				SetOffsets(float x, float y);
         virtual idWinVar *  GetWinVarByName(const char *_name, bool winLookup = false, drawWin_t **owner = NULL);
+		virtual void		CollectNavigable(idList<navTarget_t> &out);
+		// Reawakened: controller shoulder buttons step through the tabs.
+		void				CycleTab(int direction);
 
 	private:
 		virtual bool		ParseInternalVar(const char *name, idParser *src);

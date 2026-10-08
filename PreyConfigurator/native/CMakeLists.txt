@@ -1,6 +1,8 @@
 cmake_minimum_required(VERSION 3.20)
 project(PreySettingsNative LANGUAGES CXX RC)
-add_executable(PreySettings WIN32 main.cpp settings.cpp setup.cpp games.cpp app.rc)
+add_executable(PreySettings WIN32 main.cpp settings.cpp setup.cpp games.cpp controller.cpp app.rc)
+# SDL headers only: the controller window loads the game's own engine/SDL2.dll at run time.
+target_include_directories(PreySettings PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/../../neo/libs/SDL2/include)
 target_compile_features(PreySettings PRIVATE cxx_std_17)
 target_compile_definitions(PreySettings PRIVATE UNICODE _UNICODE WIN32_LEAN_AND_MEAN NOMINMAX)
 target_link_libraries(PreySettings PRIVATE comctl32 shell32 user32 gdi32 advapi32 ole32)

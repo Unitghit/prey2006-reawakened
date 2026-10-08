@@ -46,8 +46,8 @@ $engineOut = Join-Path $Output 'engine'
 $baseOut = Join-Path $engineOut 'base'
 New-Item -ItemType Directory -Force $baseOut, (Join-Path $Output 'userdata') | Out-Null
 
-foreach ($file in 'prey06.exe', 'gamex86_64.dll', 'SDL2.dll', 'OpenAL32.dll') {
-	Copy-Item -LiteralPath (Join-Path $Engine $file) -Destination $engineOut -Force
+foreach ($file in 'prey06.exe', 'gamex86_64.dll', 'SDL2.dll', 'OpenAL32.dll', 'gamecontrollerdb.txt') {
+	if (Test-Path -LiteralPath (Join-Path $Engine $file)) { Copy-Item -LiteralPath (Join-Path $Engine $file) -Destination $engineOut -Force }
 }
 $sourceBase = Join-Path $Engine 'base'
 Get-ChildItem -LiteralPath $sourceBase -Force | Where-Object {

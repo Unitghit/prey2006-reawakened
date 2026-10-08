@@ -266,6 +266,34 @@ float hhTabContainerWindow::GetTabWidth()
         return (rect.w() - tabMargins[0] - offsets.x) / (float)tabs.Num();
 }
 
+void hhTabContainerWindow::CycleTab(int direction)
+{
+	if ( tabs.Num() < 2 ) {
+		return;
+	}
+	const int from = currentTab >= 0 ? currentTab : 0;
+	SetActiveTab( ( from + direction + tabs.Num() ) % tabs.Num() );
+}
+
+// Reawakened: the tab buttons are drawn and clicked by the container itself.
+void hhTabContainerWindow::CollectNavigable(idList<navTarget_t> &out)
+{
+	if ( !DrawnLastFrame() ) {
+		return;
+	}
+	for ( int i = 0; i < tabs.Num(); i++ ) {
+		idRectangle button;
+		tabs[i]->GetButtonOffsetRect( button, drawRect.x, drawRect.y );
+		navTarget_t target;
+		target.window = this;
+		target.arrows = false;
+		if ( NavigationRect( button, target.rect ) ) {
+			out.Append( target );
+		}
+	}
+	idWindow::CollectNavigable( out );
+}
+
 bool hhTabContainerWindow::ButtonContains(const hhTabWindow *tab)
 {
     idRectangle r;

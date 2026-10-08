@@ -1,0 +1,4 @@
+- Controller menu navigation: D-pad moves between items, A selects, LB/RB switch tabs
+- Controller button setup in the launcher
+- Wider controller support
+- Comparison console commands

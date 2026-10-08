@@ -32,6 +32,10 @@ Engine (engine\prey06.exe, engine\gamex86_64.dll, engine\base\*.pk4)
 engine\SDL2.dll
   Simple DirectMedia Layer, zlib license, licenses\SDL2.txt
 
+engine\gamecontrollerdb.txt
+  SDL_GameControllerDB controller mappings, zlib license,
+  licenses\SDL_GameControllerDB.txt. Source: https://github.com/mdqinc/SDL_GameControllerDB
+
 engine\OpenAL32.dll
   OpenAL Soft, GNU LGPL 2.1, licenses\OpenAL-Soft.txt.
   Source: https://github.com/kcat/openal-soft

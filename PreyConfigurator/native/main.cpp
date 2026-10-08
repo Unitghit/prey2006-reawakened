@@ -1,6 +1,7 @@
 #include "settings.h"
 #include "setup.h"
 #include "games.h"
+#include "controller.h"
 #include <commctrl.h>
 #include <shellapi.h>
 #include <algorithm>
@@ -105,6 +106,7 @@ struct App {
         auto shown=v.find(L"showAdvanced");ShowAdvanced(shown!=v.end() && shown->second==L"1");
         for (size_t i=0;i<rows.size();++i) {
             const auto& s=Options()[i];
+            if(s.action) continue;
             auto it=std::find_if(s.choices.begin(),s.choices.end(),[&](const Choice& c){return c.value==v.at(s.key);});
             SendMessageW(rows[i].combo,CB_SETCURSEL,it-s.choices.begin(),0);
         }
@@ -113,6 +115,7 @@ struct App {
     Values Read() const {
         Values v;
         for (size_t i=0;i<rows.size();++i) {
+            if(Options()[i].action) continue;
             int selection=(int)SendMessageW(rows[i].combo,CB_GETCURSEL,0,0);
             if(selection<0 || selection>=(int)Options()[i].choices.size()) throw std::runtime_error("Missing settings choice");
             v[Options()[i].key]=Options()[i].choices[selection].value;
@@ -125,7 +128,7 @@ struct App {
         for (size_t i=0;i<rows.size();++i) {
             const auto& key=Options()[i].key; bool enabled=true;
             if(key==L"resolution") enabled=v[L"r_fullscreen"]!=L"desktop";
-            if(key==L"joy_invertLook" || key==L"joy_deadZone") enabled=v[L"in_useGamepad"]==L"1";
+            if(key==L"joy_invertLook" || key==L"joy_deadZone" || key==L"padConfig" || key==L"gui_controllerNavigation") enabled=v[L"in_useGamepad"]==L"1";
             if(key==L"g_portalGunReticle") enabled=v[L"g_portalGun"]==L"1";
             if(key==L"g_weaponUnlockTips") enabled=v[L"g_portalGun"]==L"1" || v[L"weaponPack"]!=L"off";
             if(key==L"g_halfLifeAutoHop") enabled=v[L"g_bunnyHop"]==L"3" || v[L"g_bunnyHop"]==L"4";
@@ -162,7 +165,7 @@ struct App {
                 if(place) {
                     const auto& a=row.labelRect; const auto& b=row.comboRect;
                     MoveWindow(row.label,a.left,a.top-scroll,a.right-a.left,a.bottom-a.top,TRUE);
-                    MoveWindow(row.combo,b.left,b.top-scroll,std::max<int>(1,b.right-b.left),D(260),TRUE);
+                    MoveWindow(row.combo,b.left,b.top-scroll,std::max<int>(1,b.right-b.left),Options()[i].action?b.bottom-b.top:D(260),TRUE);
                 }
                 y+=rowHeight; ++i;
             }
@@ -314,7 +317,10 @@ static LRESULT CALLBACK MainProc(HWND h,UINT msg,WPARAM wp,LPARAM lp) {
             case WM_MOUSEWHEEL:app->Wheel(wp);return 0;
             case WM_COMMAND: {
                 int id=LOWORD(wp),event=HIWORD(wp);
-                if(id>=100 && id<100+(int)app->rows.size()) {
+                if(id>=100 && id<100+(int)app->rows.size() && Options()[id-100].action) {
+                    if(event==BN_CLICKED && Options()[id-100].key==L"padConfig" && RunControllerDialog(instance,app->window,app->font,app->root))
+                        app->Status(L"Controller buttons saved. They apply the next time the game starts.");
+                } else if(id>=100 && id<100+(int)app->rows.size()) {
                     if(event==CBN_SELCHANGE) {app->Dependencies();app->Status(L"Unsaved changes");}
                     if(event==CBN_SETFOCUS) app->Reveal(id-100);
                 } else if(id==AdvancedId && event==BN_CLICKED) {
@@ -351,9 +357,12 @@ void App::Create() {
         const auto& s=Options()[i];
         if(groups.empty() || groups.back().name!=s.group) groups.push_back({s.group,Control(L"STATIC",s.group,SS_NOPREFIX,page),{}});
         Row row;row.label=Control(L"STATIC",s.label,SS_NOPREFIX,page);
-        row.combo=Control(L"COMBOBOX",L"",WS_TABSTOP|CBS_DROPDOWNLIST|CBS_HASSTRINGS|WS_VSCROLL,page,100+(int)i);
-        for(const auto& choice:s.choices) SendMessageW(row.combo,CB_ADDSTRING,0,(LPARAM)choice.label.c_str());
-        SetWindowSubclass(row.combo,ComboProc,1,(DWORD_PTR)this);Tip(row.label,s.hint);Tip(row.combo,s.hint);rows.push_back(row);
+        if(s.action) row.combo=Control(L"BUTTON",s.initial,WS_TABSTOP|BS_PUSHBUTTON,page,100+(int)i);
+        else {
+            row.combo=Control(L"COMBOBOX",L"",WS_TABSTOP|CBS_DROPDOWNLIST|CBS_HASSTRINGS|WS_VSCROLL,page,100+(int)i);
+            for(const auto& choice:s.choices) SendMessageW(row.combo,CB_ADDSTRING,0,(LPARAM)choice.label.c_str());
+            SetWindowSubclass(row.combo,ComboProc,1,(DWORD_PTR)this);
+        }Tip(row.label,s.hint);Tip(row.combo,s.hint);rows.push_back(row);
     }
     status=Control(L"STATIC",statusText,SS_NOPREFIX,window);
     buttons[0]=Control(L"BUTTON",L"Restore defaults",WS_TABSTOP|BS_PUSHBUTTON,window,RestoreId);
@@ -406,7 +415,7 @@ void App::Verify(const fs::path& output) {
                 size_t n=i+1;while(n<rows.size() && !Visible(n))++n;
                 if(n<rows.size())require(std::max(a.bottom,b.bottom)<=std::min(rows[n].labelRect.top,rows[n].comboRect.top),"Overlapping rows");
             }
-            require(visible==(shown?rows.size():15),"Wrong number of visible options");
+            require(visible==(shown?rows.size():16),"Wrong number of visible options");
             ScrollTo(contentHeight);require(scroll+pageHeight>=contentHeight,"Cannot scroll to last setting");
             auto current=Read();current.erase(L"showAdvanced");auto expected=initial;expected.erase(L"showAdvanced");
             require(current==expected,"Layout changed a setting");
@@ -514,7 +523,7 @@ int WINAPI wWinMain(HINSTANCE inst,HINSTANCE,PWSTR,int show) {
         wc.lpfnWndProc=MainProc;wc.lpszClassName=MainClass;RegisterClassExW(&wc);
         wc.lpfnWndProc=PageProc;wc.lpszClassName=PageClass;wc.hIcon=nullptr;wc.hIconSm=nullptr;RegisterClassExW(&wc);
         if(verify) {
-            auto output=root/L"validation/configurator-native";VerifyConfiguration(output);VerifyRetailSetup(output);VerifyGames(output);
+            auto output=root/L"validation/configurator-native";VerifyConfiguration(output);VerifyRetailSetup(output);VerifyGames(output);VerifyControllerBindings(output);
             App app(root);app.Create();app.Verify(output);DestroyWindow(app.window);return 0;
         }
         // First run: bring in the player's retail Prey data (and any optional

@@ -941,6 +941,81 @@ bool idWindow::Contains(float x, float y) {
 
 /*
 ================
+idWindow::NavigationRect
+
+Reawakened: the on-screen rectangle used for controller navigation, in the
+same coordinates as the GUI cursor (as Contains).
+================
+*/
+bool idWindow::NavigationRect(idRectangle &r) {
+	return NavigationRect( drawRect, r );
+}
+
+// sr in drawRect coordinates (as Contains(sr, x, y)).
+bool idWindow::NavigationRect(const idRectangle &sr, idRectangle &r) {
+	r = sr;
+	r.x += actualX - drawRect.x;
+	r.y += actualY - drawRect.y;
+	if ( anchor != idDeviceContext::ANCHOR_NONE ) {
+		idVec2 scale, offset;
+		if ( idDeviceContext::GetScreenParams( anchor, anchorTo, anchorFactor, scale, offset ) ) {
+			r.x = r.x * scale.x + offset.x;
+			r.y = r.y * scale.y + offset.y;
+			r.w *= scale.x;
+			r.h *= scale.y;
+		}
+	}
+	return r.w > 1.0f && r.h > 1.0f;
+}
+
+/*
+================
+idWindow::CollectNavigable
+
+Reawakened: visible windows a controller can move to: anything with a click
+script, plus the built-in widgets that react to clicks or arrow keys.
+================
+*/
+bool idWindow::DrawnLastFrame() {
+	// Only what was drawn in the latest frame is on screen: other menu pages
+	// can be "visible" yet undrawn, with stale coordinates.
+	return visible && navDrawSerial == gui->RedrawSerial();
+}
+
+void idWindow::CollectNavigable(idList<navTarget_t> &out) {
+	if ( !DrawnLastFrame() ) {
+		return;
+	}
+	// A modal window (a popup) takes all input: nothing drawn before it is reachable.
+	if ( flags & WIN_MODAL ) {
+		out.Clear();
+	}
+	if ( !noEvents && ( scripts[ON_ACTION] || TakesArrowKeys() || dynamic_cast<idBindWindow *>( this ) ) ) {
+		navTarget_t target;
+		if ( NavigationRect( target.rect ) ) {
+			target.window = this;
+			target.arrows = TakesArrowKeys();
+			out.Append( target );
+		}
+	}
+	for ( int i = 0; i < children.Num(); i++ ) {
+		children[i]->CollectNavigable( out );
+	}
+}
+
+/*
+================
+idWindow::TakesArrowKeys
+
+Reawakened: widgets whose value changes with left/right.
+================
+*/
+bool idWindow::TakesArrowKeys() {
+	return dynamic_cast<idSliderWindow *>( this ) || dynamic_cast<idChoiceWindow *>( this );
+}
+
+/*
+================
 idWindow::AddCommand
 ================
 */
@@ -1530,6 +1605,7 @@ void idWindow::Redraw(float x, float y) {
 	textRect.Offset(x, y);
 	actualX = drawRect.x;
 	actualY = drawRect.y;
+	navDrawSerial = gui->RedrawSerial();
 	HandleRetailSpecialVars();
 	UpdateRetailCreditActivation();
 

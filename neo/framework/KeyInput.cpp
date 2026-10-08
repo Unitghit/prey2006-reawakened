@@ -622,15 +622,21 @@ const char *idKeyInput::KeysFromBinding( const char *bind ) {
 				if ( keyName[0] != '\0' ) {
 					idStr::Append( keyName, sizeof( keyName ), orstr );
 				}
-				idStr::Append( keyName, sizeof( keyName ), KeyNumToString( i, true ) );
+				// Reawakened: keyboard names stay lower case as before; controller
+				// names keep their capitals ("LB", "A button").
+				idStr name = KeyNumToString( i, true );
+				if ( i < K_FIRST_JOY || i > K_LAST_JOY ) {
+					name.ToLower();
+				}
+				idStr::Append( keyName, sizeof( keyName ), name.c_str() );
 			}
 		}
 	}
 	if ( keyName[0] == '\0' ) {
 		// "<empty>"
 		idStr::Copynz( keyName, common->GetLanguageDict()->GetString( "#str_07133" ), sizeof( keyName ) );
+		idStr::ToLower( keyName );
 	}
-	idStr::ToLower( keyName );
 	return keyName;
 }
 

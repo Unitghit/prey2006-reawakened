@@ -3266,9 +3266,14 @@ void idCommonLocal::InitGame( void ) {
 	// run cfg execution
 	cmdSystem->ExecuteCommandBuffer();
 
+	// re-override anything from the config files with command line args
+	StartupVariable( NULL, false );
+	StartupStage( "config_console" );
+
 	// Reawakened: a configuration without any controller bindings (a new install,
 	// or one made before controller support) gets the default Xbox-style layout.
-	// Bindings the player has made, even a single one, are never replaced.
+	// Bindings the player has made (in game or in the launcher's controller
+	// window), even a single one, are never replaced.
 	bool gamepadBound = false;
 	for ( int key = K_FIRST_JOY; key <= K_LAST_JOY && !gamepadBound; key++ ) {
 		gamepadBound = idKeyInput::GetBinding( key )[0] != '\0';
@@ -3291,12 +3296,8 @@ void idCommonLocal::InitGame( void ) {
 		for ( int i = 0; i < sizeof( defaultGamepad ) / sizeof( defaultGamepad[0] ); i++ ) {
 			idKeyInput::SetBinding( idKeyInput::StringToKeyNum( defaultGamepad[i][0] ), defaultGamepad[i][1] );
 		}
-		Printf( "No controller bindings found; applied the default controller layout.\n" );
+		Printf( "Applied the default controller layout.\n" );
 	}
-
-	// re-override anything from the config files with command line args
-	StartupVariable( NULL, false );
-	StartupStage( "config_console" );
 
 	// if any archived cvars are modified after this, we will trigger a writing of the config file
 	cvarSystem->ClearModifiedFlags( CVAR_ARCHIVE );

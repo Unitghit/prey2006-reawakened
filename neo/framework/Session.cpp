@@ -178,6 +178,8 @@ Session_Map_f
 Restart the server on a different map
 ==================
 */
+void Session_MenuPad_f( const idCmdArgs &args );	// Session_menu.cpp
+
 static void Session_Map_f( const idCmdArgs &args ) {
 	idStr		map, string;
 	findFile_t	ff;
@@ -3187,6 +3189,7 @@ void idSessionLocal::Init() {
 
 #ifndef	ID_DEDICATED
 	cmdSystem->AddCommand( "map", Session_Map_f, CMD_FL_SYSTEM, "loads a map", idCmdSystem::ArgCompletion_MapName );
+	cmdSystem->AddCommand( "menuPad", Session_MenuPad_f, CMD_FL_SYSTEM, "presses a controller button in the open menu: up, down, left, right, a, b" );
 	cmdSystem->AddCommand( "devmap", Session_DevMap_f, CMD_FL_SYSTEM, "loads a map in developer mode", idCmdSystem::ArgCompletion_MapName );
 	cmdSystem->AddCommand( "testmap", Session_TestMap_f, CMD_FL_SYSTEM, "tests a map", idCmdSystem::ArgCompletion_MapName );
 

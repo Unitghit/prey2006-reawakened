@@ -351,128 +351,91 @@ const char* D3_GetGamepadStartButtonName() {
 }
 
 const char* Sys_GetLocalizedJoyKeyName( int key ) {
-	// Note: trying to keep the returned names short, because the Doom3 binding window doesn't have much space for names..
-
+	// Reawakened: the same names as the launcher's controller window, for the
+	// connected controller's style. Face buttons say "button" because binding
+	// lists mix them with keyboard keys ("a or A button").
 #if SDL_VERSION_ATLEAST(2, 0, 0) // gamecontroller/gamepad not supported in SDL1
 	if (key >= K_FIRST_JOY && key <= K_LAST_JOY) {
-
-		if (key <= K_JOY_BTN_BACK) {
-#if 0 //SDL_VERSION_ATLEAST(3, 0, 0)
-			// TODO: or use the SDL2 code and just set joy_gamepadLayout automatically based on SDL_GetGamepadType() ?
-			SDL_GamepadButton gpbtn = (SDL_GamepadButton)(SDL_GAMEPAD_BUTTON_SOUTH + (key - K_JOY_BTN_SOUTH));
-			SDL_GamepadType sdlGamepadType = TODO;
-			SDL_GamepadButtonLabel label = SDL_GetGamepadButtonLabelForType(sdlGamepadType, gpbtn);
-			switch(label) {
-				case SDL_GAMEPAD_BUTTON_LABEL_A:
-					return "Pad A";
-				case SDL_GAMEPAD_BUTTON_LABEL_B:
-					return "Pad B";
-				case SDL_GAMEPAD_BUTTON_LABEL_X:
-					return "Pad X";
-				case SDL_GAMEPAD_BUTTON_LABEL_Y:
-					return "Pad Y";
-				case SDL_GAMEPAD_BUTTON_LABEL_CROSS:
-					return "Pad Cross";
-				case SDL_GAMEPAD_BUTTON_LABEL_CIRCLE:
-					return "Pad Circle";
-				case SDL_GAMEPAD_BUTTON_LABEL_SQUARE:
-					return "Pad Square";
-				case SDL_GAMEPAD_BUTTON_LABEL_TRIANGLE:
-					return "Pad Triangle";
+		int layout = joy_gamepadLayout.GetInteger();
+		if ( layout == -1 ) {
+			layout = gamepadType;
+		}
+		enum { XBOX, PLAYSTATION, NINTENDO } style = XBOX;
+		switch( layout ) {
+			default:
+				common->Warning( "joy_gamepadLayout has invalid value %d !\n", joy_gamepadLayout.GetInteger() );
+				// fall-through
+			case D3_GAMEPAD_XINPUT:
+				break;
+			case D3_GAMEPAD_NINTENDO:
+				style = NINTENDO;
+				break;
+			case D3_GAMEPAD_PLAYSTATION_OLD:
+			case D3_GAMEPAD_PLAYSTATION:
+				style = PLAYSTATION;
+				break;
+		}
+		//                    Xbox                  PlayStation      Nintendo
+		static const char* styled[][3] = {
+			/* SOUTH     */ { "A button",          "Cross",          "B button" },
+			/* EAST      */ { "B button",          "Circle",         "A button" },
+			/* WEST      */ { "X button",          "Square",         "Y button" },
+			/* NORTH     */ { "Y button",          "Triangle",       "X button" },
+			/* BACK      */ { "View button",       "Share",          "- button" },
+			/* LSTICK    */ { "L stick click",  "L3",             "L stick click" },
+			/* RSTICK    */ { "R stick click", "R3",             "R stick click" },
+			/* LSHOULDER */ { "LB",                "L1",             "L" },
+			/* RSHOULDER */ { "RB",                "R1",             "R" },
+			/* TRIGGER1  */ { "LT",                "L2",             "ZL" },
+			/* TRIGGER2  */ { "RT",                "R2",             "ZR" },
+			/* MISC1     */ { "Share button",      "Mute",           "Capture" },
+		};
+		int row = -1;
+		switch(key) {
+			case K_JOY_BTN_SOUTH: row = 0; break;
+			case K_JOY_BTN_EAST: row = 1; break;
+			case K_JOY_BTN_WEST: row = 2; break;
+			case K_JOY_BTN_NORTH: row = 3; break;
+			case K_JOY_BTN_BACK: row = 4; break;
+			case K_JOY_BTN_LSTICK: row = 5; break;
+			case K_JOY_BTN_RSTICK: row = 6; break;
+			case K_JOY_BTN_LSHOULDER: row = 7; break;
+			case K_JOY_BTN_RSHOULDER: row = 8; break;
+			case K_JOY_TRIGGER1: row = 9; break;
+			case K_JOY_TRIGGER2: row = 10; break;
+			case K_JOY_BTN_MISC1: row = 11; break;
+		}
+		if ( row >= 0 ) {
+			if ( key == K_JOY_BTN_BACK && layout == D3_GAMEPAD_PLAYSTATION_OLD ) {
+				return "Select";
 			}
-
-#else // SDL2
-			//                                          South,   East,       West,         North        Back
-			static const char* xboxBtnNames[5]     = { "Pad A", "Pad B",    "Pad X",      "Pad Y",   "Pad Back" };
-			static const char* nintendoBtnNames[5] = { "Pad B", "Pad A",    "Pad Y",      "Pad X",   "Pad -" };
-			static const char* psBtnNames[5] = { "Pad Cross", "Pad Circle", "Pad Square", "Pad Triangle", "Pad Share" };
-
-			int layout = joy_gamepadLayout.GetInteger();
-			if ( layout == -1 ) {
-				layout = gamepadType;
-			}
-
-			unsigned btnIdx = key - K_JOY_BTN_SOUTH;
-			assert(btnIdx < 5);
-
-			switch( layout ) {
-				default:
-					common->Warning( "joy_gamepadLayout has invalid value %d !\n", joy_gamepadLayout.GetInteger() );
-					// fall-through
-				case D3_GAMEPAD_XINPUT:
-					return xboxBtnNames[btnIdx];
-				case D3_GAMEPAD_NINTENDO:
-					return nintendoBtnNames[btnIdx];
-				case D3_GAMEPAD_PLAYSTATION_OLD:
-					if ( key == K_JOY_BTN_BACK )
-						return "Pad Select";
-					// the other button names are identical for PS2/3 and PS4/5
-					// fall-through
-				case D3_GAMEPAD_PLAYSTATION:
-					return psBtnNames[btnIdx];
-			}
-#endif // face button names for SDL2
+			return styled[row][style];
 		}
 
-		// the labels for the remaining keys are the same for SDL2 and SDL3 (and all controllers)
 		switch(key) {
 			case K_JOY_BTN_GUIDE: // can't be used in dhewm3, because it opens steam on some systems
 			case K_JOY_BTN_START: // can't be used for bindings, because it's hardcoded to generate Esc
 				return NULL;
 
-			case K_JOY_BTN_LSTICK:
-				return "Pad LStick";
-			case K_JOY_BTN_RSTICK:
-				return "Pad RStick";
-			case K_JOY_BTN_LSHOULDER:
-				return "Pad LShoulder";
-			case K_JOY_BTN_RSHOULDER:
-				return "Pad RShoulder";
+			case K_JOY_DPAD_UP: return "D-pad up";
+			case K_JOY_DPAD_DOWN: return "D-pad down";
+			case K_JOY_DPAD_LEFT: return "D-pad left";
+			case K_JOY_DPAD_RIGHT: return "D-pad right";
 
-			case K_JOY_DPAD_UP:
-				return "DPad Up";
-			case K_JOY_DPAD_DOWN:
-				return "DPad Down";
-			case K_JOY_DPAD_LEFT:
-				return "DPad Left";
-			case K_JOY_DPAD_RIGHT:
-				return "DPad Right";
+			case K_JOY_BTN_RPADDLE1: return "Paddle P1";
+			case K_JOY_BTN_LPADDLE1: return "Paddle P3";
+			case K_JOY_BTN_RPADDLE2: return "Paddle P2";
+			case K_JOY_BTN_LPADDLE2: return "Paddle P4";
 
-			case K_JOY_BTN_MISC1:
-				return "Pad Misc";
-			case K_JOY_BTN_RPADDLE1:
-				return "Pad P1";
-			case K_JOY_BTN_LPADDLE1:
-				return "Pad P3";
-			case K_JOY_BTN_RPADDLE2:
-				return "Pad P2";
-			case K_JOY_BTN_LPADDLE2:
-				return "Pad P4";
+			case K_JOY_STICK1_UP: return "L stick up";
+			case K_JOY_STICK1_DOWN: return "L stick down";
+			case K_JOY_STICK1_LEFT: return "L stick left";
+			case K_JOY_STICK1_RIGHT: return "L stick right";
 
-			// Note: Would be nicer with "Pad " (or even "Gamepad ") at the beginning,
-			//       but then it's too long for the keybinding window :-/
-			case K_JOY_STICK1_UP:
-				return "Stick1 Up";
-			case K_JOY_STICK1_DOWN:
-				return "Stick1 Down";
-			case K_JOY_STICK1_LEFT:
-				return "Stick1 Left";
-			case K_JOY_STICK1_RIGHT:
-				return "Stick1 Right";
-
-			case K_JOY_STICK2_UP:
-				return "Stick2 Up";
-			case K_JOY_STICK2_DOWN:
-				return "Stick2 Down";
-			case K_JOY_STICK2_LEFT:
-				return "Stick2 Left";
-			case K_JOY_STICK2_RIGHT:
-				return "Stick2 Right";
-
-			case K_JOY_TRIGGER1:
-				return "Trigger 1";
-			case K_JOY_TRIGGER2:
-				return "Trigger 2";
+			case K_JOY_STICK2_UP: return "R stick up";
+			case K_JOY_STICK2_DOWN: return "R stick down";
+			case K_JOY_STICK2_LEFT: return "R stick left";
+			case K_JOY_STICK2_RIGHT: return "R stick right";
 
 			default:
 				assert(0 && "missing a case in Sys_GetLocalizedJoyKeyName()!");
@@ -969,6 +932,20 @@ void Sys_InitInput() {
 	// Sys_GetLocalizedJoyKeyName() will do the translation
 	// (I think this also was the default before 2.0.12?)
 	SDL_SetHint("SDL_GAMECONTROLLER_USE_BUTTON_LABELS", "0");
+
+	// Reawakened: community mappings (SDL_GameControllerDB) next to the executable,
+	// so controllers missing from SDL's built-in list are recognised too.
+	{
+		idStr dbPath;
+		if ( Sys_GetPath( PATH_EXE, dbPath ) ) {
+			dbPath.StripFilename();
+			dbPath.AppendPath( "gamecontrollerdb.txt" );
+			const int added = SDL_GameControllerAddMappingsFromFile( dbPath.c_str() );
+			if ( added >= 0 ) {
+				common->Printf( "Loaded %d controller mappings from gamecontrollerdb.txt\n", added );
+			}
+		}
+	}
 
 	const int NumJoysticks = SDL_NumJoysticks();
 	for( int i = 0; i < NumJoysticks; ++i )

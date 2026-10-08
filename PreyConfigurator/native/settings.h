@@ -8,7 +8,8 @@
 namespace fs = std::filesystem;
 using Values = std::map<std::wstring, std::wstring>;
 struct Choice { std::wstring label, value; };
-struct Setting { std::wstring group, label, key, initial, hint; std::vector<Choice> choices; bool advanced = false; };
+// An action setting is a button (label: initial) that opens a window; it has no saved value.
+struct Setting { std::wstring group, label, key, initial, hint; std::vector<Choice> choices; bool advanced = false; bool action = false; };
 const std::vector<Setting>& Options();
 // Single location for the engine build used by Save & Play and the batch file.
 inline constexpr wchar_t EngineDirectory[] = L"engine";

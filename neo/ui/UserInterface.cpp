@@ -32,10 +32,13 @@ If you have questions concerning this license or the applicable additional terms
 #include "ListGUILocal.h"
 #include "Window.h"
 #include "UserInterfaceLocal.h"
+#include "TabContainerWindow.h"
 #include "../renderer/tr_local.h" // glConfig for winWidth/winHeight
 
 extern idCVar r_skipGuiShaders;		// 1 = don't render any gui elements on surfaces
 extern idCVar r_scaleMenusTo43; // DG: for the "scale menus to 4:3" hack
+idCVar gui_controllerNavigation( "gui_controllerNavigation", "1", CVAR_GUI | CVAR_BOOL | CVAR_ARCHIVE,
+	"controller D-pad moves between menu items (A selects); 0 sends arrow keys as before" );
 
 idUserInterfaceManagerLocal	uiManagerLocal;
 idUserInterfaceManager *	uiManager = &uiManagerLocal;
@@ -467,6 +470,27 @@ const char *idUserInterfaceLocal::HandleEvent( const sysEvent_t *event, int _tim
 		// (as default-initialized above) shouldn't hurt either way
 		event = &fakedEvent;
 	}
+	else if ( event->evType == SE_KEY && event->evValue >= K_JOY_DPAD_UP && event->evValue <= K_JOY_DPAD_RIGHT
+		&& event->evValue2 && desktop && ( desktop->GetFlags() & WIN_MENUGUI ) && gui_controllerNavigation.GetBool()
+		&& NavigateToItem( event->evValue == K_JOY_DPAD_LEFT ? -1 : event->evValue == K_JOY_DPAD_RIGHT ? 1 : 0,
+			event->evValue == K_JOY_DPAD_UP ? -1 : event->evValue == K_JOY_DPAD_DOWN ? 1 : 0 ) )
+	{
+		// Reawakened: the D-pad moved the cursor onto a menu item; a mouse event
+		// updates hover highlighting there.
+		fakedEvent.evType = SE_MOUSE;
+		event = &fakedEvent;
+	}
+	else if ( event->evType == SE_KEY && ( event->evValue == K_JOY_BTN_LSHOULDER || event->evValue == K_JOY_BTN_RSHOULDER )
+		&& desktop && ( desktop->GetFlags() & WIN_MENUGUI ) && gui_controllerNavigation.GetBool() )
+	{
+		// Reawakened: LB/RB switch between a menu's main tabs.
+		if ( event->evValue2 ) {
+			if ( hhTabContainerWindow *tabs = OutermostTabs() ) {
+				tabs->CycleTab( event->evValue == K_JOY_BTN_LSHOULDER ? -1 : 1 );
+			}
+		}
+		return "";
+	}
 	else if ( event->evType == SE_KEY && event->evValue >= K_FIRST_JOY && event->evValue <= K_LAST_JOY )
 	{
 		// map some gamepad buttons to SE_KEY events that the UI already knows how to use
@@ -518,6 +542,114 @@ const char *idUserInterfaceLocal::HandleEvent( const sysEvent_t *event, int _tim
 	return "";
 }
 
+/*
+==============
+idUserInterfaceLocal::NavigateToItem
+
+Reawakened: moves the cursor to the centre of the nearest interactive item in
+the D-pad direction; with the cursor on no item, to the item nearest it. Left
+and right on a slider or choice stay arrow keys so they change its value.
+Returns false when the event should keep its normal meaning.
+==============
+*/
+bool idUserInterfaceLocal::NavigateToItem( int dx, int dy ) {
+	idList<idWindow::navTarget_t> items;
+	desktop->CollectNavigable( items );
+	int current = -1;
+	float currentArea = idMath::INFINITY;
+	for ( int i = items.Num() - 1; i >= 0; i-- ) {
+		idRectangle &r = items[i].rect;
+		// Full-screen click catchers (closing popups and the like) and items parked
+		// off screen are not destinations.
+		const float centerX = r.x + r.w * 0.5f, centerY = r.y + r.h * 0.5f;
+		if ( ( r.w > VIRTUAL_WIDTH * 0.8f && r.h > VIRTUAL_HEIGHT * 0.6f ) ||
+			centerX < 0.0f || centerX > VIRTUAL_WIDTH || centerY < 0.0f || centerY > VIRTUAL_HEIGHT ) {
+			items.RemoveIndex( i );
+			if ( current > i ) {
+				current--;
+			}
+			continue;
+		}
+		if ( r.Contains( cursorX, cursorY ) && r.w * r.h < currentArea ) {
+			current = i;
+			currentArea = r.w * r.h;
+		}
+	}
+	if ( current >= 0 && dx && items[current].arrows ) {
+		// Sliders and choices take arrow keys only while focused.
+		if ( !( items[current].window->GetFlags() & WIN_FOCUS ) ) {
+			desktop->SetFocus( items[current].window, false );
+		}
+		return false;
+	}
+	// Prefer items within 45 degrees of the pressed direction; otherwise the best
+	// item anywhere on that side, so diagonal layouts stay reachable.
+	int best = -1;
+	for ( int pass = 0; pass < 2 && best < 0; pass++ ) {
+		float bestScore = idMath::INFINITY;
+		for ( int i = 0; i < items.Num(); i++ ) {
+			if ( i == current ) {
+				continue;
+			}
+			idRectangle &r = items[i].rect;
+			const idVec2 delta = idVec2( r.x + r.w * 0.5f, r.y + r.h * 0.5f ) - idVec2( cursorX, cursorY );
+			float score = delta.Length();
+			if ( current >= 0 ) {
+				const float along = delta.x * dx + delta.y * dy;
+				const float across = idMath::Fabs( delta.x * dy - delta.y * dx );
+				if ( along < 4.0f || ( pass == 0 && across > along ) ) {
+					continue;
+				}
+				score = along + across * 2.5f;
+			}
+			if ( score < bestScore ) {
+				best = i;
+				bestScore = score;
+			}
+		}
+	}
+	if ( best >= 0 ) {
+		const idRectangle &r = items[best].rect;
+		cursorX = r.x + r.w * 0.5f;
+		cursorY = r.y + r.h * 0.5f;
+		common->DPrintf( "GUI controller navigation: (%.0f, %.0f)\n", cursorX, cursorY );
+	}
+	// At an edge the press is still consumed, so it does not scroll anything.
+	return true;
+}
+
+/*
+==============
+idUserInterfaceLocal::OutermostTabs
+
+Reawakened: the on-screen tab container nearest the top of the window tree (the
+menu's main tabs rather than a page's inner ones). None while a popup is open.
+==============
+*/
+hhTabContainerWindow *idUserInterfaceLocal::OutermostTabs() {
+	idList<idWindow *> level, next;
+	level.Append( desktop );
+	hhTabContainerWindow *found = NULL;
+	while ( level.Num() ) {
+		next.Clear();
+		for ( int i = 0; i < level.Num(); i++ ) {
+			idWindow *w = level[i];
+			if ( !w->DrawnLastFrame() ) {
+				continue;
+			}
+			if ( w != desktop && ( w->GetFlags() & WIN_MODAL ) ) {
+				return NULL;
+			}
+			if ( !found ) {
+				found = dynamic_cast<hhTabContainerWindow *>( w );
+			}
+			next.Append( w->children );
+		}
+		level = next;
+	}
+	return found;
+}
+
 void idUserInterfaceLocal::HandleNamedEvent ( const char* eventName ) {
 	desktop->RunNamedEvent( eventName );
 }
@@ -527,6 +659,7 @@ void idUserInterfaceLocal::Redraw( int _time, float offsetX, float offsetY ) {
 		return;
 	}
 	if ( !loading && desktop ) {
+		redrawSerial++;
 		if ( desktop->GetFlags() & WIN_MENUGUI ) {
 			// if the (SDL) window size has changed, calculate and set the
 			// "gui::cst*" window register variables accordingly

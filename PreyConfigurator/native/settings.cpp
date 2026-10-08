@@ -56,11 +56,12 @@ static std::wstring Get(const Values& v, const std::wstring& key, const std::wst
     auto it = v.find(key); return it == v.end() ? fallback : it->second;
 }
 Values Defaults() {
-    Values v; for (const auto& s : Options()) v[s.key] = s.initial; return v;
+    Values v; for (const auto& s : Options()) if (!s.action) v[s.key] = s.initial; return v;
 }
 Values Migrate(const Values& saved) {
     Values v = Defaults();
     for (const auto& s : Options()) {
+        if (s.action) continue;
         auto it = saved.find(s.key);
         if (it != saved.end() && std::any_of(s.choices.begin(), s.choices.end(), [&](const Choice& c) { return c.value == it->second; })) v[s.key] = it->second;
     }
@@ -76,6 +77,7 @@ Values Migrate(const Values& saved) {
 }
 void Validate(const Values& v) {
     for (const auto& s : Options()) {
+        if (s.action) continue;
         auto it = v.find(s.key);
         if (it == v.end() || !std::any_of(s.choices.begin(), s.choices.end(), [&](const Choice& c) { return c.value == it->second; }))
             throw std::runtime_error("Invalid setting: " + Utf8(s.label));
@@ -155,7 +157,7 @@ Values Load(const fs::path& root) {
 }
 std::vector<std::pair<std::wstring,std::wstring>> Variables(const Values& v) {
     Validate(v); std::vector<std::pair<std::wstring,std::wstring>> result;
-    for (const auto& s : Options()) if (s.key != L"resolution" && s.key != L"bloom" && s.key != L"muzzleShadows" && s.key != L"r_fullscreen" && s.key != L"weaponPack") result.emplace_back(s.key,v.at(s.key));
+    for (const auto& s : Options()) if (!s.action && s.key != L"resolution" && s.key != L"bloom" && s.key != L"muzzleShadows" && s.key != L"r_fullscreen" && s.key != L"weaponPack") result.emplace_back(s.key,v.at(s.key));
     const auto& size = v.at(L"resolution"); auto x = size.find(L'x');
     const std::vector<std::pair<std::wstring,std::wstring>> fixed = {
         {L"fs_game",L""},{L"g_doom3Shotgun",v.at(L"weaponPack")==L"doom3shotgun"?L"1":L"0"},
@@ -263,7 +265,7 @@ void Launch(const fs::path& exe, const std::vector<std::wstring>& args) {
 void VerifyConfiguration(const fs::path& output) {
     fs::create_directories(output);
     auto require = [](bool ok) { if (!ok) throw std::runtime_error("Configuration verification failed"); };
-    auto defaults = Defaults(); require(defaults.size()==23 && defaults.at(L"g_noFallDamage")==L"0" && defaults.at(L"g_weaponUnlockTips")==L"1" && defaults.at(L"muzzleShadows")==L"all" && defaults.at(L"g_noSpiritResurrections")==L"0" && defaults.at(L"g_portalGun")==L"0" && defaults.at(L"g_portalGunReticle")==L"1" && defaults.at(L"g_bunnyHop")==L"0" && defaults.at(L"g_halfLifeAutoHop")==L"0" && defaults.at(L"com_maxFPS")==L"-1");
+    auto defaults = Defaults(); require(defaults.size()==24 && !defaults.count(L"padConfig") && defaults.at(L"gui_controllerNavigation")==L"1" && defaults.at(L"g_noFallDamage")==L"0" && defaults.at(L"g_weaponUnlockTips")==L"1" && defaults.at(L"muzzleShadows")==L"all" && defaults.at(L"g_noSpiritResurrections")==L"0" && defaults.at(L"g_portalGun")==L"0" && defaults.at(L"g_portalGunReticle")==L"1" && defaults.at(L"g_bunnyHop")==L"0" && defaults.at(L"g_halfLifeAutoHop")==L"0" && defaults.at(L"com_maxFPS")==L"-1");
     Save(output,defaults); require(Load(output)==defaults);
     Atomic(output/L"default-launcher.bat",Launcher(defaults));
     for (const auto& s : Options()) for (const auto& c : s.choices) {

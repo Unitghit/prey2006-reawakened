@@ -98,8 +98,13 @@ public:
 	virtual void				Translate( const char *fontname );
 	
 	virtual idRectangle			GetScreenRect( void ) { return desktop->drawRect; }
+	int							RedrawSerial() const { return redrawSerial; }
 
 private:
+	bool						NavigateToItem( int dx, int dy );
+	class hhTabContainerWindow *	OutermostTabs();
+	int							redrawSerial = 0;	// counts Redraw calls; windows drawn in the latest one are on screen
+
 	bool						active;
 	bool						loading;
 	bool						interactive;

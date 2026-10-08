@@ -15,7 +15,7 @@ This is a fork of FriskTheFallenHuman's [Prey2006](https://github.com/FriskTheFa
 - Portal gun: works on Prey's walls, floors and ceilings, and carries you, enemies, ragdolls and projectiles through with momentum
 - Doom 3 weapons alongside Prey's own (needs Doom 3)
 - Movement styles from Quake, Painkiller, Half-Life and Half-Life 2
-- Xbox controller support, English translation of the alien screens, Cherokee difficulty unlocked
+- Controller support (Xbox, PlayStation, Switch and most others) with button remapping in the launcher, English translation of the alien screens, Cherokee difficulty unlocked
 - A launcher that finds your copy of Prey and sets everything up
 
 The full list is in the [changelog](CHANGELOG.md).

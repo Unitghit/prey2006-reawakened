@@ -1235,6 +1235,39 @@ void idSessionLocal::MenuEvent( const sysEvent_t *event ) {
 }
 
 /*
+==============
+Session_MenuPad_f
+
+Reawakened: presses a controller button in the open menu (up, down, left,
+right, a, b), as the real controller would, and prints the cursor. For
+testing menu navigation without a controller.
+==============
+*/
+void Session_MenuPad_f( const idCmdArgs &args ) {
+	static const struct { const char *name; int key; } buttons[] = {
+		{ "up", K_JOY_DPAD_UP }, { "down", K_JOY_DPAD_DOWN }, { "left", K_JOY_DPAD_LEFT },
+		{ "right", K_JOY_DPAD_RIGHT }, { "a", K_JOY_BTN_SOUTH }, { "b", K_JOY_BTN_EAST },
+		{ "lb", K_JOY_BTN_LSHOULDER }, { "rb", K_JOY_BTN_RSHOULDER },
+	};
+	for ( int i = 0; i < sizeof( buttons ) / sizeof( buttons[0] ); i++ ) {
+		if ( idStr::Icmp( args.Argv( 1 ), buttons[i].name ) == 0 ) {
+			sysEvent_t ev = {};
+			ev.evType = SE_KEY;
+			ev.evValue = buttons[i].key;
+			ev.evValue2 = 1;
+			sessLocal.MenuEvent( &ev );
+			ev.evValue2 = 0;
+			sessLocal.MenuEvent( &ev );
+			if ( sessLocal.guiActive ) {
+				common->Printf( "menuPad %s: cursor %.0f %.0f\n", buttons[i].name, sessLocal.guiActive->CursorX(), sessLocal.guiActive->CursorY() );
+			}
+			return;
+		}
+	}
+	common->Printf( "usage: menuPad up|down|left|right|a|b\n" );
+}
+
+/*
 =================
 idSessionLocal::GuiFrameEvents
 =================
