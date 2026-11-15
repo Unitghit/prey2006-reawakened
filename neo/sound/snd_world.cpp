@@ -2292,6 +2292,13 @@ void idSoundWorldLocal::ApplyRetailSource( idSoundEmitterLocal *sound, idSoundCh
 	soundSystemLocal.SetRetailEax( retailEaxSource[version], 27, chan->openalSource, sends, sizeof(sends) );
 	int room = (chan->parms.soundShaderFlags & SSF_NOREVERB) ? -10000 :
 		((chan->parms.soundClass == SOUNDCLASS_VOICE || chan->parms.soundClass == SOUNDCLASS_VOICEDUCKER) ? -600 : 0);
+	if ( room == -600 ) {
+		// EAX room is in millibels. Scale only the wet dialogue send; keep the
+		// direct voice, authored no-reverb exclusions and other sound classes intact.
+		const int amount = idMath::ClampInt( 0, 10, idSoundSystemLocal::s_eaxVoiceReverb.GetInteger() );
+		room = amount == 0 ? -10000 : idMath::ClampInt( -10000, 1000,
+			-600 + static_cast<int>( 2000.0f * log10f( amount / 5.0f ) ) );
+	}
 	soundSystemLocal.SetRetailEax( retailEaxSource[version], 7, chan->openalSource, &room, sizeof(room) );
 	struct { int level; float lf, room, direct; } occlusion = {0,0,1.5f,1.0f};
 	if ( mono && idSoundSystemLocal::s_useOcclusion.GetBool() ) {

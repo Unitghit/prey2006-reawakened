@@ -50,6 +50,7 @@
 
 	windowDef spiritTommyBack {
 		anchor		ANCHOR_CENTER_CENTER
+		hudSide	-1
 		rect		TOMMYSPIRIT_XPOS, TOMMYSPIRIT_YPOS, TOMMYSPIRIT_WIDTH, TOMMYSPIRIT_HEIGHT
 		matcolor	SPIRIT2_RGB_COMMAS
 		background	"guis/assets/hud/tommy.tga"
@@ -74,6 +75,7 @@
 
 		windowDef spiritTommyOutlineBack {
 			anchor		ANCHOR_CENTER_CENTER
+		hudSide	-1
 			float		normalalpha 1
 			float		pulsealpha 0
 			rect		0, 0, TOMMYSPIRIT_WIDTH, TOMMYSPIRIT_HEIGHT
@@ -106,6 +108,7 @@
 
 	windowDef healthTommy {
 		anchor		ANCHOR_CENTER_CENTER
+		hudSide	-1
 		rect		TOMMYHEALTH_XPOS, TOMMYHEALTH_YPOS, TOMMYHEALTH_WIDTH, TOMMYHEALTH_HEIGHT
 		matcolor	HEALTHBG_RGB_COMMAS
 		background	"guis/assets/hud/tommy.tga"
@@ -153,6 +156,7 @@
 
 	windowDef spiritTommyFront {
 		anchor		ANCHOR_CENTER_CENTER
+		hudSide	-1
 		rect		TOMMYSPIRIT_XPOS, TOMMYSPIRIT_YPOS, TOMMYSPIRIT_WIDTH, TOMMYSPIRIT_HEIGHT
 		matcolor	SPIRIT2_RGB_COMMAS_GONE
 		background	"guis/assets/hud/tommy.tga"
@@ -210,6 +214,7 @@
 	#define TOMMYHEALTH_MAX_RECT				// for maxspirit effect
 	windowDef Anim_TommyMaxHealth {
 		anchor		ANCHOR_CENTER_CENTER
+		hudSide	-1
 		rect		0, 0, 640, 480
 		noTime		1
 

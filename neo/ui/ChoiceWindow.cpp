@@ -433,15 +433,21 @@ void idChoiceWindow::PostParse() {
 
 	InitVars();
 	UpdateChoice();
-	UpdateVars(false);
+	// Parsing is read-only: unknown/custom values must not be replaced merely
+	// because the menu is opened before its dynamic choices are initialized.
 
 	flags |= WIN_CANFOCUS;
 }
 
 void idChoiceWindow::Draw(int time, float x, float y) {
 	idVec4 color = foreColor;
-
 	UpdateChoicesAndVals();
+	if ( cvar && !idStr::Icmp( cvar->GetName(), "r_mode" ) &&
+		!idStr::Icmp( GetName(), "OVN_ResolutionChoice" ) &&
+		choices.Num() && values.Num() && values[0] == "-1" ) {
+		choices[0] = va( "%d x %d (custom)", cvarSystem->GetCVarInteger( "r_customWidth" ),
+			cvarSystem->GetCVarInteger( "r_customHeight" ) );
+	}
 	UpdateChoice();
 	// Dynamic lists can become empty even when no CVar is bound. The shadow
 	// draw below reads the selected entry before the text drawing guards.

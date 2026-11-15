@@ -36,6 +36,14 @@ idCVar	idSessionLocal::gui_configServerRate( "gui_configServerRate", "0", CVAR_G
 
 extern idCVar joy_gamepadLayout; // DG: used here to update bindings window when cvar is changed
 
+// Menu-only staging value. The renderer keeps its existing two archived CVars.
+static idCVar gui_videoWindowMode( "gui_videoWindowMode", "0", CVAR_GUI | CVAR_INTEGER,
+	"Video menu: windowed, fullscreen, borderless fullscreen", 0, 2 );
+static void UpdateVideoMenu() {
+	gui_videoWindowMode.SetInteger( !cvarSystem->GetCVarBool( "r_fullscreen" ) ? 0 :
+		cvarSystem->GetCVarBool( "r_fullscreenDesktop" ) ? 2 : 1 );
+}
+
 // implements the setup for, and commands from, the main menu
 
 /*
@@ -326,6 +334,7 @@ static void UpdateAudioMenu( idUserInterface *gui ) {
 
 void idSessionLocal::SetMainMenuGuiVars( void ) {
 	UpdateAudioMenu( guiMainMenu );
+	UpdateVideoMenu();
 
 	idHitchScope hitch("menu_setup", "main_menu");
 
@@ -997,6 +1006,7 @@ void idSessionLocal::HandleMainMenuCommands( const char *menuCommand ) {
 			}
 
 			int oldSpec = com_imageQuality.GetInteger();
+			if ( !vcmd.Icmp( "init" ) ) { UpdateVideoMenu(); continue; }
 
 			if ( idStr::Icmp( vcmd, "low" ) == 0 ) {
 				com_imageQuality.SetInteger( 0 );
@@ -1013,12 +1023,16 @@ void idSessionLocal::HandleMainMenuCommands( const char *menuCommand ) {
 			if ( oldSpec != com_imageQuality.GetInteger() ) {
 				guiActive->SetStateInt( "com_imageQuality", com_imageQuality.GetInteger() );
 				guiActive->StateChanged( com_frameTime );
-				cmdSystem->BufferCommandText( CMD_EXEC_NOW, "execMachineSpec\n" );
+				// Texture presets must not replace the user's display resolution.
+				cmdSystem->BufferCommandText( CMD_EXEC_NOW, "execMachineSpec nores\n" );
 			}
 
 			if ( idStr::Icmp( vcmd, "restart" )  == 0) {
 				guiActive->HandleNamedEvent( "cvar write render" );
-				cmdSystem->BufferCommandText( CMD_EXEC_NOW, "vid_restart\n" );
+				cvarSystem->SetCVarBool( "r_fullscreen", gui_videoWindowMode.GetInteger() != 0 );
+				cvarSystem->SetCVarBool( "r_fullscreenDesktop", gui_videoWindowMode.GetInteger() == 2 );
+				// Never destroy the GL context while still dispatching a GUI event.
+				cmdSystem->BufferCommandText( CMD_EXEC_INSERT, "vid_restart\n" );
 			}
 
 			continue;
@@ -1264,6 +1278,21 @@ testing menu navigation without a controller.
 ==============
 */
 void Session_MenuPad_f( const idCmdArgs &args ) {
+	// Held pointer movement exercises slider capture, not just a single click.
+	if ( args.Argc() == 6 && !idStr::Icmp( args.Argv( 1 ), "drag" ) && sessLocal.guiActive ) {
+		const float x0=atof(args.Argv(2)), y0=atof(args.Argv(3));
+		const float x1=atof(args.Argv(4)), y1=atof(args.Argv(5));
+		sysEvent_t ev = {};
+		sessLocal.guiActive->SetCursor(x0,y0);
+		ev.evType=SE_MOUSE; sessLocal.MenuEvent(&ev);
+		ev.evType=SE_KEY; ev.evValue=K_MOUSE1; ev.evValue2=1; sessLocal.MenuEvent(&ev);
+		for ( int i=1; i<=10 && sessLocal.guiActive; ++i ) {
+			sessLocal.guiActive->SetCursor(x0+(x1-x0)*i/10.0f,y0+(y1-y0)*i/10.0f);
+			ev.evType=SE_MOUSE; ev.evValue=ev.evValue2=0; sessLocal.MenuEvent(&ev);
+		}
+		ev.evType=SE_KEY; ev.evValue=K_MOUSE1; ev.evValue2=0; sessLocal.MenuEvent(&ev);
+		return;
+	}
 	// Deterministic pointer input for isolated menu regression tests.
 	if ( args.Argc() == 4 && !idStr::Icmp( args.Argv( 1 ), "click" ) && sessLocal.guiActive ) {
 		sessLocal.guiActive->SetCursor( atof( args.Argv( 2 ) ), atof( args.Argv( 3 ) ) );

@@ -654,8 +654,10 @@ bool R_GetModeInfo( int *width, int *height, int mode ) {
 	}
 
 	if ( mode == -1 ) {
-		*width = r_customWidth.GetInteger();
-		*height = r_customHeight.GetInteger();
+		const int w = r_customWidth.GetInteger(), h = r_customHeight.GetInteger();
+		if ( w < 320 || h < 240 || w > 8192 || h > 8192 ) { return false; }
+		if ( width ) { *width = w; }
+		if ( height ) { *height = h; }
 		return true;
 	}
 
@@ -716,7 +718,8 @@ static void initSortedVidModes()
 // "r_custom*;640x480;800x600;1024x768;..."
 idStr R_GetVidModeListString(bool addCustom)
 {
-	idStr ret = addCustom ? "r_custom*" : "";
+	initSortedVidModes();
+	idStr ret = addCustom ? va( "\"%d x %d (custom)\"", r_customWidth.GetInteger(), r_customHeight.GetInteger() ) : "";
 
 	for(int i=0; i<s_numVidModes; ++i)
 	{
@@ -724,7 +727,8 @@ idStr R_GetVidModeListString(bool addCustom)
 		if(sortedVidModes[i].modeIndex >= 3 && sortedVidModes[i].vidMode != NULL)
 		{
 			idStr modeStr;
-			sprintf(modeStr, ";%dx%d", sortedVidModes[i].vidMode->width, sortedVidModes[i].vidMode->height);
+			sprintf(modeStr, "\"%d x %d\"", sortedVidModes[i].vidMode->width, sortedVidModes[i].vidMode->height);
+			if ( ret.Length() ) { ret += ";"; }
 			ret += modeStr;
 		}
 	}
@@ -734,13 +738,14 @@ idStr R_GetVidModeListString(bool addCustom)
 // r_mode values for resolutions from R_GetVidModeListString(): "-1;3;4;5;..."
 idStr R_GetVidModeValsString(bool addCustom)
 {
+	initSortedVidModes();
 	idStr ret = addCustom ? "-1" : ""; // for custom resolutions using r_customWidth/r_customHeight
 	for(int i=0; i<s_numVidModes; ++i)
 	{
 		// for some reason, modes 0-2 are not used. maybe too small for GUI?
 		if(sortedVidModes[i].modeIndex >= 3 && sortedVidModes[i].vidMode != NULL)
 		{
-			ret += ";";
+			if ( ret.Length() ) { ret += ";"; }
 			ret += sortedVidModes[i].modeIndex;
 		}
 	}
@@ -788,7 +793,12 @@ void R_InitOpenGL( void ) {
 	//
 	for ( i = 0 ; i < 2 ; i++ ) {
 		// set the parameters we are trying
-		R_GetModeInfo( &glConfig.vidWidth, &glConfig.vidHeight, r_mode.GetInteger() );
+		if ( !R_GetModeInfo( &glConfig.vidWidth, &glConfig.vidHeight, r_mode.GetInteger() ) ) {
+			common->Warning( "Invalid video mode; using 1280 x 720 windowed" );
+			r_mode.SetInteger( 9 );
+			r_fullscreen.SetBool( false );
+			R_GetModeInfo( &glConfig.vidWidth, &glConfig.vidHeight, 9 );
+		}
 
 		parms.width = glConfig.vidWidth;
 		parms.height = glConfig.vidHeight;
@@ -2146,7 +2156,9 @@ void R_VidRestart_f( const idCmdArgs &args ) {
 		cvarSystem->SetCVarBool( "r_fullscreen", false );
 	}
 	R_InitOpenGL();
-	cvarSystem->SetCVarBool( "r_fullscreen", latch );
+	// Preserve a safe-mode fallback chosen by R_InitOpenGL. Only the temporary
+	// "windowed" override should restore the caller's preference.
+	if ( forceWindow ) { cvarSystem->SetCVarBool( "r_fullscreen", latch ); }
 
 	// regenerate all images
 	globalImages->ReloadAllImages();

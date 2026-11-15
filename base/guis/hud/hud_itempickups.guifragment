@@ -43,6 +43,7 @@
 
 	windowDef PickupContainer {
 		anchor		ANCHOR_CENTER_CENTER
+		hudSide	1
 		rect		AMMO_XPOS, AMMO_YPOS, 32, 32*10
 		noclip		1
 		visible		("gui::invehicle" == 0)

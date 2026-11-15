@@ -105,6 +105,8 @@ idCVar idSoundSystemLocal::s_useEAXReverb( "s_useEAXReverb", "0", CVAR_SOUND | C
 idCVar idSoundSystemLocal::s_decompressionLimit( "s_decompressionLimit", "6", CVAR_SOUND | CVAR_INTEGER | CVAR_ROM, "specifies maximum uncompressed sample length in seconds" );
 #endif
 
+idCVar idSoundSystemLocal::s_eaxVoiceReverb( "s_eaxVoiceReverb", "5", CVAR_SOUND | CVAR_INTEGER | CVAR_ARCHIVE,
+	"EAX voice reverb amount: 0 off, 5 retail, 10 double; direct dialogue volume is unchanged", 0, 10 );
 idCVar idSoundSystemLocal::s_alReverbGain( "s_alReverbGain", "0.5", CVAR_SOUND | CVAR_FLOAT | CVAR_ARCHIVE | CVAR_NEW, "reduce reverb strength (0.0 to 1.0)", 0.0f, 1.0f );
 
 idCVar idSoundSystemLocal::s_scaleDownAndClamp( "s_scaleDownAndClamp", "1", CVAR_SOUND | CVAR_BOOL | CVAR_ARCHIVE | CVAR_NEW, "Clamp and reduce volume of all sounds to prevent clipping or temporary downscaling by OpenAL. When disabling this, you probably want to explicitly disable s_alOutputLimiter" );
@@ -540,6 +542,8 @@ static void RetailAudioTest_f( const idCmdArgs &args ) {
     }
 	const bool oldSpirit = world->spiritWalkActive;
 	const bool oldSuit = world->enviroSuitActive;
+	const int oldVoiceReverb = idSoundSystemLocal::s_eaxVoiceReverb.GetInteger();
+	idSoundSystemLocal::s_eaxVoiceReverb.SetInteger( 5 );
 	{
 		idSoundSample sample;
 		idSoundChannel channel;
@@ -570,8 +574,31 @@ static void RetailAudioTest_f( const idCmdArgs &args ) {
 			if(c.channels==2) { retailEaxGuid empty[4]={}; ok=ok && !memcmp(sends,empty,sizeof(sends)); }
 			common->Printf("RETAIL_AUDIO_CASE %d room=%d occlusion=%d %s\n",i,room,occlusion,ok?"PASS":"FAIL");
 		}
+		const struct { int amount, room; } voiceLevels[] = {{0,-10000},{1,-1997},{5,-600},{10,2}};
+		world->spiritWalkActive=false; emitter.retailPortalCount=0;
+		sample.objectInfo.nChannels=1;
+		for ( const auto &level : voiceLevels ) {
+			idSoundSystemLocal::s_eaxVoiceReverb.SetInteger( level.amount );
+			for ( int cls : { SOUNDCLASS_NORMAL, SOUNDCLASS_VOICE, SOUNDCLASS_VOICEDUCKER, SOUNDCLASS_MUSIC } ) {
+				for ( int excluded = 0; excluded < 2; ++excluded ) {
+					channel.parms.soundClass=cls;
+					channel.parms.soundShaderFlags=excluded ? SSF_NOREVERB : 0;
+					// Direct gain must survive every reverb adjustment unchanged.
+					alSourcef( source, AL_GAIN, 0.25f );
+					world->ApplyRetailSource(&emitter,&channel,false);
+					int room=12345; float gain=0;
+					const int expected=excluded ? -10000 :
+						(cls==SOUNDCLASS_VOICE || cls==SOUNDCLASS_VOICEDUCKER) ? level.room : 0;
+					bool pass=get(&retailEaxSource[idSoundSystemLocal::retailEaxVersion],7,source,&room,sizeof(room))==AL_NO_ERROR && room==expected;
+					alGetSourcef(source,AL_GAIN,&gain); pass=pass && gain==0.25f;
+					ok=ok && pass;
+					common->Printf("VOICE_REVERB_TEST amount=%d class=%d excluded=%d room=%d direct=%g %s\n",level.amount,cls,excluded,room,gain,pass?"PASS":"FAIL");
+				}
+			}
+		}
 		channel.openalSource=0; channel.leadinSample=NULL;
 	}
+	idSoundSystemLocal::s_eaxVoiceReverb.SetInteger( oldVoiceReverb );
 	world->spiritWalkActive=oldSpirit; world->enviroSuitActive=oldSuit;
 	// No buffers were attached and no playback was started on the borrowed source.
 	common->Printf("RETAIL_AUDIO_TEST %s errors=%d\n",ok?"PASS":"FAIL",idSoundSystemLocal::retailEaxErrors);

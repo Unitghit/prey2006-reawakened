@@ -105,6 +105,8 @@ protected:
 	bool		noClipBackground;
 
 	int			translateFontNum;
+	// Preserve legacy field offsets used by saved GUI transitions.
+	int hudSide; // Authored metadata, not saved.
 };
 
 #endif /* !__SIMPLEWIN_H__ */

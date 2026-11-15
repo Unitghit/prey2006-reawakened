@@ -281,50 +281,30 @@ void idSliderWindow::DrawBackground(const idRectangle &_drawRect) {
 }
 
 const char *idSliderWindow::RouteMouseCoords(float xd, float yd) {
-	float pct;
-
 	if (!(flags & WIN_CAPTURE)) {
 		return "";
 	}
 
-	idRectangle r = drawRect;
-	r.x = actualX;
-	r.y = actualY;
-	r.x += thumbWidth / 2.0;
-	r.w -= thumbWidth;
-	if (vertical) {
-		r.y += thumbHeight / 2;
-		r.h -= thumbHeight;
-		if (gui->CursorY() >= r.y && gui->CursorY() <= r.Bottom()) {
-			pct = (gui->CursorY() - r.y) / r.h;
-			if ( verticalFlip ) {
-				pct = 1.f - pct;
-			}
-			value = low + (high - low) * pct;
-		} else if (gui->CursorY() < r.y) {
-			if ( verticalFlip ) {
-				value = high;
-			} else {
-				value = low;
-			}
-		} else {
-			if ( verticalFlip ) {
-				value = low;
-			} else {
-				value = high;
-			}
-		}
+	// Draw() positions the thumb's center between these endpoints. Transform
+	// that same track into cursor coordinates, including inherited GUI anchors.
+	// Previously dragging used unscaled coordinates and subtracted the horizontal
+	// thumb width twice, so its hit position disagreed with its visible position.
+	idRectangle track = drawRect, screenTrack;
+	if ( vertical ) {
+		track.y += thumbHeight * 0.5f;
+		track.h -= thumbHeight;
 	} else {
-		r.x += thumbWidth / 2;
-		r.w -= thumbWidth;
-		if (gui->CursorX() >= r.x && gui->CursorX() <= r.Right()) {
-			pct = (gui->CursorX() - r.x) / r.w;
-			value = low + (high - low) * pct;
-		} else if (gui->CursorX() < r.x) {
-			value = low;
-		} else {
-			value = high;
-		}
+		track.x += thumbWidth * 0.5f;
+		track.w -= thumbWidth;
+	}
+	if ( high <= low || !NavigationRect( track, screenTrack ) ) { return ""; }
+	float pct = vertical ? (gui->CursorY() - screenTrack.y) / screenTrack.h :
+		(gui->CursorX() - screenTrack.x) / screenTrack.w;
+	pct = idMath::ClampFloat( 0.0f, 1.0f, pct );
+	if ( vertical && verticalFlip ) { pct = 1.0f - pct; }
+	value = low + (high - low) * pct;
+	if ( cvar && (cvar->GetFlags() & CVAR_INTEGER) ) {
+		value = idMath::Floor( value + 0.5f );
 	}
 
 	if (buddyWin) {

@@ -6,6 +6,7 @@
 	#define THERMOMETER_HEIGHT	60
 	windowDef lighterThermometer {
 		anchor		ANCHOR_CENTER_CENTER
+		hudSide	-1
 		rect		74, 402, THERMOMETER_WIDTH, THERMOMETER_HEIGHT
 		visible		("gui::lightertemp" > 0)
 
@@ -34,6 +35,7 @@
 	}
 	windowDef lighter {
 		anchor		ANCHOR_CENTER_CENTER
+		hudSide	-1
 		rect		85, 432, 30, 30
 		background	"guis/assets/hud/zippo"
 		matcolor	1, 1, 1, 0.85
@@ -41,6 +43,7 @@
 	}
 	windowDef lighterflame {
 		anchor		ANCHOR_CENTER_CENTER
+		hudSide	-1
 		rect		85, 418, 40, 40
 		background	"guis/assets/hud/lighter"
 		visible		"gui::lighter"

@@ -1,0 +1,3 @@
+- Added widescreen HUD options to the launcher and in-game menu.
+- Updated the in-game video menu with 4K, ultrawide, and borderless fullscreen options.
+- Added adjustable voice reverb for EAX.

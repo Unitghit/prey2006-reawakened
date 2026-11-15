@@ -238,6 +238,12 @@ public:
 	virtual drawWin_t *FindChildByName(const char *name);
 	idSimpleWindow *FindSimpleWinByName(const char *_name);
 	idWindow *GetParent() { return parent; }
+	int GetHudSide() const {
+		for (const idWindow *window = this; window; window = window->parent) {
+			if (window->hudSide) return window->hudSide;
+		}
+		return 0;
+	}
 	idUserInterfaceLocal *GetGui() {return gui;};
 	bool Contains(float x, float y);
 	// Reawakened: controller navigation between interactive menu items
@@ -498,6 +504,8 @@ protected:
 	idWinInt	anchorTo;		// for anchor transitions
 	idWinFloat	anchorFactor;	// for anchor transitions
 	bool		noClipBackground;
+	// Keep after legacy fields: saved GUI transitions identify them by offset.
+	int hudSide; // Authored metadata, deliberately not serialized.
 };
 
 ID_INLINE void idWindow::AddDefinedVar( idWinVar* var ) {

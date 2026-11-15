@@ -57,6 +57,11 @@ static const wchar_t* Smooth[] = {L"g_interpolatePortals", L"g_interpolateView",
 static std::wstring Get(const Values& v, const std::wstring& key, const std::wstring& fallback = L"") {
     auto it = v.find(key); return it == v.end() ? fallback : it->second;
 }
+static bool ValidResolution(const std::wstring& value) {
+    if (value.empty() || value.size()>9 || value.find_first_not_of(L"0123456789x")!=std::wstring::npos) return false;
+    std::wistringstream in(value); int w=0,h=0; wchar_t x=0;
+    return (in>>w>>x>>h) && in.eof() && x==L'x' && w>=320 && h>=240 && w<=8192 && h<=8192;
+}
 Values Defaults() {
     Values v; for (const auto& s : Options()) if (!s.action) v[s.key] = s.initial; return v;
 }
@@ -65,7 +70,7 @@ Values Migrate(const Values& saved) {
     for (const auto& s : Options()) {
         if (s.action) continue;
         auto it = saved.find(s.key);
-        if (it != saved.end() && std::any_of(s.choices.begin(), s.choices.end(), [&](const Choice& c) { return c.value == it->second; })) v[s.key] = it->second;
+        if (it != saved.end() && (std::any_of(s.choices.begin(), s.choices.end(), [&](const Choice& c) { return c.value == it->second; }) || (s.key==L"resolution" && ValidResolution(it->second)))) v[s.key] = it->second;
     }
     if (!saved.count(L"bloom")) v[L"bloom"] = Get(saved,L"r_skipGlowOverlay") == L"1" ? L"off" : Get(saved,L"r_glowResolution") == L"256" ? L"original" : L"enhanced";
     // The two former muzzle flash switches became one choice.
@@ -81,7 +86,7 @@ void Validate(const Values& v) {
     for (const auto& s : Options()) {
         if (s.action) continue;
         auto it = v.find(s.key);
-        if (it == v.end() || !std::any_of(s.choices.begin(), s.choices.end(), [&](const Choice& c) { return c.value == it->second; }))
+        if (it == v.end() || !(std::any_of(s.choices.begin(), s.choices.end(), [&](const Choice& c) { return c.value == it->second; }) || (s.key==L"resolution" && ValidResolution(it->second))))
             throw std::runtime_error("Invalid setting: " + Utf8(s.label));
     }
 }
@@ -159,16 +164,34 @@ Values Load(const fs::path& root) {
         if (!in) throw std::runtime_error("Cannot read settings file");
         values = Migrate(ParseJson(std::string(std::istreambuf_iterator<char>(in), {})));
     }
-    // Respect changes made in the game's Audio menu after the last launcher save.
+    // Import newer in-game preferences; never let stale launcher settings undo them.
     auto config = root / L"userdata/base/prey06.cfg";
     std::error_code ec;
     if (fs::exists(config,ec) && !ec && (!saved || fs::last_write_time(config) > fs::last_write_time(file))) {
         std::ifstream in(config);
-        std::string line;
+        std::string line; Values game;
         while (std::getline(in,line)) {
             std::istringstream tokens(line); std::string command,key,value;
             tokens >> command >> key >> std::quoted(value);
-            if ((command=="seta" || command=="set") && key=="s_useEAXReverb" && (value=="0" || value=="1")) values[L"s_useEAXReverb"] = Wide(value);
+            if (command=="seta" || command=="set") game[Wide(key)]=Wide(value);
+        }
+        for (const auto& option: Options()) {
+            if (option.key!=L"s_useEAXReverb" && option.key!=L"s_eaxVoiceReverb" && option.key!=L"gui_hudWidescreen" && option.key!=L"r_swapInterval" && option.key!=L"r_multiSamples") continue;
+            auto it=game.find(option.key);
+            if(it!=game.end() && std::any_of(option.choices.begin(),option.choices.end(),[&](const Choice& c){return c.value==it->second;})) values[option.key]=it->second;
+        }
+        if(Get(game,L"r_skipGlowOverlay")==L"1") values[L"bloom"]=L"off";
+        else if(Get(game,L"r_skipGlowOverlay")==L"0" && values[L"bloom"]==L"off") values[L"bloom"]=L"enhanced";
+        if(Get(game,L"r_fullscreen")==L"0") values[L"r_fullscreen"]=L"0";
+        else if(Get(game,L"r_fullscreen")==L"1") values[L"r_fullscreen"]=Get(game,L"r_fullscreenDesktop")==L"1"?L"desktop":L"1";
+        static const wchar_t* modes[]={L"320x240",L"400x300",L"512x384",L"640x480",L"800x600",L"1024x768",L"1152x864",L"1280x1024",L"1600x1200",L"1280x720",L"1366x768",L"1440x900",L"1400x1050",L"1600x900",L"1680x1050",L"1920x1080",L"1920x1200",L"2048x1152",L"2560x1600",L"3200x2400",L"3840x2160",L"4096x2304",L"2880x1800",L"2560x1440",L"1440x1080",L"1280x800",L"2560x1080",L"3440x1440",L"3840x1600",L"5120x2160",L"3840x1080",L"5120x1440",L"7680x2160"};
+        const auto mode=Get(game,L"r_mode");
+        if(mode==L"-1") {
+            const auto size=Get(game,L"r_customWidth")+L"x"+Get(game,L"r_customHeight");
+            if(ValidResolution(size)) values[L"resolution"]=size;
+        } else {
+            for(size_t i=0;i<sizeof(modes)/sizeof(*modes);++i)
+                if(mode==std::to_wstring(i)) values[L"resolution"]=modes[i];
         }
     }
     return values;
@@ -184,7 +207,7 @@ std::vector<std::pair<std::wstring,std::wstring>> Variables(const Values& v) {
         {L"r_fullscreen",v.at(L"r_fullscreen")==L"0"?L"0":L"1"},{L"r_fullscreenDesktop",v.at(L"r_fullscreen")==L"desktop"?L"1":L"0"},
         {L"com_unlockedFPS",L"1"},{L"r_glowMode",L"2"},{L"r_skipGlowOverlay",v.at(L"bloom")==L"off"?L"1":L"0"},{L"r_glowResolution",v.at(L"bloom")==L"original"?L"256":L"0"},
         {L"r_glowStrength",L"0.5"},{L"r_glowAlpha",L"0.55"},{L"r_glowAlphaChange",L"0.85"},{L"r_glowSteps",L"8"},
-        {L"r_correctspecular",L"1"},{L"r_normalizebumpmap",L"1"},{L"r_cubemapNormalize",L"0"},{L"r_portalMaxDepth",v.at(L"r_portalDeepViews")==L"0"?L"3":L"6"},
+        {L"r_cubemapNormalize",L"0"},{L"r_portalMaxDepth",v.at(L"r_portalDeepViews")==L"0"?L"3":L"6"},
         {L"r_glowPortals",L"1"},{L"g_portalLighter",L"1"},{L"g_portalMuzzleFlash",L"1"},{L"g_portalWeaponLighting",L"1"},{L"g_portalPreserveMotion",L"1"},{L"g_nightmare",L"1"},{L"g_lateMouse",L"0"},
         {L"g_muzzleFlashShadows",v.at(L"muzzleShadows")==L"off"?L"0":L"1"},{L"g_npcMuzzleFlashShadows",v.at(L"muzzleShadows")==L"all"?L"1":L"0"},
         // Formerly launcher options; now always at their recommended values.
@@ -283,19 +306,28 @@ void Launch(const fs::path& exe, const std::vector<std::wstring>& args) {
 void VerifyConfiguration(const fs::path& output) {
     fs::create_directories(output);
     int checkIndex=0; auto require = [&](bool ok) { ++checkIndex; if (!ok) throw std::runtime_error("Configuration verification failed at check " + std::to_string(checkIndex)); };
-    auto defaults = Defaults(); require(defaults.size()==25 && !defaults.count(L"padConfig") && defaults.at(L"gui_controllerNavigation")==L"1" && defaults.at(L"g_noFallDamage")==L"0" && defaults.at(L"g_weaponUnlockTips")==L"1" && defaults.at(L"muzzleShadows")==L"all" && defaults.at(L"g_noSpiritResurrections")==L"0" && defaults.at(L"g_portalGun")==L"0" && defaults.at(L"g_portalGunReticle")==L"1" && defaults.at(L"g_bunnyHop")==L"0" && defaults.at(L"g_halfLifeAutoHop")==L"0" && defaults.at(L"com_maxFPS")==L"-1");
+    auto defaults = Defaults(); require(defaults.size()==27 && defaults.at(L"s_eaxVoiceReverb")==L"5" && defaults.at(L"gui_hudWidescreen")==L"1" && !defaults.count(L"padConfig") && defaults.at(L"gui_controllerNavigation")==L"1" && defaults.at(L"g_noFallDamage")==L"0" && defaults.at(L"g_weaponUnlockTips")==L"1" && defaults.at(L"muzzleShadows")==L"all" && defaults.at(L"g_noSpiritResurrections")==L"0" && defaults.at(L"g_portalGun")==L"0" && defaults.at(L"g_portalGunReticle")==L"1" && defaults.at(L"g_bunnyHop")==L"0" && defaults.at(L"g_halfLifeAutoHop")==L"0" && defaults.at(L"com_maxFPS")==L"-1");
     Save(output,defaults); require(Load(output)==defaults);
     const auto syncRoot=output/L"audio-sync";
     fs::create_directories(syncRoot/L"userdata/base");
     Save(syncRoot,defaults);
     const auto syncConfig=syncRoot/L"userdata/base/prey06.cfg";
-    Atomic(syncConfig,"seta s_useEAXReverb \"1\"\n");
+    Atomic(syncConfig,"seta s_useEAXReverb \"1\"\nseta s_eaxVoiceReverb \"2\"\n");
     const auto stamp=fs::last_write_time(syncRoot/L"Prey-settings.json");
     fs::last_write_time(syncConfig,stamp+std::chrono::seconds(2));
-    require(Load(syncRoot).at(L"s_useEAXReverb")==L"1");
+    require(Load(syncRoot).at(L"s_useEAXReverb")==L"1" && Load(syncRoot).at(L"s_eaxVoiceReverb")==L"2");
     fs::last_write_time(syncConfig,stamp-std::chrono::seconds(2));
     require(Load(syncRoot).at(L"s_useEAXReverb")==L"0");
 
+    Atomic(syncConfig,"seta r_mode \"20\"\nseta r_fullscreen \"1\"\nseta r_fullscreenDesktop \"1\"\nseta gui_hudWidescreen \"0\"\nseta r_multiSamples \"8\"\nseta r_swapInterval \"1\"\n");
+    fs::last_write_time(syncConfig,stamp+std::chrono::seconds(2));
+    auto video=Load(syncRoot);
+    require(video.at(L"resolution")==L"3840x2160" && video.at(L"r_fullscreen")==L"desktop" && video.at(L"gui_hudWidescreen")==L"0" && video.at(L"r_multiSamples")==L"8" && video.at(L"r_swapInterval")==L"1");
+    Atomic(syncConfig,"seta r_mode \"-1\"\nseta r_customWidth \"1732\"\nseta r_customHeight \"974\"\n");
+    fs::last_write_time(syncConfig,stamp+std::chrono::seconds(2));
+    video=Load(syncRoot); require(video.at(L"resolution")==L"1732x974");
+    Validate(video); require(Migrate(ParseJson(Json(video)))==video);
+    require(!ValidResolution(L"999999x999") && !ValidResolution(L"1920x1080+quit") && !ValidResolution(L"0x0"));
     Atomic(output/L"default-launcher.bat",Launcher(defaults));
     for (const auto& s : Options()) for (const auto& c : s.choices) {
         auto v = defaults; v[s.key]=c.value; Validate(v); require(Migrate(ParseJson(Json(v)))==v);
@@ -308,7 +340,7 @@ void VerifyConfiguration(const fs::path& output) {
         require(vars.at(L"g_muzzleFlashShadows")==(v[L"muzzleShadows"]==L"off"?L"0":L"1") && vars.at(L"g_npcMuzzleFlashShadows")==(v[L"muzzleShadows"]==L"all"?L"1":L"0"));
         require(vars.at(L"g_noSpiritResurrections")==v[L"g_noSpiritResurrections"]);
         require(vars.at(L"g_noFallDamage")==v[L"g_noFallDamage"]);
-        require(vars.at(L"r_portalMaxDepth")== (v[L"r_portalDeepViews"]==L"0"?L"3":L"6") && vars.at(L"r_correctspecular")==L"1");
+        require(vars.at(L"r_portalMaxDepth")== (v[L"r_portalDeepViews"]==L"0"?L"3":L"6"));
         require(vars.at(L"r_fullscreen")== (v[L"r_fullscreen"]==L"0"?L"0":L"1"));
         require(vars.at(L"r_fullscreenDesktop")== (v[L"r_fullscreen"]==L"desktop"?L"1":L"0"));
         require(vars.at(L"r_skipGlowOverlay")== (v[L"bloom"]==L"off"?L"1":L"0"));

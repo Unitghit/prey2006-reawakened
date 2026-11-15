@@ -11,6 +11,7 @@
 
 	windowDef Ammo_parent {
 		anchor		ANCHOR_CENTER_CENTER
+		hudSide	1
 		// If altammo isn't displayed, move this bar over to the right 18 units
 		rect		592 + 18 * (1-"gui::player_altammobar"), 368, 21, 100
 		visible		"gui::player_ammobar"
@@ -42,6 +43,7 @@
 
 	windowDef AltAmmo_parent {
 		anchor		ANCHOR_CENTER_CENTER
+		hudSide	1
 		rect		610, 368, 21, 100
 		visible		"gui::player_altammobar"
 
@@ -71,6 +73,7 @@
 	}
 	windowDef AmmoCrop {
 		anchor		ANCHOR_CENTER_CENTER
+		hudSide	1
 		// If altammo isn't displayed, move this bar over to the right 18 units
 		rect		599 + 18.5 * (1-"gui::player_altammobar"), 378 + AMMO_BAR_HEIGHT * (1 - "gui::player_ammopercent"), AMMO_BAR_WIDTH, AMMO_BAR_HEIGHT
 		visible		"gui::player_ammobar"
@@ -84,6 +87,7 @@
 	}
 	windowDef AltAmmoCrop {
 		anchor		ANCHOR_CENTER_CENTER
+		hudSide	1
 		rect		617.5, 378 + ALTAMMO_BAR_HEIGHT * (1 - "gui::player_altammopercent"), ALTAMMO_BAR_WIDTH, ALTAMMO_BAR_HEIGHT
 		visible		"gui::player_altammobar"
 

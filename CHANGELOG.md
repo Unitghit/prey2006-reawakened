@@ -1,5 +1,11 @@
 # Changelog
 
+## 1.0.6
+
+- Added widescreen HUD options to the launcher and in-game menu.
+- Updated the in-game video menu with 4K, ultrawide, and borderless fullscreen options.
+- Added adjustable voice reverb for EAX.
+
 ## 1.0.5
 
 - Restored retail-style EAX audio and the original audio menu.

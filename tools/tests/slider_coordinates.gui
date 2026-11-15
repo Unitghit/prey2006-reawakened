@@ -1,0 +1,6 @@
+#include "guis/anchors.guifragment"
+windowDef desktop { rect 0,0,640,480 menugui 1 scaleto43 0 backcolor 0,0,0,1
+sliderDef test_h { anchor ANCHOR_CENTER_CENTER rect 200,100,200,16 forecolor 1,1,1,1 low 0 high 10 step 1 vertical 0 verticalFlip 0 thumbShader "guis/assets/sliderbutton.tga" cvar "test_slider_h" }
+sliderDef test_v { anchor ANCHOR_CENTER_CENTER rect 200,150,16,200 forecolor 1,1,1,1 low 0 high 10 step 1 vertical 1 verticalFlip 0 thumbShader "guis/assets/sliderbutton.tga" cvar "test_slider_v" }
+sliderDef test_f { anchor ANCHOR_CENTER_CENTER rect 250,150,16,200 forecolor 1,1,1,1 low 0 high 10 step 1 vertical 1 verticalFlip 1 thumbShader "guis/assets/sliderbutton.tga" cvar "test_slider_f" }
+}

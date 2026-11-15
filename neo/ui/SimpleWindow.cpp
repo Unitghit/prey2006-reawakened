@@ -80,6 +80,7 @@ idSimpleWindow::idSimpleWindow(idWindow *win) {
 
 	translateFontNum = -1;
 
+	hudSide = win->hudSide;
 	anchor = win->anchor;
 	anchorTo = win->anchorTo;
 	anchorFactor = win->anchorFactor;
@@ -262,7 +263,10 @@ void idSimpleWindow::Redraw(float x, float y) {
 			dc->SetSize(VIRTUAL_WIDTH, VIRTUAL_HEIGHT);
 		}
 	} else {
-		dc->SetAnchorSize(anchor, anchorTo, anchorFactor);
+		extern idCVar gui_hudWidescreen;
+		const int side = gui_hudWidescreen.GetBool() ? (hudSide ? hudSide : (mParent ? mParent->GetHudSide() : 0)) : 0;
+		dc->SetAnchorSize(side ? (side < 0 ? idDeviceContext::ANCHOR_CENTER_LEFT : idDeviceContext::ANCHOR_CENTER_RIGHT) : int(anchor),
+			side ? idDeviceContext::ANCHOR_NONE : int(anchorTo), anchorFactor);
 	}
 
 	drawRect.Offset(x, y);

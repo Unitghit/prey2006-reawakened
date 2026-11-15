@@ -58,6 +58,7 @@ bool idWindow::registerIsTemporary[MAX_EXPRESSION_REGISTERS];		// statics to ass
 
 idCVar idWindow::gui_debug( "gui_debug", "0", CVAR_GUI | CVAR_INTEGER, "" );
 idCVar idWindow::gui_edit( "gui_edit", "0", CVAR_GUI | CVAR_BOOL, "" );
+idCVar gui_hudWidescreen( "gui_hudWidescreen", "1", CVAR_GUI | CVAR_BOOL | CVAR_ARCHIVE, "place HUD side displays at screen edges without stretching" );
 idCVar gui_hudAdjustAspect( "gui_hudAdjustAspect", "1", CVAR_GUI | CVAR_BOOL | CVAR_ARCHIVE | CVAR_NEW, "adjust the HUD's aspect when the screen aspect ratio isn't 4:3" );
 
 extern idCVar r_skipGuiShaders;		// 1 = don't render any gui elements on surfaces
@@ -188,6 +189,7 @@ void idWindow::CommonInit() {
 	translateFontNum = -1;
 
 	anchor = idDeviceContext::ANCHOR_NONE;
+	hudSide = 0;
 	anchorTo = idDeviceContext::ANCHOR_NONE;
 	anchorFactor = 0.0f;
 	noClipBackground = false;
@@ -1596,7 +1598,9 @@ void idWindow::Redraw(float x, float y) {
 		//     so a potentially active menuscalefix must be disabled
 		//    (else it's "fixed" twice => wrong ratio in other direction)
 		dc->SetMenuScaleFix( false );
-		dc->SetAnchorSize( anchor, anchorTo, anchorFactor );
+		const int side = gui_hudWidescreen.GetBool() ? GetHudSide() : 0;
+		dc->SetAnchorSize( side ? (side < 0 ? idDeviceContext::ANCHOR_CENTER_LEFT : idDeviceContext::ANCHOR_CENTER_RIGHT) : int(anchor),
+			side ? idDeviceContext::ANCHOR_NONE : int(anchorTo), anchorFactor );
 	}
 
 	//FIXME: go to screen coord tracking
@@ -2335,6 +2339,10 @@ idWindow::ParseInternalVar
 ================
 */
 bool idWindow::ParseInternalVar(const char *_name, idParser *src) {
+	if (!idStr::Icmp(_name, "hudSide")) {
+		hudSide = idMath::ClampInt(-1, 1, src->ParseInt());
+		return true;
+	}
 
 	if (idStr::Icmp(_name, "showtime") == 0) {
 		if ( src->ParseBool() ) {

@@ -108,6 +108,9 @@ struct App {
             const auto& s=Options()[i];
             if(s.action) continue;
             auto it=std::find_if(s.choices.begin(),s.choices.end(),[&](const Choice& c){return c.value==v.at(s.key);});
+            // A resized window can have a valid size absent from the presets.
+            while(SendMessageW(rows[i].combo,CB_GETCOUNT,0,0)>(LRESULT)s.choices.size()) SendMessageW(rows[i].combo,CB_DELETESTRING,s.choices.size(),0);
+            if(it==s.choices.end() && s.key==L"resolution") SendMessageW(rows[i].combo,CB_ADDSTRING,0,(LPARAM)v.at(s.key).c_str());
             SendMessageW(rows[i].combo,CB_SETCURSEL,it-s.choices.begin(),0);
         }
         Dependencies();
@@ -117,6 +120,12 @@ struct App {
         for (size_t i=0;i<rows.size();++i) {
             if(Options()[i].action) continue;
             int selection=(int)SendMessageW(rows[i].combo,CB_GETCURSEL,0,0);
+            if(Options()[i].key==L"resolution" && selection==(int)Options()[i].choices.size()) {
+                wchar_t size[32]={};
+                if(SendMessageW(rows[i].combo,CB_GETLBTEXTLEN,selection,0)>=32) throw std::runtime_error("Invalid resolution");
+                SendMessageW(rows[i].combo,CB_GETLBTEXT,selection,(LPARAM)size);
+                v[L"resolution"]=size; continue;
+            }
             if(selection<0 || selection>=(int)Options()[i].choices.size()) throw std::runtime_error("Missing settings choice");
             v[Options()[i].key]=Options()[i].choices[selection].value;
         }
@@ -127,6 +136,7 @@ struct App {
         Values v=Read();
         for (size_t i=0;i<rows.size();++i) {
             const auto& key=Options()[i].key; bool enabled=true;
+            if(key==L"s_eaxVoiceReverb") enabled=v[L"s_useEAXReverb"]==L"1";
             if(key==L"resolution") enabled=v[L"r_fullscreen"]!=L"desktop";
             if(key==L"joy_invertLook" || key==L"joy_deadZone" || key==L"padConfig" || key==L"gui_controllerNavigation") enabled=v[L"in_useGamepad"]==L"1";
             if(key==L"g_portalGunReticle") enabled=v[L"g_portalGun"]==L"1";
@@ -415,7 +425,7 @@ void App::Verify(const fs::path& output) {
                 size_t n=i+1;while(n<rows.size() && !Visible(n))++n;
                 if(n<rows.size())require(std::max(a.bottom,b.bottom)<=std::min(rows[n].labelRect.top,rows[n].comboRect.top),"Overlapping rows");
             }
-            require(visible==(shown?rows.size():17),"Wrong number of visible options");
+            require(visible==(shown?rows.size():18),"Wrong number of visible options");
             ScrollTo(contentHeight);require(scroll+pageHeight>=contentHeight,"Cannot scroll to last setting");
             auto current=Read();current.erase(L"showAdvanced");auto expected=initial;expected.erase(L"showAdvanced");
             require(current==expected,"Layout changed a setting");

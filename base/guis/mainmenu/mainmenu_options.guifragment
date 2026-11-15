@@ -13,7 +13,7 @@
 			resetTime "Anim_ResetMainMenuButtons" "0";
 			set "cmd" "loadBinds" ;
 			
-			set "cmd" "sound init";		// Have sound system update the state variables and call 'UpdateOptions'
+			set "cmd" "sound init ; video init";		// Have sound system update the state variables and call 'UpdateOptions'
 			
 			set "Main_Logo::visible" "0" ;
 			set "Main_Menu::visible" "0" ;
@@ -52,6 +52,7 @@
 			// Leaving menu, apply video changes if needed
 			if ("Options_Video::needsVidRestart" != 0) {
 				namedEvent "VidRestart";
+				set "cmd" "video restart";
 			}
 		}
 		onTime 300 {
@@ -2059,8 +2060,37 @@
 								}
 							}
 
-							buttonDef OG_Showgun {
+							buttonDef OG_HudLayout {
 								rect			10, 100, 400, 25
+								leftMat			"guis/assets/menu/textbar_corner.tga"
+								middleMat		"guis/assets/menu/textbarstrip.tga"
+								rightMat		"guis/assets/menu/textbar_invcorner.tga"
+
+								windowDef OGT_HudLayout {
+									rect		0, 0, 250, 25
+									forecolor	STATIC_FORECOLOR_COMMA
+									text		"HUD Layout"
+									textalign	1
+									textaligny	-2
+									textscale	0.30
+									shadow		1
+								}
+								choiceDef OGO_HudLayout {
+									rect		200, 0, 200, 25
+									forecolor	EDITABLE_FORECOLOR_COMMA
+									hovercolor	EDITABLE_HOVERCOLOR_COMMA
+									textalign	1
+									textaligny	-2
+									textscale	0.30
+									shadow		1
+									choices		"Classic (4:3);Widescreen (16:9)"
+									cvar		"gui_hudWidescreen"
+									choiceType	0
+								}
+							}
+
+							buttonDef OG_Showgun {
+								rect			10, 130, 400, 25
 								leftMat			"guis/assets/menu/textbar_corner.tga"
 								middleMat		"guis/assets/menu/textbarstrip.tga"
 								rightMat		"guis/assets/menu/textbar_invcorner.tga"
@@ -2089,7 +2119,7 @@
 							}
 
 							buttonDef OG_Subtitles {
-								rect			10, 130, 400, 25
+								rect			10, 160, 400, 25
 								leftMat			"guis/assets/menu/textbar_corner.tga"
 								middleMat		"guis/assets/menu/textbarstrip.tga"
 								rightMat		"guis/assets/menu/textbar_invcorner.tga"
@@ -2118,7 +2148,7 @@
 							}
 
 							buttonDef OG_Profanity {
-								rect			10, 160, 400, 25
+								rect			10, 190, 400, 25
 								leftMat			"guis/assets/menu/textbar_corner.tga"
 								middleMat		"guis/assets/menu/textbarstrip.tga"
 								rightMat		"guis/assets/menu/textbar_invcorner.tga"
@@ -2147,7 +2177,7 @@
 							}
 
 							buttonDef OG_Crosshair {
-								rect			10, 190, 400, 55
+								rect			10, 220, 400, 55
 								leftMat			"guis/assets/menu/text_titlebox_left.tga"
 								middleMat		"guis/assets/menu/text_titlebox.tga"
 								rightMat		"guis/assets/menu/text_titlebox_right.tga"
@@ -2487,7 +2517,7 @@
 
 				onNamedEvent VidRestart {
 					set "needsVidRestart" 0;
-					set	"cmd" "video restart" ;
+					// The clicked button dispatches the command after this notification.
 				}
 
 				onTabActivate {
@@ -2752,7 +2782,7 @@
 
 								windowDef OVN_FullscreenTitle {
 									rect		0, 0, 200, 25
-									text		"#str_20289"
+									text		"Window Mode"
 									textalign	1
 									textaligny	0
 									textscale	0.33
@@ -2764,12 +2794,12 @@
 									rect		200, 0, 200, 25
 									textalign	1
 									textaligny	0
-									textscale	0.33
+									textscale	0.28
 									shadow		1
 									forecolor	EDITABLE_FORECOLOR_COMMA
 									hovercolor	EDITABLE_HOVERCOLOR_COMMA
-									choices		"#str_20152"
-									cvar		"r_fullscreen"
+									choices		"Windowed;Fullscreen;Borderless fullscreen"
+									cvar		"gui_videoWindowMode"
 									updateGroup	render
 									choiceType	0
 									onAction {
@@ -2866,11 +2896,11 @@
 									shadow		1
 									forecolor	EDITABLE_FORECOLOR_COMMA
 									hovercolor	EDITABLE_HOVERCOLOR_COMMA
-									choices		"#str_20293"
-									values		"0;1;2"
+									choices		"Automatic;4:3;16:9;16:10"
+									values		"-1;0;1;2"
 									cvar		"r_aspectratio"
 									updateGroup	render
-									choiceType	0
+									choiceType	1
 									onAction {
 										//namedEvent "NeedVidRestart";
 									}
@@ -2909,6 +2939,7 @@
 								onAction {
 									set	"cmd"	"play guisounds_menu_clickin" ;
 									namedEvent "VidRestart";
+									set "cmd" "video restart";
 								}
 							}
 						}
@@ -3030,7 +3061,7 @@
 									choiceType	1
 									onAction {
 										// Could also set a var to make the next applychanges display the message but I think this is clearer
-										resetTime "AnimMustRestart_Up" "0" ;
+										namedEvent "NeedVidRestart";
 										//namedEvent "NeedVidRestart";
 									}
 								}
@@ -3175,8 +3206,8 @@
 									textaligny	0
 									textscale	0.33
 									shadow		1
-									choices		"#str_42061"
-									values		"0;2;4"
+									choices		"Off;2x;4x;8x"
+									values		"0;2;4;8"
 									cvar		"r_multisamples"
 									choiceType	1
 									onAction {
@@ -3275,6 +3306,7 @@
 								onAction {
 									set	"cmd"	"play guisounds_menu_clickin" ;
 									namedEvent "VidRestart";
+									set "cmd" "video restart";
 								}
 							}
 						}	// END OF PAGE
@@ -3521,6 +3553,7 @@
 								onAction {
 									set	"cmd"	"play guisounds_menu_clickin" ;
 									namedEvent "VidRestart";
+									set "cmd" "video restart";
 								}
 							}
 						}
@@ -3846,7 +3879,7 @@
 						}
 
 						windowDef OA_Suboptions_OpenAL {
-							rect		0, 220, 420, 200
+							rect		0, 190, 420, 200
 							visible		("gui::openal" != 0)
 
 							buttonDef OA_SubHeading_OpenAL {
@@ -3933,8 +3966,41 @@
 								}
 							}
 
+						buttonDef OA_VoiceReverb {
+							visible "gui::eax"
+							rect			10, 100, 400, 25
+							leftMat			"guis/assets/menu/textbar_corner.tga"
+							middleMat		"guis/assets/menu/textbarstrip.tga"
+							rightMat		"guis/assets/menu/textbar_invcorner.tga"
+
+							windowDef OAT_VoiceReverb {
+								rect		0, 0, 200, 25
+								text		"Voice Reverb"
+								textalign	1
+								textaligny	0
+								textscale	0.33
+								shadow		1
+								forecolor	STATIC_FORECOLOR_COMMA
+							}
+							windowDef OA_VoiceReverbBG {
+								rect		250, 4, 100, 16
+								background	"guis/assets/sliderbackground.tga"
+							}
+							sliderDef OA_VoiceReverbSlider {
+								rect		250, 4, 100, 16
+								forecolor	EDITABLE_FORECOLOR_COMMA
+								hovercolor	EDITABLE_HOVERCOLOR_COMMA
+								low			0
+								high		10
+								step		1
+								thumbShader	"guis/assets/sliderbutton.tga"
+								cvar		"s_eaxVoiceReverb"
+
+							}
+						}
+
 							windowDef EAXLogo {
-								rect		175, 100, 64, 28
+								rect		175, 130, 64, 28
 								background	"guis/assets/menu/eax.tga"
 								forecolor	STATIC_FORECOLOR_COMMA
 								visible		"gui::eax"
