@@ -1,3 +1,5 @@
+#include <sstream>
+#include <iomanip>
 #include "settings.h"
 #include <algorithm>
 #include <fstream>
@@ -149,11 +151,27 @@ std::string Json(const Values& v) {
 }
 Values Load(const fs::path& root) {
     auto file = root / L"Prey-settings.json";
-    if (!fs::exists(file)) return Defaults();
-    if (fs::file_size(file) > 1024 * 1024) throw std::runtime_error("Settings file is unexpectedly large");
-    std::ifstream in(file,std::ios::binary);
-    if (!in) throw std::runtime_error("Cannot read settings file");
-    return Migrate(ParseJson(std::string(std::istreambuf_iterator<char>(in), {})));
+    Values values = Defaults();
+    const bool saved = fs::exists(file);
+    if (saved) {
+        if (fs::file_size(file) > 1024 * 1024) throw std::runtime_error("Settings file is unexpectedly large");
+        std::ifstream in(file,std::ios::binary);
+        if (!in) throw std::runtime_error("Cannot read settings file");
+        values = Migrate(ParseJson(std::string(std::istreambuf_iterator<char>(in), {})));
+    }
+    // Respect changes made in the game's Audio menu after the last launcher save.
+    auto config = root / L"userdata/base/prey06.cfg";
+    std::error_code ec;
+    if (fs::exists(config,ec) && !ec && (!saved || fs::last_write_time(config) > fs::last_write_time(file))) {
+        std::ifstream in(config);
+        std::string line;
+        while (std::getline(in,line)) {
+            std::istringstream tokens(line); std::string command,key,value;
+            tokens >> command >> key >> std::quoted(value);
+            if ((command=="seta" || command=="set") && key=="s_useEAXReverb" && (value=="0" || value=="1")) values[L"s_useEAXReverb"] = Wide(value);
+        }
+    }
+    return values;
 }
 std::vector<std::pair<std::wstring,std::wstring>> Variables(const Values& v) {
     Validate(v); std::vector<std::pair<std::wstring,std::wstring>> result;
@@ -162,7 +180,7 @@ std::vector<std::pair<std::wstring,std::wstring>> Variables(const Values& v) {
     const std::vector<std::pair<std::wstring,std::wstring>> fixed = {
         {L"fs_game",L""},{L"g_doom3Shotgun",v.at(L"weaponPack")==L"doom3shotgun"?L"1":L"0"},
         {L"r_mode",L"-1"},{L"r_customWidth",size.substr(0,x)},{L"r_customHeight",size.substr(x+1)},
-        {L"gui_translateAlienFont",L"fonts"},{L"g_stopTime",L"0"},{L"s_useEAXReverb",L"0"},
+        {L"gui_translateAlienFont",L"fonts"},{L"g_stopTime",L"0"},
         {L"r_fullscreen",v.at(L"r_fullscreen")==L"0"?L"0":L"1"},{L"r_fullscreenDesktop",v.at(L"r_fullscreen")==L"desktop"?L"1":L"0"},
         {L"com_unlockedFPS",L"1"},{L"r_glowMode",L"2"},{L"r_skipGlowOverlay",v.at(L"bloom")==L"off"?L"1":L"0"},{L"r_glowResolution",v.at(L"bloom")==L"original"?L"256":L"0"},
         {L"r_glowStrength",L"0.5"},{L"r_glowAlpha",L"0.55"},{L"r_glowAlphaChange",L"0.85"},{L"r_glowSteps",L"8"},
@@ -264,14 +282,25 @@ void Launch(const fs::path& exe, const std::vector<std::wstring>& args) {
 
 void VerifyConfiguration(const fs::path& output) {
     fs::create_directories(output);
-    auto require = [](bool ok) { if (!ok) throw std::runtime_error("Configuration verification failed"); };
-    auto defaults = Defaults(); require(defaults.size()==24 && !defaults.count(L"padConfig") && defaults.at(L"gui_controllerNavigation")==L"1" && defaults.at(L"g_noFallDamage")==L"0" && defaults.at(L"g_weaponUnlockTips")==L"1" && defaults.at(L"muzzleShadows")==L"all" && defaults.at(L"g_noSpiritResurrections")==L"0" && defaults.at(L"g_portalGun")==L"0" && defaults.at(L"g_portalGunReticle")==L"1" && defaults.at(L"g_bunnyHop")==L"0" && defaults.at(L"g_halfLifeAutoHop")==L"0" && defaults.at(L"com_maxFPS")==L"-1");
+    int checkIndex=0; auto require = [&](bool ok) { ++checkIndex; if (!ok) throw std::runtime_error("Configuration verification failed at check " + std::to_string(checkIndex)); };
+    auto defaults = Defaults(); require(defaults.size()==25 && !defaults.count(L"padConfig") && defaults.at(L"gui_controllerNavigation")==L"1" && defaults.at(L"g_noFallDamage")==L"0" && defaults.at(L"g_weaponUnlockTips")==L"1" && defaults.at(L"muzzleShadows")==L"all" && defaults.at(L"g_noSpiritResurrections")==L"0" && defaults.at(L"g_portalGun")==L"0" && defaults.at(L"g_portalGunReticle")==L"1" && defaults.at(L"g_bunnyHop")==L"0" && defaults.at(L"g_halfLifeAutoHop")==L"0" && defaults.at(L"com_maxFPS")==L"-1");
     Save(output,defaults); require(Load(output)==defaults);
+    const auto syncRoot=output/L"audio-sync";
+    fs::create_directories(syncRoot/L"userdata/base");
+    Save(syncRoot,defaults);
+    const auto syncConfig=syncRoot/L"userdata/base/prey06.cfg";
+    Atomic(syncConfig,"seta s_useEAXReverb \"1\"\n");
+    const auto stamp=fs::last_write_time(syncRoot/L"Prey-settings.json");
+    fs::last_write_time(syncConfig,stamp+std::chrono::seconds(2));
+    require(Load(syncRoot).at(L"s_useEAXReverb")==L"1");
+    fs::last_write_time(syncConfig,stamp-std::chrono::seconds(2));
+    require(Load(syncRoot).at(L"s_useEAXReverb")==L"0");
+
     Atomic(output/L"default-launcher.bat",Launcher(defaults));
     for (const auto& s : Options()) for (const auto& c : s.choices) {
         auto v = defaults; v[s.key]=c.value; Validate(v); require(Migrate(ParseJson(Json(v)))==v);
         auto pairs = Variables(v); Values vars(pairs.begin(),pairs.end());
-        require(vars.at(L"s_useEAXReverb")==L"0");
+        require(vars.at(L"s_useEAXReverb")==v.at(L"s_useEAXReverb"));
         require(vars.at(L"fs_game").empty() && vars.at(L"g_doom3Shotgun")==(v[L"weaponPack"]==L"doom3shotgun"?L"1":L"0"));
         require(vars.at(L"g_portalGun")==v[L"g_portalGun"] && vars.at(L"g_portalGunReticle")==v[L"g_portalGunReticle"]);
         require(vars.at(L"g_bunnyHop")==v[L"g_bunnyHop"] && vars.at(L"g_halfLifeAutoHop")==v[L"g_halfLifeAutoHop"]);

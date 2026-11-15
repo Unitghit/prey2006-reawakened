@@ -1597,20 +1597,24 @@ int vsprintf( idStr &string, const char *fmt, va_list argptr ) {
 va
 
 does a varargs printf into a temp buffer
-NOTE: not thread safe
+Each thread owns its nested-call ring; audio formatting must not overwrite
+main-thread dictionary values while their hash and string are being copied.
 ============
 */
 char *va( const char *fmt, ... ) {
 	va_list argptr;
-	static int index = 0;
-	static char string[4][16384];	// in case called by nested functions
+	static thread_local int index = 0;
+	static thread_local char string[4][16384];	// in case called by nested functions
 	char *buf;
 
 	buf = string[index];
 	index = (index + 1) & 3;
 
 	va_start( argptr, fmt );
-	vsprintf( buf, fmt, argptr );
+	// Bound formatting as well as isolating threads: oversized diagnostic or
+	// GUI strings must not overwrite adjacent slots or thread-local storage.
+	idStr::vsnPrintf( buf, sizeof(string[0]), fmt, argptr );
+	buf[sizeof(string[0])-1] = '\0';
 	va_end( argptr );
 
 	return buf;

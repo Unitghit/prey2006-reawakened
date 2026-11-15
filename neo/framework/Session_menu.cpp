@@ -296,11 +296,36 @@ void idSessionLocal::SetPbMenuGuiVars( void ) {
 idSessionLocal::SetMainMenuGuiVars
 ===============
 */
+// Keep menu state separate from the legacy hardware-EAX/software-mixer controls.
+extern bool ApplyAudioMenuSettings( bool changeDevice );
+
+static void UpdateAudioMenu( idUserInterface *gui ) {
+	idStr names = "System default", values = "default";
+	for ( int i = 0; ; ++i ) {
+		const char *device = soundSystem->GetDeviceName( i );
+		if ( !device ) { break; }
+		// Choice lists use quoted tokens; escape names supplied by the OS.
+		idStr escaped = device;
+		escaped.Replace( "\\", "\\\\" );
+		escaped.Replace( "\"", "\\\"" );
+		idStr label = escaped;
+		if ( !idStr::Cmpn( label.c_str(), "OpenAL Soft on ", 14 ) ) { label = label.Mid( 14, label.Length() - 14 ); }
+		names += ";\""; names += label; names += "\"";
+		values += ";\""; values += escaped; values += "\"";
+	}
+	gui->SetStateString( "device_name", names );
+	gui->SetStateString( "device_values", values );
+	gui->SetStateInt( "openAL", 1 );
+	gui->SetStateInt( "mixeroption", 0 );
+	gui->SetStateInt( "oldAudioDriver", 0 );
+	gui->SetStateInt( "supportsEax", soundSystem->IsEFXAvailable() == 1 );
+	gui->SetStateInt( "eax", soundSystem->IsEFXAvailable() == 1 && cvarSystem->GetCVarBool( "s_useEAXReverb" ) );
+	gui->StateChanged( com_frameTime );
+	gui->HandleNamedEvent( "UpdateOptions" );
+}
+
 void idSessionLocal::SetMainMenuGuiVars( void ) {
-	guiMainMenu->SetStateInt("openAL", 1);
-	guiMainMenu->SetStateInt("mixeroption", 0);
-	guiMainMenu->SetStateInt("supportsEax", soundSystem->IsEFXAvailable() == 1);
-	guiMainMenu->SetStateInt("eax", 0); // Do not advertise legacy hardware EAX.
+	UpdateAudioMenu( guiMainMenu );
 
 	idHitchScope hitch("menu_setup", "main_menu");
 
@@ -933,6 +958,11 @@ void idSessionLocal::HandleMainMenuCommands( const char *menuCommand ) {
 			if ( args.Argc() - icmd >= 1 ) {
 				vcmd = args.Argv( icmd++ );
 			}
+			if ( !vcmd.Icmp( "init" ) ) {
+				UpdateAudioMenu( guiActive );
+				continue;
+			}
+
 			if ( !vcmd.Length() || !vcmd.Icmp( "speakers" ) ) {
 				int old = cvarSystem->GetCVarInteger( "s_numberOfSpeakers" );
 				cmdSystem->BufferCommandText( CMD_EXEC_NOW, "s_restart\n" );
@@ -945,29 +975,14 @@ void idSessionLocal::HandleMainMenuCommands( const char *menuCommand ) {
 #endif
 				}
 			}
-			if ( !vcmd.Icmp( "eax" ) ) {
-				if ( cvarSystem->GetCVarBool( "s_useEAXReverb" ) ) {
-					int efx = soundSystem->IsEFXAvailable();
-					switch ( efx ) {
-					case 1:
-						// when you restart
-						MessageBox( MSG_OK, common->GetLanguageDict()->GetString( "#str_04137" ), common->GetLanguageDict()->GetString( "#str_07231" ), true );
-						break;
-					case -1:
-						cvarSystem->SetCVarBool( "s_useEAXReverb", false );
-						// disabled
-						MessageBox( MSG_OK, common->GetLanguageDict()->GetString( "#str_07233" ), common->GetLanguageDict()->GetString( "#str_07231" ), true );
-						break;
-					case 0:
-						cvarSystem->SetCVarBool( "s_useEAXReverb", false );
-						// not available
-						MessageBox( MSG_OK, common->GetLanguageDict()->GetString( "#str_07232" ), common->GetLanguageDict()->GetString( "#str_07231" ), true );
-						break;
-					}
-				} else {
-					// when you restart
-					MessageBox( MSG_OK, common->GetLanguageDict()->GetString( "#str_04137" ), common->GetLanguageDict()->GetString( "#str_07231" ), true );
+			if ( !vcmd.Icmp( "eax" ) || !vcmd.Icmp( "device" ) ) {
+				if ( !vcmd.Icmp( "eax" ) && soundSystem->IsEFXAvailable() != 1 ) {
+					cvarSystem->SetCVarBool( "s_useEAXReverb", false );
 				}
+				if (!ApplyAudioMenuSettings(!vcmd.Icmp("device"))) {
+					MessageBox( MSG_OK, "Could not apply this audio setting.", "Audio Settings", true );
+				}
+				UpdateAudioMenu( guiActive );
 			}
 			if ( !vcmd.Icmp( "drivar" ) ) {
 				cmdSystem->BufferCommandText( CMD_EXEC_NOW, "s_restart\n" );
@@ -1249,6 +1264,21 @@ testing menu navigation without a controller.
 ==============
 */
 void Session_MenuPad_f( const idCmdArgs &args ) {
+	// Deterministic pointer input for isolated menu regression tests.
+	if ( args.Argc() == 4 && !idStr::Icmp( args.Argv( 1 ), "click" ) && sessLocal.guiActive ) {
+		sessLocal.guiActive->SetCursor( atof( args.Argv( 2 ) ), atof( args.Argv( 3 ) ) );
+		sysEvent_t ev = {};
+		ev.evType = SE_MOUSE;
+		sessLocal.MenuEvent( &ev );
+		ev.evType = SE_KEY;
+		ev.evValue = K_MOUSE1;
+		ev.evValue2 = 1;
+		sessLocal.MenuEvent( &ev );
+		ev.evValue2 = 0;
+		sessLocal.MenuEvent( &ev );
+		return;
+	}
+
 	static const struct { const char *name; int key; } buttons[] = {
 		{ "up", K_JOY_DPAD_UP }, { "down", K_JOY_DPAD_DOWN }, { "left", K_JOY_DPAD_LEFT },
 		{ "right", K_JOY_DPAD_RIGHT }, { "a", K_JOY_BTN_SOUTH }, { "b", K_JOY_BTN_EAST },
@@ -1269,7 +1299,7 @@ void Session_MenuPad_f( const idCmdArgs &args ) {
 			return;
 		}
 	}
-	common->Printf( "usage: menuPad up|down|left|right|a|b\n" );
+	common->Printf( "usage: menuPad up|down|left|right|a|b|lb|rb or menuPad click x y\n" );
 }
 
 /*

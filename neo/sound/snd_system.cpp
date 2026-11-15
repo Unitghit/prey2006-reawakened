@@ -30,6 +30,7 @@ If you have questions concerning this license or the applicable additional terms
 #pragma hdrstop
 
 #include "snd_local.h"
+#include <thread>
 #include "../framework/Session_local.h"
 #include <limits.h>
 
@@ -58,6 +59,7 @@ idCVar idSoundSystemLocal::s_noSound( "s_noSound", "1", CVAR_SOUND | CVAR_BOOL |
 #else
 idCVar idSoundSystemLocal::s_noSound( "s_noSound", "0", CVAR_SOUND | CVAR_BOOL | CVAR_NOCHEAT, "" );
 #endif
+idCVar idSoundSystemLocal::s_musicVolume( "s_musicvolume_dB", "0", CVAR_SOUND | CVAR_ARCHIVE | CVAR_FLOAT, "music volume in dB relative to master volume", -60.0f, 0.0f );
 idCVar idSoundSystemLocal::s_device( "s_device", "default", CVAR_SOUND | CVAR_NOCHEAT | CVAR_ARCHIVE, "the audio device to use ('default' for the default audio device)" );
 idCVar idSoundSystemLocal::s_quadraticFalloff( "s_quadraticFalloff", "1", CVAR_SOUND | CVAR_BOOL, "" );
 idCVar idSoundSystemLocal::s_drawSounds( "s_drawSounds", "0", CVAR_SOUND | CVAR_INTEGER, "", 0, 2, idCmdSystem::ArgCompletion_Integer<0,2> );
@@ -110,6 +112,9 @@ idCVar idSoundSystemLocal::s_alOutputLimiter( "s_alOutputLimiter", "-1", CVAR_SO
 idCVar idSoundSystemLocal::s_alHRTF( "s_alHRTF", "-1", CVAR_SOUND | CVAR_INTEGER | CVAR_ARCHIVE | CVAR_NEW, "Enable HRTF for better surround sound with stereo *headphones*. 0: Disable, 1: Enable, -1: Let OpenAL decide (default)" );
 
 bool idSoundSystemLocal::useEFXReverb = false;
+retailEaxSet_t idSoundSystemLocal::retailEaxSet = NULL;
+int idSoundSystemLocal::retailEaxVersion = 0;
+int idSoundSystemLocal::retailEaxErrors = 0;
 int idSoundSystemLocal::EFXAvailable = -1;
 
 bool idSoundSystemLocal::alHRTFavailable = false;
@@ -339,6 +344,77 @@ restart the sound thread
   this is called from the main thread
 ===============
 */
+static bool retailEffectsConfigured = false;
+static idStr activeAudioDevice;
+
+// Apply menu choices without destroying sample buffers, sources or playback clocks.
+bool ApplyAudioMenuSettings( bool changeDevice ) {
+    idSoundSystemLocal &sys = soundSystemLocal;
+    if (!sys.openalContext || !sys.openalDevice) return false;
+    Sys_EnterCriticalSection();
+    bool ok = true;
+    if (changeDevice) {
+        auto reopen = reinterpret_cast<LPALCREOPENDEVICESOFT>(alcGetProcAddress(sys.openalDevice,"alcReopenDeviceSOFT"));
+        const char *name = sys.s_device.GetString();
+        if (!name[0] || !idStr::Icmp(name,"default")) name = NULL;
+        ALCint attributes[D3_ALC_ATTRLIST_LEN] = {};
+        SetAlcAttrList(attributes);
+        ok = alcIsExtensionPresent(sys.openalDevice,"ALC_SOFT_reopen_device") && reopen && reopen(sys.openalDevice,name,attributes);
+        if (ok) activeAudioDevice = sys.s_device.GetString();
+        else sys.s_device.SetString(activeAudioDevice.c_str());
+        common->Printf("AUDIO_APPLY device %s\n",ok?"PASS":"FAIL");
+    } else {
+        const bool enabled = sys.s_useEAXReverb.GetBool();
+        const int version = sys.retailEaxVersion;
+        const int before = sys.retailEaxErrors;
+        if (enabled && (!sys.retailEaxSet || sys.EFXAvailable != 1)) ok = false;
+        if (ok && enabled && !retailEffectsConfigured) {
+            const retailEaxGuid effect = {0x0cf95c8f,0xa3cc,0x4849,{0xb0,0xb6,0x83,0x2e,0xcc,0x18,0x22,0xdf}};
+            const int unlocked=0, flags=1;
+            for (int i=0;i<4;++i) {
+                sys.SetRetailEax(retailEaxSlots[version][i],0x10004,0,&unlocked,sizeof(unlocked));
+                sys.SetRetailEax(retailEaxSlots[version][i],0x10002,0,&effect,sizeof(effect));
+                sys.SetRetailEax(retailEaxSlots[version][i],0x10005,0,&flags,sizeof(flags));
+            }
+            retailEffectsConfigured = sys.retailEaxErrors==before;
+        }
+        if (ok && retailEffectsConfigured) {
+            const int gain=enabled?0:-10000;
+            for (int i=0;i<4;++i) sys.SetRetailEax(retailEaxSlots[version][i],0x10003,0,&gain,sizeof(gain));
+            // Clear every pooled source, including paused/stereo sources. Re-enabling
+            // restores live channel routing below and during subsequent mixing.
+            retailEaxGuid sends[4]={};
+            const int room=0;
+            const struct {int level;float lf,room,direct;} occlusion={0,0,1.5f,1};
+            for (int i=0;i<sys.openalSourceCount+8;++i) {
+                ALuint source=sys.openalSources[i].handle;
+                if (!alIsSource(source)) continue;
+                sys.SetRetailEax(retailEaxSource[version],27,source,sends,sizeof(sends));
+                sys.SetRetailEax(retailEaxSource[version],7,source,&room,sizeof(room));
+                sys.SetRetailEax(retailEaxSource[version],3,source,&occlusion,sizeof(occlusion));
+            }
+        }
+        ok = ok && sys.retailEaxErrors==before;
+        sys.useEFXReverb = enabled && ok;
+        sys.s_useEAXReverb.SetBool(sys.useEFXReverb);
+        if (sys.useEFXReverb && sys.currentSoundWorld) {
+            auto *world=sys.currentSoundWorld;
+            world->UpdateRetailEnvironments();
+            for (int i=0;i<world->emitters.Num();++i) {
+                if (!world->emitters[i]) continue;
+                for(int j=0;j<SOUND_MAX_CHANNELS;++j) {
+                    auto &ch=world->emitters[i]->channels[j];
+                    if(ch.triggerState && ch.leadinSample && alIsSource(ch.openalSource))
+                        world->ApplyRetailSource(world->emitters[i],&ch,(ch.parms.soundShaderFlags & SSF_NO_OCCLUSION)!=0);
+                }
+            }
+        }
+        common->Printf("AUDIO_APPLY eax=%d %s\n",sys.useEFXReverb,ok?"PASS":"FAIL");
+    }
+    Sys_LeaveCriticalSection();
+    return ok;
+}
+
 void SoundSystemRestart_f( const idCmdArgs &args ) {
 	soundSystem->SetMute( true );
 	soundSystemLocal.ShutdownHW();
@@ -405,6 +481,130 @@ idSoundSystemLocal::Init
 initialize the sound system
 ===============
 */
+// Exercises the actual routing API on a silent, unplayed source. It does not
+// alter player volume, world emitters, or any saved data.
+// Deterministically exercise a main-thread formatted value surviving audio-thread
+// formatting. The helper promises nested-call lifetime, independently per thread.
+static void AudioThreadFormattingTest_f( const idCmdArgs &args ) {
+    const char *pending = va("%s:%d", "main-thread", 123456);
+    std::thread worker([]() { for (int i=0;i<4;++i) va("audio-thread:%d",i); });
+    worker.join();
+    common->Printf("AUDIO_THREAD_FORMAT_TEST %s\n",idStr::Cmp(pending,"main-thread:123456")==0?"PASS":"FAIL");
+    char oversized[20001]; memset(oversized,'x',sizeof(oversized)-1); oversized[20000]='\0';
+    const char *bounded=va("%s",oversized);
+    common->Printf("AUDIO_FORMAT_BOUND_TEST %s\n",strlen(bounded)==16383 && bounded[16382]=='x'?"PASS":"FAIL");
+}
+
+static void RetailAudioTest_f( const idCmdArgs &args ) {
+	idSoundWorldLocal *world = soundSystemLocal.currentSoundWorld;
+
+    if (!idSoundSystemLocal::useEFXReverb && retailEffectsConfigured) {
+        Sys_EnterCriticalSection();
+        typedef ALenum (AL_APIENTRY *Get_t)(const retailEaxGuid *,ALuint,ALuint,ALvoid *,ALuint);
+        auto get=reinterpret_cast<Get_t>(alGetProcAddress("EAXGet"));
+        bool ok=get!=NULL;
+        const int version=soundSystemLocal.retailEaxVersion;
+        retailEaxGuid empty[4]={};
+        for(int i=0;ok && i<soundSystemLocal.openalSourceCount+8;++i) {
+            const ALuint source=soundSystemLocal.openalSources[i].handle;
+            if(!alIsSource(source)) continue;
+            retailEaxGuid sends[4]={}; int obstruction=12345;
+            ok=get(&retailEaxSource[version],27,source,sends,sizeof(sends))==AL_NO_ERROR &&
+                get(&retailEaxSource[version],11,source,&obstruction,sizeof(obstruction))==AL_NO_ERROR &&
+                !memcmp(sends,empty,sizeof(sends)) && obstruction==0;
+        }
+        for(int i=0;ok && i<4;++i) {
+            int volume=12345;
+            ok=get(&retailEaxSlots[version][i],0x10003,0,&volume,sizeof(volume))==AL_NO_ERROR && volume==-10000;
+        }
+        common->Printf("RETAIL_AUDIO_OFF_TEST %s errors=%d\n",ok?"PASS":"FAIL",soundSystemLocal.retailEaxErrors);
+        Sys_LeaveCriticalSection(); return;
+    }
+	if ( !world || !idSoundSystemLocal::useEFXReverb ) { common->Printf("RETAIL_AUDIO_TEST needs enabled environmental audio and a loaded map\n"); return; }
+	Sys_EnterCriticalSection();
+	typedef ALenum (AL_APIENTRY *Get_t)(const retailEaxGuid *,ALuint,ALuint,ALvoid *,ALuint);
+	Get_t get = reinterpret_cast<Get_t>(alGetProcAddress("EAXGet"));
+	ALuint source = 0;
+	// The engine preallocates the device source pool. Borrow an idle handle.
+	for (int i=0; i<soundSystemLocal.openalSourceCount; ++i) {
+		if (!soundSystemLocal.openalSources[i].inUse) { source=soundSystemLocal.openalSources[i].handle; break; }
+	}
+	bool ok = get && alIsSource(source);
+	for (int slot=0; get && slot<4; ++slot) {
+        if (!world->retailPropertiesValid[slot]) continue;
+        retailEaxReverb actual = {};
+        bool matches = get(&retailEaxSlots[idSoundSystemLocal::retailEaxVersion][slot],1,0,&actual,sizeof(actual))==AL_NO_ERROR &&
+            !memcmp(&actual,&world->retailProperties[slot],sizeof(actual));
+        common->Printf("RETAIL_PRESET_TEST slot=%d %s\n",slot,matches?"PASS":"FAIL");
+        ok = ok && matches;
+    }
+	const bool oldSpirit = world->spiritWalkActive;
+	const bool oldSuit = world->enviroSuitActive;
+	{
+		idSoundSample sample;
+		idSoundChannel channel;
+		idSoundEmitterLocal emitter;
+		channel.openalSource = source;
+		channel.leadinSample = &sample;
+		emitter.lastValidPortalArea = world->listenerArea;
+		const struct {int cls,flags,portals,channels; bool spirit,noOcclusion; int room,occlusion;} cases[] = {
+			{0,0,0,1,false,false,0,0}, {3,0,0,1,false,false,-600,0},
+			{1,0,0,1,false,false,-600,0}, {0,SSF_NOREVERB,0,1,false,false,-10000,0},
+			{0,0,2,1,false,false,0,-3000}, {0,0,2,1,false,true,0,0},
+			{0,0,0,1,true,false,0,-3000}, {3,0,0,1,true,false,-600,0},
+			{0,0,2,2,false,false,0,0}, {0,0,0,1,false,false,0,0}
+		};
+		for ( int i = 0; ok && i < sizeof(cases)/sizeof(cases[0]); ++i ) {
+			const auto &c = cases[i];
+			channel.parms.soundClass=c.cls; channel.parms.soundShaderFlags=c.flags;
+			sample.objectInfo.nChannels=c.channels; emitter.retailPortalCount=c.portals;
+			world->spiritWalkActive=c.spirit; world->enviroSuitActive=false;
+			world->ApplyRetailSource(&emitter,&channel,c.noOcclusion);
+			int room=12345,occlusion=12345;
+			retailEaxGuid sends[4] = {};
+			const retailEaxGuid &guid=retailEaxSource[idSoundSystemLocal::retailEaxVersion];
+			ok = get(&guid,7,source,&room,sizeof(room))==AL_NO_ERROR &&
+				get(&guid,11,source,&occlusion,sizeof(occlusion))==AL_NO_ERROR &&
+				get(&guid,27,source,sends,sizeof(sends))==AL_NO_ERROR;
+			ok = ok && room==c.room && occlusion==(idSoundSystemLocal::s_useOcclusion.GetBool()?c.occlusion:0);
+			if(c.channels==2) { retailEaxGuid empty[4]={}; ok=ok && !memcmp(sends,empty,sizeof(sends)); }
+			common->Printf("RETAIL_AUDIO_CASE %d room=%d occlusion=%d %s\n",i,room,occlusion,ok?"PASS":"FAIL");
+		}
+		channel.openalSource=0; channel.leadinSample=NULL;
+	}
+	world->spiritWalkActive=oldSpirit; world->enviroSuitActive=oldSuit;
+	// No buffers were attached and no playback was started on the borrowed source.
+	common->Printf("RETAIL_AUDIO_TEST %s errors=%d\n",ok?"PASS":"FAIL",idSoundSystemLocal::retailEaxErrors);
+	Sys_LeaveCriticalSection();
+}
+
+static void RetailAudioInfo_f( const idCmdArgs &args ) {
+	Sys_EnterCriticalSection();
+	common->Printf( "RETAIL_AUDIO enabled=%d EAX=%d errors=%d\n", idSoundSystemLocal::useEFXReverb, idSoundSystemLocal::retailEaxSet ? 4 + idSoundSystemLocal::retailEaxVersion : 0, idSoundSystemLocal::retailEaxErrors );
+	idSoundWorldLocal *world = soundSystemLocal.currentSoundWorld;
+	if ( world ) {
+		common->Printf( "RETAIL_AUDIO listener=%d locations=%d spirit=%d\n", world->listenerArea, world->retailLocations.GetNumKeyVals(), world->spiritWalkActive );
+		for ( int i = 0; i < 4; ++i ) {
+			const idSoundEffect *effect = world->RetailEffectForArea( world->retailAreas[i] );
+			common->Printf( "RETAIL_SLOT %d area=%d valid=%d preset=%s\n", i, world->retailAreas[i], world->retailPropertiesValid[i], effect ? effect->name.c_str() : "none" );
+		}
+		typedef ALenum (AL_APIENTRY *Get_t)(const retailEaxGuid *,ALuint,ALuint,ALvoid *,ALuint);
+		Get_t get = reinterpret_cast<Get_t>( alGetProcAddress("EAXGet") );
+		int printed = 0;
+		for ( int i = 0; get && idSoundSystemLocal::useEFXReverb && i < world->emitters.Num(); ++i ) {
+			for ( int j = 0; j < SOUND_MAX_CHANNELS; ++j ) {
+				idSoundChannel &ch = world->emitters[i]->channels[j];
+				if ( !ch.triggerState || !ch.soundShader || !alIsSource(ch.openalSource) || printed++ >= 20 ) { continue; }
+				int room = 12345, occlusion = 12345;
+				get(&retailEaxSource[idSoundSystemLocal::retailEaxVersion],7,ch.openalSource,&room,sizeof(room));
+				get(&retailEaxSource[idSoundSystemLocal::retailEaxVersion],11,ch.openalSource,&occlusion,sizeof(occlusion));
+				common->Printf("RETAIL_SOURCE %s class=%d noreverb=%d room=%d occlusion=%d portals=%d\n",ch.soundShader->GetName(),ch.parms.soundClass,(ch.parms.soundShaderFlags & SSF_NOREVERB)!=0,room,occlusion,world->emitters[i]->retailPortalCount);
+			}
+		}
+	}
+	Sys_LeaveCriticalSection();
+}
+
 void idSoundSystemLocal::Init() {
 	common->Printf( "----- Initializing OpenAL -----\n" );
 
@@ -414,6 +614,11 @@ void idSoundSystemLocal::Init() {
 
 	currentSoundWorld = NULL;
 	soundCache = NULL;
+	retailEaxSet = NULL;
+	retailEffectsConfigured = false;
+	activeAudioDevice = s_device.GetString();
+	retailEaxErrors = 0;
+	useEFXReverb = false;
 
 	olddwCurrentWritePos = 0;
 	buffers = 0;
@@ -610,7 +815,26 @@ void idSoundSystemLocal::Init() {
 		// adjust source count to allow for at least eight stereo sounds to play
 		openalSourceCount -= 8;
 
-		useEFXReverb = idSoundSystemLocal::s_useEAXReverb.GetBool();
+		retailEaxVersion = alIsExtensionPresent( "EAX5.0" ) ? 1 : 0;
+		retailEaxSet = ( alIsExtensionPresent( "EAX5.0" ) || alIsExtensionPresent( "EAX4.0" ) )
+			? reinterpret_cast<retailEaxSet_t>( alGetProcAddress( "EAXSet" ) ) : NULL;
+		retailEaxErrors = 0;
+		if ( s_useEAXReverb.GetBool() && retailEaxSet ) {
+			const retailEaxGuid reverbEffect = {0x0cf95c8f,0xa3cc,0x4849,{0xb0,0xb6,0x83,0x2e,0xcc,0x18,0x22,0xdf}};
+			const int unlocked = 0, flags = 1;
+			for ( int i = 0; i < 4; ++i ) {
+				SetRetailEax( retailEaxSlots[retailEaxVersion][i], 0x10004, 0, &unlocked, sizeof(unlocked) );
+				SetRetailEax( retailEaxSlots[retailEaxVersion][i], 0x10002, 0, &reverbEffect, sizeof(reverbEffect) );
+				SetRetailEax( retailEaxSlots[retailEaxVersion][i], 0x10005, 0, &flags, sizeof(flags) );
+			}
+		}
+		retailEffectsConfigured = s_useEAXReverb.GetBool() && retailEaxSet && retailEaxErrors == 0;
+		useEFXReverb = idSoundSystemLocal::s_useEAXReverb.GetBool() && retailEaxSet && EFXAvailable == 1 && retailEaxErrors == 0;
+		if ( s_useEAXReverb.GetBool() && !useEFXReverb ) {
+			common->Warning( "Retail-style environmental audio needs EAX 4/5 support; leaving environmental audio off" );
+			s_useEAXReverb.SetBool( false );
+		}
+		common->Printf( "OpenAL: environmental reverb %s\n", useEFXReverb ? "enabled" : "disabled" );
 		efxloaded = false;
 
 	}
@@ -625,6 +849,9 @@ void idSoundSystemLocal::Init() {
 	cmdSystem->AddCommand( "listSubtitles", ListSubtitles_f, CMD_FL_SOUND, "lists all subtitles of sounds" );
 	cmdSystem->AddCommand( "reloadSounds", SoundReloadSounds_f, CMD_FL_SOUND|CMD_FL_CHEAT, "reloads all sounds" );
 	cmdSystem->AddCommand( "testSound", TestSound_f, CMD_FL_SOUND | CMD_FL_CHEAT, "tests a sound", idCmdSystem::ArgCompletion_SoundName );
+	cmdSystem->AddCommand( "s_testThreadFormatting", AudioThreadFormattingTest_f, CMD_FL_SOUND, "checks cross-thread temporary string isolation" );
+	cmdSystem->AddCommand( "s_retailAudioTest", RetailAudioTest_f, CMD_FL_SOUND, "checks retail EAX routing on an unplayed source" );
+	cmdSystem->AddCommand( "s_retailAudioInfo", RetailAudioInfo_f, CMD_FL_SOUND, "reports retail environmental audio routing and actual EAX source levels" );
 	cmdSystem->AddCommand( "s_restart", SoundSystemRestart_f, CMD_FL_SOUND, "restarts the sound system" );
 }
 
@@ -1327,7 +1554,8 @@ void idSoundSystemLocal::EndLevelLoad( const char *mapstring ) {
 	}
 	soundCache->EndLevelLoad();
 
-	if (!useEFXReverb)
+	// Keep the current map presets ready for live EAX enable from the menu.
+	if (!retailEaxSet || EFXAvailable != 1)
 		return;
 
 	idStr efxname( "efxs/" );
@@ -1638,7 +1866,7 @@ int idSoundSystemLocal::IsEFXAvailable( void ) {
 #if defined(ID_DEDICATED)
 	return -1;
 #else
-	return EFXAvailable;
+	return EFXAvailable == 1 && retailEaxSet ? 1 : 0;
 #endif
 }
 
@@ -2066,4 +2294,32 @@ idSoundSystemLocal::SB_HideSubtitle
 void idSoundSystemLocal::SB_HideSubtitle(void)
 {
 	SFB_HandleSubtitle(true, NULL);
+}
+
+// OpenAL owns the returned strings. Do not retain them across device changes.
+const char *idSoundSystemLocal::GetDeviceName( int index ) {
+	if ( index < 0 ) { return NULL; }
+	const bool all = alcIsExtensionPresent( NULL, "ALC_ENUMERATE_ALL_EXT" ) != AL_FALSE;
+	if ( !all && !alcIsExtensionPresent( NULL, "ALC_ENUMERATION_EXT" ) ) { return NULL; }
+	const char *name = alcGetString( NULL, all ? ALC_ALL_DEVICES_SPECIFIER : ALC_DEVICE_SPECIFIER );
+	while ( name && *name ) {
+		if ( index-- == 0 ) { return name; }
+		name += strlen( name ) + 1;
+	}
+	return NULL;
+}
+
+const char *idSoundSystemLocal::GetDefaultDeviceName( void ) {
+	return alcGetString( NULL, alcIsExtensionPresent( NULL, "ALC_ENUMERATE_ALL_EXT" )
+		? ALC_DEFAULT_ALL_DEVICES_SPECIFIER : ALC_DEFAULT_DEVICE_SPECIFIER );
+}
+
+bool idSoundSystemLocal::SetRetailEax( const retailEaxGuid &object, ALuint property, ALuint source, const void *data, unsigned int size ) {
+	if ( !retailEaxSet ) { return false; }
+	ALenum result = retailEaxSet( &object, property, source, const_cast<void *>(data), size );
+	if ( result != AL_NO_ERROR ) {
+		if ( retailEaxErrors++ < 8 ) { common->Warning( "Retail EAX property %u source %u failed: 0x%x", property, source, result ); }
+		return false;
+	}
+	return true;
 }

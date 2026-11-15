@@ -1772,6 +1772,10 @@ bool idGameLocal::InitFromSaveGame( const char *mapName, idRenderWorld *renderWo
 	// HUMANHEAD END
 
 	savegame.RestoreObjects();
+	RegisterLocationsWithSoundWorld();
+	if (GetLocalPlayer() && GetLocalPlayer()->IsType(hhPlayer::Type)) {
+		gameSoundWorld->SetSpiritWalkEffect(static_cast<hhPlayer *>(GetLocalPlayer())->IsSpiritWalking());
+	}
 
 	mpGame.Reset();
 
@@ -5544,7 +5548,7 @@ void idGameLocal::RegisterLocationsWithSoundWorld() {
 	int numAreas = gameRenderWorld->NumAreas();
 	gameSoundWorld->ClearAreaLocations();
 	for (int ix=0; ix<numAreas; ix++) {
-		if (locationEntities[ix]) {
+		if (locationEntities && locationEntities[ix]) {
 			gameSoundWorld->RegisterLocation(ix, locationEntities[ix]->GetLocation());
 		}
 	}

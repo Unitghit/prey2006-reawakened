@@ -11,6 +11,8 @@
 #include "framework/Common.h"
 #include "sound/sound.h"
 
+#include "sound/retail_eax.h"
+
 #define EFX_VERBOSE 0
 
 #if EFX_VERBOSE
@@ -27,6 +29,7 @@ struct idSoundEffect {
 
 	idStr name;
 	ALuint effect;
+	retailEaxReverb retail;
 };
 
 class idEFXFile {
@@ -35,6 +38,7 @@ public:
 	~idEFXFile();
 
 	bool FindEffect( idStr &name, ALuint *effect );
+	const idSoundEffect *FindRetailEffect( const char *name ) const;
 	bool LoadFile( const char *filename, bool OSPath = false );
 	void Clear( void );
 

@@ -203,7 +203,7 @@
 								leftMat		"guis/assets/menu/text_titlebar_corner.tga"
 								middleMat	"guis/assets/menu/text_titlebarstrip.tga"
 								noevents	1
-								
+
 								windowDef OCM_Action_Heading {
 									rect		5, 3, 190, 25
 									forecolor	HEADING_FORECOLOR_DARK_COMMA
@@ -258,7 +258,7 @@
 								leftMat		"guis/assets/menu/textbar_corner.tga"
 								middleMat	"guis/assets/menu/textbarstrip.tga"
 								rightMat	"guis/assets/menu/textbar_invcorner.tga"
-								
+
 
 								windowDef OCMA_Backpedal {
 									rect		5, 5, 190, 20
@@ -286,7 +286,7 @@
 								leftMat		"guis/assets/menu/textbar_corner.tga"
 								middleMat	"guis/assets/menu/textbarstrip.tga"
 								rightMat	"guis/assets/menu/textbar_invcorner.tga"
-								
+
 
 								windowDef OCMA_Moveleft {
 									rect		5, 5, 190, 20
@@ -1725,7 +1725,7 @@
 								leftMat		"guis/assets/menu/text_titlebar_corner.tga"
 								middleMat	"guis/assets/menu/text_titlebarstrip.tga"
 								noevents	1
-								
+
 								windowDef OCP_Heading {
 									rect		5, 3, 415, 25
 									forecolor	HEADING_FORECOLOR_DARK_COMMA
@@ -1820,7 +1820,7 @@
 									edgeSize	4, 4
 									noevents	1
 								}
-								
+
 							editDef OCP_ProfileNameEdit {
 								rect			10, 305, 250, 25
 								backcolor		LISTCONTENT_BACKGROUND
@@ -2551,7 +2551,7 @@
 								middleMat		"guis/assets/menu/text_titlebox.tga"
 								rightMat		"guis/assets/menu/text_titlebox_right.tga"
 								noTime			1
-								
+
 								windowDef OVN_AutodetectTitle {
 									rect				0, 5, 200, 25
 									text				"#str_41177"
@@ -2561,7 +2561,7 @@
 									shadow				1
 									forecolor			STATIC_FORECOLOR_COMMA
 								}
-								
+
 								buttonDef OVN_LoadRecommended {
 									rect				225, 5, 150, 25
 									text				"#str_41178"	// Detect
@@ -2749,7 +2749,7 @@
 								leftMat			"guis/assets/menu/textbar_corner.tga"
 								middleMat		"guis/assets/menu/textbarstrip.tga"
 								rightMat		"guis/assets/menu/textbar_invcorner.tga"
-								
+
 								windowDef OVN_FullscreenTitle {
 									rect		0, 0, 200, 25
 									text		"#str_20289"
@@ -2759,7 +2759,7 @@
 									shadow		1
 									forecolor	STATIC_FORECOLOR_COMMA
 								}
-								
+
 								choiceDef OVN_FullscreenChoice {
 									rect		200, 0, 200, 25
 									textalign	1
@@ -2847,7 +2847,7 @@
 								leftMat			"guis/assets/menu/textbar_corner.tga"
 								middleMat		"guis/assets/menu/textbarstrip.tga"
 								rightMat		"guis/assets/menu/textbar_invcorner.tga"
-								
+
 								windowDef OVN_AspectRatioTitle {
 									rect		0, 0, 200, 25
 									text		"#str_20292"
@@ -2857,7 +2857,7 @@
 									shadow		1
 									forecolor	STATIC_FORECOLOR_COMMA
 								}
-								
+
 								choiceDef OVN_AspectRatioChoice {
 									rect		200, 0, 200, 25
 									textalign	1
@@ -3259,7 +3259,7 @@
 								rightHoverMat	"guis/assets/menu/button/rollover_invcorner"
 								edgeWidth		12
 								noEvents		1
-								
+
 								onNamedEvent NeedVidRestart {
 									set "noevents" "0";
 									set "forecolor" BUTTON_FORECOLOR_STRING;
@@ -3505,7 +3505,7 @@
 								rightHoverMat	"guis/assets/menu/button/rollover_invcorner"
 								edgeWidth		12
 								noEvents		1
-								
+
 								onNamedEvent NeedVidRestart {
 									set "noevents" "0";
 									set "forecolor" BUTTON_FORECOLOR_STRING;
@@ -3549,12 +3549,6 @@
 					// Reverse Grayed unless openAL is OFF
 					// Driver Button visible if oldAudioDriver
 					
-					if ("gui::oldAudioDriver" != 0) {
-						set "OA_SoundDriverNotice::visible" "1";
-					}
-					else {
-						set "OA_SoundDriverNotice::visible" "0";
-					}
 
 					// If no eax capable devices are available, disable the mixer change
 					if ("gui::mixeroption" != 0) {
@@ -3565,11 +3559,11 @@
 					else {
 						// Disable mixer choice
 						set "OA_SoundSystemChoice::noevents" "1" ;
-						set "OA_SoundSystemChoice::forecolor" EDITABLE_FORECOLOR_GRAYED_STRING ;
+						set "OA_SoundSystemChoice::forecolor" EDITABLE_FORECOLOR_STRING ;
 					}
 
 					if ("gui::openAL" != 0) {		// OpenAL is ON
-						// Enable device choice
+						// Device selection is provided by the OpenAL backend.
 						set "OA_DeviceChoice::noevents" "0" ;
 						set "OA_DeviceChoice::forecolor" EDITABLE_FORECOLOR_STRING ;
 
@@ -3607,6 +3601,7 @@
 				}
 
 				onTabActivate {
+					namedEvent "UpdateOptions";
 					set "cmd" "play guisounds_menu_tabflip" ;
 				}
 
@@ -3655,12 +3650,12 @@
 								rect		250, 4, 100, 16
 								forecolor	EDITABLE_FORECOLOR_COMMA
 								hovercolor	EDITABLE_HOVERCOLOR_COMMA
-								low			0
-								high		1
-								step		0.05
+								low			-60
+								high		0
+								step		3
 								thumbShader	"guis/assets/sliderbutton.tga"
 								cvar		"s_volume_dB"
-								volumeslider	1
+
 								
 								onSliderChange {
 									set "cmd" "play guisounds_menu_volumetick";
@@ -3691,12 +3686,12 @@
 								rect		250, 4, 100, 16
 								forecolor	EDITABLE_FORECOLOR_COMMA
 								hovercolor	EDITABLE_HOVERCOLOR_COMMA
-								low			0
-								high		1
-								step		0.05
+								low			-60
+								high		0
+								step		3
 								thumbShader	"guis/assets/sliderbutton.tga"
 								cvar		"s_musicvolume_dB"
-								volumeslider	1
+
 							}
 						}
 
@@ -3765,43 +3760,7 @@
 							}
 						}
 
-						buttonDef OA_SoundDriverNotice {
-							rect			10, 160, 400, 50
-							leftMat			"guis/assets/menu/text_titlebox_left.tga"
-							middleMat		"guis/assets/menu/text_titlebox.tga"
-							rightMat		"guis/assets/menu/text_titlebox_right.tga"
 
-							windowDef OA_SoundDriverNoticeTitle {
-								rect				10, 5, 190, 40
-								text				"#str_41176"
-								textaligny			-3
-								textalign			1
-								textscale			0.33
-								shadow				1
-								forecolor			STATIC_FORECOLOR_COMMA
-							}
-
-							buttonDef OA_SoundDriverNoticeButton {
-								rect				215, 10, 170, 25
-								text				"#str_41099"
-								textalign			1
-								textaligny			-2
-								shadow				1
-								forecolor			BUTTON_FORECOLOR_COMMA
-								hoverColor			BUTTON_HOVERCOLOR_COMMA
-								leftMat				"guis/assets/menu/button/corner"
-								middleMat			"guis/assets/menu/button/strip"
-								leftHoverMat		"guis/assets/menu/button/rollover_corner"
-								middleHoverMat		"guis/assets/menu/button/rollover_strip"
-								rightMat			"guis/assets/menu/button/invcorner"
-								rightHoverMat		"guis/assets/menu/button/rollover_invcorner"
-								edgeWidth			12
-								onAction {
-									set	"cmd" "play guisounds_menu_clickin" ;
-									set	"cmd" "http sounddriver" ;
-								}
-							}
-						}
 
 						windowDef OA_Suboptions_Software {
 							rect		0, 220, 420, 200
@@ -3922,14 +3881,15 @@
 
 								choiceDef OA_DeviceChoice {
 									rect		200, 0, 200, 25
-									textscale	0.33
+									textscale	0.22
 									textalign	1
 									textaligny	0
 									shadow		1
 									forecolor	EDITABLE_FORECOLOR_COMMA
 									hovercolor	EDITABLE_HOVERCOLOR_COMMA
 									choices		"gui::device_name"
-									cvar		"s_deviceName"
+									values		"gui::device_values"
+									cvar		"s_device"
 									choiceType	1
 
 									onActionRelease {
@@ -3946,7 +3906,7 @@
 
 								windowDef OAT_EAX {
 									rect		0, 0, 200, 25
-									text		"Environmental reverb"
+									text		"#str_20322"
 									textalign	1
 									textaligny	0
 									textscale	0.33

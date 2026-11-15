@@ -131,6 +131,11 @@ void idChoiceWindow::UpdateVars( bool read, bool force ) {
 }
 
 const char *idChoiceWindow::HandleEvent(const sysEvent_t *event, bool *updateVisuals) {
+	UpdateChoicesAndVals();
+	ValidateChoice();
+	// A dynamic menu may receive input before its state has finished updating.
+	if ( values.Num() && values.Num() != choices.Num() ) { return ""; }
+
 	int key;
 	bool runAction = false;
 	bool runAction2 = false;
@@ -420,6 +425,10 @@ void idChoiceWindow::PostParse() {
 	}
 	// DG end
 
+	if ( !idStr::Cmpn( choiceVals.c_str(), "gui::", 5 ) ) {
+		idStr binding = choiceVals;
+		choiceVals.Init( binding, this );
+	}
 	UpdateChoicesAndVals();
 
 	InitVars();
@@ -434,6 +443,9 @@ void idChoiceWindow::Draw(int time, float x, float y) {
 
 	UpdateChoicesAndVals();
 	UpdateChoice();
+	// Dynamic lists can become empty even when no CVar is bound. The shadow
+	// draw below reads the selected entry before the text drawing guards.
+	ValidateChoice();
 
 	// FIXME: It'd be really cool if textAlign worked, but a lot of the guis have it set wrong because it used to not work
 	textAlign = 0;

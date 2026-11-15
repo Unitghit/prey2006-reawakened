@@ -1,0 +1,2 @@
+- Restored retail-style EAX audio and the original audio menu.
+- Fixed ammo gauges staying full when saves contain excess ammo.

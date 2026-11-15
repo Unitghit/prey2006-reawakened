@@ -46,56 +46,9 @@ void idSoundWorldLocal::Init( idRenderWorld *renderWorld ) {
 	listenerQU.Zero();
 	listenerArea = 0;
 	listenerAreaName = "Undefined";
+	ClearAreaLocations();
+	spiritWalkActive = false;
 
-	if (idSoundSystemLocal::useEFXReverb) {
-		if (!soundSystemLocal.alIsAuxiliaryEffectSlot(listenerSlot)) {
-			alGetError();
-
-			soundSystemLocal.alGenAuxiliaryEffectSlots(1, &listenerSlot);
-			ALuint e = alGetError();
-			if (e != AL_NO_ERROR) {
-				common->Warning("idSoundWorldLocal::Init: alGenAuxiliaryEffectSlots failed: 0x%x", e);
-				listenerSlot = AL_EFFECTSLOT_NULL;
-			}
-		}
-
-		if (!listenerAreFiltersInitialized) {
-			listenerAreFiltersInitialized = true;
-
-			alGetError();
-			soundSystemLocal.alGenFilters(2, listenerFilters);
-			ALuint e = alGetError();
-			if (e != AL_NO_ERROR) {
-				common->Warning("idSoundWorldLocal::Init: alGenFilters failed: 0x%x", e);
-				listenerFilters[0] = AL_FILTER_NULL;
-				listenerFilters[1] = AL_FILTER_NULL;
-			} else {
-				soundSystemLocal.alFilteri(listenerFilters[0], AL_FILTER_TYPE, AL_FILTER_LOWPASS);
-				// original EAX occusion value was -1150
-				// default OCCLUSIONLFRATIO is 0.25
-				// default OCCLUSIONDIRECTRATIO is 1.0
-
-				// pow(10.0, (-1150*0.25*1.0)/2000.0)
-				soundSystemLocal.alFilterf(listenerFilters[0], AL_LOWPASS_GAIN, 0.718208f);
-				// pow(10.0, (-1150*1.0)/2000.0)
-				soundSystemLocal.alFilterf(listenerFilters[0], AL_LOWPASS_GAINHF, 0.266073f);
-
-
-				soundSystemLocal.alFilteri(listenerFilters[1], AL_FILTER_TYPE, AL_FILTER_LOWPASS);
-				// original EAX occusion value was -1150
-				// default OCCLUSIONLFRATIO is 0.25
-				// default OCCLUSIONROOMRATIO is 1.5
-
-				// pow(10.0, (-1150*(0.25+1.5-1.0))/2000.0)
-				soundSystemLocal.alFilterf(listenerFilters[1], AL_LOWPASS_GAIN, 0.370467f);
-				// pow(10.0, (-1150*1.5)/2000.0)
-				soundSystemLocal.alFilterf(listenerFilters[1], AL_LOWPASS_GAINHF, 0.137246f);
-			}
-			// allow reducing the gain effect globally via s_alReverbGain CVar
-			listenerSlotReverbGain = soundSystemLocal.s_alReverbGain.GetFloat();
-			soundSystemLocal.alAuxiliaryEffectSlotf(listenerSlot, AL_EFFECTSLOT_GAIN, listenerSlotReverbGain);
-		}
-	}
 
 	gameMsec = 0;
 	game44kHz = 0;
@@ -128,10 +81,8 @@ idSoundWorldLocal::idSoundWorldLocal
 ===============
 */
 idSoundWorldLocal::idSoundWorldLocal() {
-	listenerEffect                = 0;
-	listenerSlot                  = 0;
-	listenerAreFiltersInitialized = false;
-	listenerSlotReverbGain = 1.0f;
+	spiritWalkActive = false;
+	for ( int i = 0; i < 4; ++i ) { retailAreas[i] = -1; retailPropertiesValid[i] = false; }
 }
 
 /*
@@ -168,24 +119,6 @@ void idSoundWorldLocal::Shutdown() {
 		}
 	}
 
-	if (idSoundSystemLocal::useEFXReverb) {
-		if (soundSystemLocal.alIsAuxiliaryEffectSlot(listenerSlot)) {
-			soundSystemLocal.alAuxiliaryEffectSloti(listenerSlot, AL_EFFECTSLOT_EFFECT, AL_EFFECTSLOT_NULL);
-			soundSystemLocal.alDeleteAuxiliaryEffectSlots(1, &listenerSlot);
-			listenerSlot = AL_EFFECTSLOT_NULL;
-		}
-
-		if (listenerAreFiltersInitialized) {
-			listenerAreFiltersInitialized = false;
-
-			if (listenerFilters[0] != AL_FILTER_NULL && listenerFilters[1] != AL_FILTER_NULL) {
-				soundSystemLocal.alDeleteFilters(2, listenerFilters);
-				listenerFilters[0] = AL_FILTER_NULL;
-				listenerFilters[1] = AL_FILTER_NULL;
-			}
-		}
-		listenerSlotReverbGain = 1.0f;
-	}
 
 	localSound = NULL;
 }
@@ -523,46 +456,7 @@ void idSoundWorldLocal::MixLoop( int current44kHz, int numSpeakers, float *final
 	alListenerfv( AL_POSITION, listenerPosition );
 	alListenerfv( AL_ORIENTATION, listenerOrientation );
 
-	if (idSoundSystemLocal::useEFXReverb && soundSystemLocal.efxloaded) {
-		ALuint effect = 0;
-		idStr s(listenerArea);
-
-		// allow reducing the gain effect globally via s_alReverbGain CVar
-		float gain = soundSystemLocal.s_alReverbGain.GetFloat();
-		if (listenerSlotReverbGain != gain) {
-			listenerSlotReverbGain = gain;
-			soundSystemLocal.alAuxiliaryEffectSlotf(listenerSlot, AL_EFFECTSLOT_GAIN, gain);
-		}
-
-		bool found = soundSystemLocal.EFXDatabase.FindEffect(s, &effect);
-		if (!found) {
-			s = listenerAreaName;
-			found = soundSystemLocal.EFXDatabase.FindEffect(s, &effect);
-		}
-		if (!found) {
-			s = "default";
-			found = soundSystemLocal.EFXDatabase.FindEffect(s, &effect);
-		}
-
-		// reverb area config in `maps/<map>.reverb` file.
-		if ( !found ) {
-			int reverbIndex = soundSystemLocal.GetReverb( listenerArea );
-			if ( reverbIndex >= 0 ) {
-				s = soundSystemLocal.GetReverbName( reverbIndex );
-				EFXprintf( "Map EFX: area %d -> '%s'\n", reverbIndex, s.c_str() );
-				if ( s && s[0] ) {
-					found = soundSystemLocal.EFXDatabase.FindEffect( s, &effect );
-				}
-			}
-		}
-
-		// only update if change in settings
-		if (found && listenerEffect != effect) {
-			EFXprintf("Switching to EFX '%s' (#%u)\n", s.c_str(), effect);
-			listenerEffect = effect;
-			soundSystemLocal.alAuxiliaryEffectSloti(listenerSlot, AL_EFFECTSLOT_EFFECT, effect);
-		}
-	}
+	if (idSoundSystemLocal::useEFXReverb) { UpdateRetailEnvironments(); }
 
 	// debugging option to mute all but a single soundEmitter
 	if ( idSoundSystemLocal::s_singleEmitter.GetInteger() > 0 && idSoundSystemLocal::s_singleEmitter.GetInteger() < emitters.Num() ) {
@@ -819,6 +713,7 @@ void idSoundWorldLocal::ResolveOrigin( const int stackDepth, const soundPortalTr
 		if ( fullDist < def->distance ) {
 			def->distance = fullDist;
 			def->spatializedOrigin = soundOrigin;
+			def->retailPortalCount = stackDepth;
 		}
 		return;
 	}
@@ -1826,6 +1721,9 @@ void idSoundWorldLocal::AddChannelContribution( idSoundEmitterLocal *sound, idSo
 	// global volume scale - DG: now done after clamping to 1.0, so reducing the
 	// global volume doesn't cause the different weapon volume issues described above
 	volume *= soundSystemLocal.dB2Scale( idSoundSystemLocal::s_volume.GetFloat() );
+	if ( parms->soundClass == SOUNDCLASS_MUSIC ) {
+		volume *= soundSystemLocal.dB2Scale( idSoundSystemLocal::s_musicVolume.GetFloat() );
+	}
 
 	//
 	// do we have anything to add?
@@ -1889,13 +1787,7 @@ void idSoundWorldLocal::AddChannelContribution( idSoundEmitterLocal *sound, idSo
 			alSourcef( chan->openalSource, AL_PITCH, ( slowmoActive && !chan->disallowSlow ) ? ( slowmoSpeed ) : ( 1.0f ) );
 
 			if (idSoundSystemLocal::useEFXReverb) {
-				if (enviroSuitActive) {
-					alSourcei(chan->openalSource, AL_DIRECT_FILTER, listenerFilters[0]);
-					alSource3i(chan->openalSource, AL_AUXILIARY_SEND_FILTER, listenerSlot, 0, listenerFilters[1]);
-				} else {
-					alSourcei(chan->openalSource, AL_DIRECT_FILTER, AL_FILTER_NULL);
-					alSource3i(chan->openalSource, AL_AUXILIARY_SEND_FILTER, listenerSlot, 0, AL_FILTER_NULL);
-				}
+				ApplyRetailSource( sound, chan, noOcclusion );
 			}
 
 
@@ -2293,4 +2185,120 @@ idSoundWorldLocal::SetEnviroSuit
 */
 void idSoundWorldLocal::SetEnviroSuit( bool active ) {
 	enviroSuitActive = active;
+}
+
+// Retail EAX keeps the listener area plus the three nearest adjacent areas.
+// Stable slot assignments avoid replacing an effect merely because areas reorder.
+void idSoundWorldLocal::RegisterLocation( int area, const char *name ) {
+	Sys_EnterCriticalSection();
+	char areaKey[32];
+	idStr::snPrintf(areaKey, sizeof(areaKey), "%d", area);
+	retailLocations.Set( areaKey, name ? name : "" );
+	Sys_LeaveCriticalSection();
+}
+void idSoundWorldLocal::ClearAreaLocations() {
+	Sys_EnterCriticalSection();
+	retailLocations.Clear();
+	for ( int i = 0; i < 4; ++i ) { retailAreas[i] = -1; retailPropertiesValid[i] = false; }
+	Sys_LeaveCriticalSection();
+}
+const idSoundEffect *idSoundWorldLocal::RetailEffectForArea( int area ) const {
+	const idEFXFile &db = soundSystemLocal.EFXDatabase;
+	char areaKey[32];
+	idStr::snPrintf(areaKey, sizeof(areaKey), "%d", area);
+	const idSoundEffect *effect = db.FindRetailEffect( areaKey );
+	if ( !effect ) { effect = db.FindRetailEffect( retailLocations.GetString( areaKey ) ); }
+	if ( !effect && area == listenerArea ) { effect = db.FindRetailEffect( listenerAreaName ); }
+	if ( !effect ) {
+		int index = soundSystemLocal.GetReverb( area );
+		if ( index >= 0 ) { effect = db.FindRetailEffect( soundSystemLocal.GetReverbName( index ) ); }
+	}
+	return effect ? effect : db.FindRetailEffect( "default" );
+}
+
+static idVec3 RetailPortalPan( const idWinding *w, const idVec3 &origin, const idMat3 &axis, bool inside ) {
+	if ( !w || w->GetNumPoints() < 3 ) { return vec3_origin; }
+	idBounds bounds;
+	w->GetBounds( bounds );
+	idVec3 a = bounds[0] - origin, b = bounds[1] - origin, direction = w->GetCenter() - origin;
+	if ( a.Normalize() == 0 || b.Normalize() == 0 || direction.Normalize() == 0 ) { return vec3_origin; }
+	float dot = idMath::ClampFloat( -1, 1, a * b );
+	// Retail's directional spread, in listener coordinates (EAX uses +Z forward).
+	float spread = inside ? (dot + 1) * 0.3185f - 0.637f : (dot + 1) * 0.181f + 0.637f;
+	return idVec3( -(direction * axis[1]), direction * axis[2], direction * axis[0] ) * spread;
+}
+void idSoundWorldLocal::UpdateRetailEnvironments() {
+	if ( !rw || !soundSystemLocal.efxloaded || listenerArea < 0 || listenerArea >= rw->NumAreas() ) {
+		return;
+	}
+	int wanted[4] = {listenerArea,-1,-1,-1};
+	float distances[4] = {0,idMath::INFINITY,idMath::INFINITY,idMath::INFINITY};
+	const idWinding *openings[4] = {};
+	for ( int p = 0; p < rw->NumPortalsInArea( listenerArea ); ++p ) {
+		exitPortal_t portal = rw->GetPortal( listenerArea, p, true );
+		if ( !portal.w || portal.w->GetNumPoints() < 3 ) { continue; }
+		int area = portal.areas[0] == listenerArea ? portal.areas[1] : portal.areas[0];
+		if ( area < 0 || area >= rw->NumAreas() || area == listenerArea ) { continue; }
+		float distance = (portal.w->GetCenter() - listenerQU).LengthSqr();
+		int target = 1;
+		for ( int i = 2; i < 4; ++i ) { if ( distances[i] > distances[target] ) { target = i; } }
+		for ( int i = 1; i < 4; ++i ) { if ( wanted[i] == area ) { target = i; break; } }
+		if ( distance < distances[target] ) { wanted[target] = area; distances[target] = distance; openings[target] = portal.w; }
+	}
+	int nearest = 1;
+	for ( int i = 2; i < 4; ++i ) { if ( distances[i] < distances[nearest] ) { nearest = i; } }
+	openings[0] = openings[nearest];
+	for ( int slot = 0; slot < 4; ++slot ) {
+		bool keep = false;
+		for ( int i = 0; i < 4; ++i ) { if ( wanted[i] >= 0 && wanted[i] == retailAreas[slot] ) { keep = true; } }
+		if ( !keep ) { retailAreas[slot] = -1; retailPropertiesValid[slot] = false; }
+	}
+	for ( int i = 0; i < 4; ++i ) {
+		if ( wanted[i] < 0 ) { continue; }
+		int slot = -1;
+		for ( int j = 0; j < 4; ++j ) { if ( retailAreas[j] == wanted[i] ) { slot = j; break; } }
+		if ( slot < 0 ) { for ( int j = 0; j < 4; ++j ) { if ( retailAreas[j] < 0 ) { slot = j; break; } } }
+		if ( slot < 0 ) { continue; }
+		const idSoundEffect *effect = RetailEffectForArea( wanted[i] );
+		if ( !effect ) { continue; }
+		retailEaxReverb props = effect->retail;
+		idVec3 pan = RetailPortalPan( openings[i], listenerQU, listenerAxis, i == 0 );
+		for ( int k = 0; k < 3; ++k ) { props.reflectionsPan[k] = props.reverbPan[k] = pan[k]; }
+		if ( !retailPropertiesValid[slot] || memcmp( &props, &retailProperties[slot], sizeof(props) ) ) {
+			if ( !soundSystemLocal.SetRetailEax( retailEaxSlots[soundSystemLocal.retailEaxVersion][slot], 1, 0, &props, sizeof(props) ) ) { continue; }
+			retailProperties[slot] = props;
+			retailPropertiesValid[slot] = true;
+		}
+		retailAreas[slot] = wanted[i];
+		if ( i == 0 ) {
+			soundSystemLocal.SetRetailEax( retailEaxContext[soundSystemLocal.retailEaxVersion], 2, 0,
+				&retailEaxSlots[soundSystemLocal.retailEaxVersion][slot], sizeof(retailEaxGuid) );
+		}
+	}
+}
+void idSoundWorldLocal::ApplyRetailSource( idSoundEmitterLocal *sound, idSoundChannel *chan, bool noOcclusion ) {
+	const int version = soundSystemLocal.retailEaxVersion;
+	const bool mono = chan->leadinSample->objectInfo.nChannels == 1;
+	retailEaxGuid sends[4] = {};
+	if ( mono && rw && soundSystemLocal.efxloaded ) {
+		for ( int slot = 0; slot < 4; ++slot ) {
+			if ( retailPropertiesValid[slot] && retailAreas[slot] == sound->lastValidPortalArea ) {
+				sends[0] = retailEaxSlots[version][slot]; break;
+			}
+		}
+		sends[1] = retailEaxPrimary;
+	}
+	// Always overwrite state: OpenAL source handles are recycled between sounds.
+	soundSystemLocal.SetRetailEax( retailEaxSource[version], 27, chan->openalSource, sends, sizeof(sends) );
+	int room = (chan->parms.soundShaderFlags & SSF_NOREVERB) ? -10000 :
+		((chan->parms.soundClass == SOUNDCLASS_VOICE || chan->parms.soundClass == SOUNDCLASS_VOICEDUCKER) ? -600 : 0);
+	soundSystemLocal.SetRetailEax( retailEaxSource[version], 7, chan->openalSource, &room, sizeof(room) );
+	struct { int level; float lf, room, direct; } occlusion = {0,0,1.5f,1.0f};
+	if ( mono && idSoundSystemLocal::s_useOcclusion.GetBool() ) {
+		occlusion.level = enviroSuitActive ? -1150 : 0;
+		if ( spiritWalkActive && chan->parms.soundClass == SOUNDCLASS_NORMAL ) { occlusion.level -= 3000; }
+		if ( !noOcclusion ) { occlusion.level -= 1500 * idMath::ClampInt(0,6,sound->retailPortalCount); }
+		occlusion.level = idMath::ClampInt(-10000,0,occlusion.level);
+	}
+	soundSystemLocal.SetRetailEax( retailEaxSource[version], 3, chan->openalSource, &occlusion, sizeof(occlusion) );
 }

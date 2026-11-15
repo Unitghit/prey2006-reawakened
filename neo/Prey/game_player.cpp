@@ -1130,6 +1130,24 @@ void hhPlayer::UpdateHudAmmo(idUserInterface *_hud) {
 		_hud->SetStateString(va("rw_weapon%d_material", group), material);
 	}
 	const bool splitAmmo = inventory.SplitRifleAmmo(this) || inventory.SplitAutocannonAmmo(this) || inventory.SplitAcidAmmo(this);
+    // Legacy saves can retain ammunition above a reduced addon-mode capacity.
+    // Keep a stable, saved display scale until that reserve is emptied; changing
+    // it as rounds are spent would pin the bar at full or make it jump upward.
+    auto nativeAmmoDisplayMax = [&](int slot, int type, float capacity) {
+        if (slot != 2 && slot != 5 && slot != 6 && slot != 7) return capacity;
+        if (type <= 0 || type >= AMMO_NUMTYPES || capacity <= 0) return capacity;
+        char key[64]; idStr::snPrintf(key,sizeof(key),"rw_ammo_display_max_%d",type);
+        const float amount = inventory.ammo[type];
+        const float previous = spawnArgs.GetFloat(key,"0");
+        if (amount <= 0) {
+            if (previous != 0) spawnArgs.Delete(key);
+            return capacity;
+        }
+        const float scale = Max(capacity,Max(previous,amount));
+        if (scale > capacity && scale != previous) spawnArgs.SetFloat(key,scale);
+        return scale;
+    };
+
 	float ammoPct, altPct;
 	int ammoType, altAmmoType;
 	float ammo, altAmmo;
@@ -1166,7 +1184,7 @@ void hhPlayer::UpdateHudAmmo(idUserInterface *_hud) {
                 ammo = inventory.ShotgunAmmoAvailable(infoSlot);
                 altAmmo = ammo;
             }
-            ammoPct = ammo / (((infoSlot == 8 || infoSlot == 15) && inventory.SharedShotgunAmmo(this)) ? float(16 + Max(0, inventory.clip[infoSlot])) : weaponInfo[infoSlot].ammoMax);
+            ammoPct = ammo / (((infoSlot == 8 || infoSlot == 15) && inventory.SharedShotgunAmmo(this)) ? float(16 + Max(0, inventory.clip[infoSlot])) : nativeAmmoDisplayMax(infoSlot, ammoType, weaponInfo[infoSlot].ammoMax));
 			altPct = altAmmo / altWeaponInfo[infoSlot].ammoMax;
 			ammoLow = ammo > 0 && ammo <= weaponInfo[infoSlot].ammoLow;
 			altAmmoLow = altAmmo > 0 && altAmmo <= altWeaponInfo[infoSlot].ammoLow;
@@ -1217,7 +1235,7 @@ void hhPlayer::UpdateHudAmmo(idUserInterface *_hud) {
                 ammo = inventory.ShotgunAmmoAvailable(currentWeapon);
                 altAmmo = ammo;
             }
-            ammoPct = ammo / (((currentWeapon == 8 || currentWeapon == 15) && inventory.SharedShotgunAmmo(this)) ? float(16 + Max(0, inventory.clip[currentWeapon])) : weaponInfo[currentWeapon].ammoMax);
+            ammoPct = ammo / (((currentWeapon == 8 || currentWeapon == 15) && inventory.SharedShotgunAmmo(this)) ? float(16 + Max(0, inventory.clip[currentWeapon])) : nativeAmmoDisplayMax(currentWeapon, ammoType, weaponInfo[currentWeapon].ammoMax));
 			altPct = altAmmo / altWeaponInfo[currentWeapon].ammoMax;
 			ammoLow = ammo > 0 && ammo <= weaponInfo[currentWeapon].ammoLow;
 			altAmmoLow = altAmmo > 0 && altAmmo <= altWeaponInfo[currentWeapon].ammoLow;

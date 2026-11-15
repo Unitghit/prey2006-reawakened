@@ -500,6 +500,7 @@ public:
 
 	// the following are calculated in UpdateEmitter, and don't need to be archived
 	float				maxDistance;				// greatest of all playing channel distances
+	int					retailPortalCount = 0; // transient, not part of the save format
 	int					lastValidPortalArea;		// so an emitter that slides out of the world continues playing
 	bool				playing;					// if false, no channel is active
 	bool				hasShakes;
@@ -594,8 +595,8 @@ public:
 	// background music
 	virtual void			PlayShaderDirectly( const char *name, int channel = -1 );
 
-	virtual void			RegisterLocation( int area, const char *locationName ) { (void)area; (void)locationName; }
-	virtual void			ClearAreaLocations() {}
+	virtual void			RegisterLocation( int area, const char *locationName );
+	virtual void			ClearAreaLocations();
 
 	// pause and unpause the sound world
 	virtual void			Pause( void );
@@ -618,7 +619,7 @@ public:
 	virtual void			SetSlowmo( bool active );
 	virtual void			SetSlowmoSpeed( float speed );
 	virtual void			SetEnviroSuit( bool active );
-	virtual void			SetSpiritWalkEffect( bool active ) { (void)active; }
+	virtual void			SetSpiritWalkEffect( bool active ) { spiritWalkActive = active; }
 	virtual void			SetVoiceDucker( bool active ) { (void)active; }
 
 	//=======================================
@@ -652,11 +653,15 @@ public:
 	idVec3					listenerQU;			// position in "quake units"
 	int						listenerArea;
 	idStr					listenerAreaName;
-	ALuint					listenerEffect;
-	ALuint					listenerSlot;
-	bool					listenerAreFiltersInitialized;
-	ALuint					listenerFilters[2]; // 0 - direct; 1 - send.
-	float					listenerSlotReverbGain;
+
+	idDict retailLocations;
+	int retailAreas[4];
+	retailEaxReverb retailProperties[4];
+	bool retailPropertiesValid[4];
+	bool spiritWalkActive;
+	void UpdateRetailEnvironments();
+	void ApplyRetailSource( idSoundEmitterLocal *sound, idSoundChannel *chan, bool noOcclusion );
+	const idSoundEffect *RetailEffectForArea( int area ) const;
 
 	int						gameMsec;
 	int						game44kHz;
@@ -752,8 +757,8 @@ public:
 	virtual	int				GetReverb( int area );
 	virtual	bool			SetReverb( int area, const char *reverbName, const char *fileName );
 
-	virtual const char *	GetDeviceName( int index ) { return NULL; }		// CREATIVE
-	virtual const char *	GetDefaultDeviceName( void ) { return NULL; }	// CREATIVE
+	virtual const char *	GetDeviceName( int index );		// CREATIVE
+	virtual const char *	GetDefaultDeviceName( void );	// CREATIVE
 
 	//-------------------------
 
@@ -864,6 +869,10 @@ public:
 	bool					efxloaded;
 							// latches
 	static bool				useEFXReverb;
+	static retailEaxSet_t retailEaxSet;
+	static int retailEaxVersion;
+	static int retailEaxErrors;
+	static bool SetRetailEax( const retailEaxGuid &object, ALuint property, ALuint source, const void *data, unsigned int size );
 							// mark available during initialization, or through an explicit test
 	static int				EFXAvailable;
 
@@ -880,6 +889,7 @@ public:
 
 	static idCVar			s_noSound;
 	static idCVar			s_device;
+	static idCVar			s_musicVolume;
 	static idCVar			s_quadraticFalloff;
 	static idCVar			s_drawSounds;
 	static idCVar			s_minVolume6;

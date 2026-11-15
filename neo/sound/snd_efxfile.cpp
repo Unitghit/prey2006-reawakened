@@ -40,6 +40,7 @@ static inline ALfloat _mB_to_gain(ALfloat millibels, ALfloat min, ALfloat max) {
 
 idSoundEffect::idSoundEffect() :
 	effect(0) {
+	retail = {26,7.5f,1.0f,-1000,-100,0,1.49f,0.83f,1.0f,-2602,0.007f,{0,0,0},200,0.011f,{0,0,0},0.25f,0,0.25f,0,-5,5000,250,0,0x3f};
 }
 
 idSoundEffect::~idSoundEffect() {
@@ -196,61 +197,62 @@ bool idEFXFile::ReadEffect( idLexer &src, idSoundEffect *effect ) {
 		}
 
 		if ( token == "environment" ) {
-			// <+KittyCat> the "environment" token should be ignored (efx has nothing equatable to it)
-			src.ParseInt();
+			effect->retail.environment = src.ParseInt();
 		} else if ( token == "environment size" ) {
 			//
 			// The formula for density according to Creative's EFX-Util.lib:
 			//    density = clamp(pow(size, 3) / 16, 0, 1)
 			//
-			float size = src.ParseFloat();
+			float size = effect->retail.size = src.ParseFloat();
 			size = idMath::ClampFloat(0.0f, 1.0f, (size * size * size) / 16.0f);
 			efxf(AL_EAXREVERB_DENSITY, size);
 		} else if ( token == "environment diffusion" ) {
-			efxf(AL_EAXREVERB_DIFFUSION, src.ParseFloat());
+			efxf(AL_EAXREVERB_DIFFUSION, (effect->retail.diffusion = src.ParseFloat()));
 		} else if ( token == "room" ) {
-			efxf(AL_EAXREVERB_GAIN, mB_to_gain(src.ParseInt(), GAIN));
+			efxf(AL_EAXREVERB_GAIN, mB_to_gain((effect->retail.room = src.ParseInt()), GAIN));
 		} else if ( token == "room hf" ) {
-			efxf(AL_EAXREVERB_GAINHF, mB_to_gain(src.ParseInt(), GAINHF));
+			efxf(AL_EAXREVERB_GAINHF, mB_to_gain((effect->retail.roomHF = src.ParseInt()), GAINHF));
 		} else if ( token == "room lf" ) {
-			efxf(AL_EAXREVERB_GAINLF, mB_to_gain(src.ParseInt(), GAINLF));
+			efxf(AL_EAXREVERB_GAINLF, mB_to_gain((effect->retail.roomLF = src.ParseInt()), GAINLF));
 		} else if ( token == "decay time" ) {
-			efxf(AL_EAXREVERB_DECAY_TIME, src.ParseFloat());
+			efxf(AL_EAXREVERB_DECAY_TIME, (effect->retail.decay = src.ParseFloat()));
 		} else if ( token == "decay hf ratio" ) {
-			efxf(AL_EAXREVERB_DECAY_HFRATIO, src.ParseFloat());
+			efxf(AL_EAXREVERB_DECAY_HFRATIO, (effect->retail.decayHF = src.ParseFloat()));
 		} else if ( token == "decay lf ratio" ) {
-			efxf(AL_EAXREVERB_DECAY_LFRATIO, src.ParseFloat());
+			efxf(AL_EAXREVERB_DECAY_LFRATIO, (effect->retail.decayLF = src.ParseFloat()));
 		} else if ( token == "reflections" ) {
-			efxf(AL_EAXREVERB_REFLECTIONS_GAIN, mB_to_gain(src.ParseInt(), REFLECTIONS_GAIN));
+			efxf(AL_EAXREVERB_REFLECTIONS_GAIN, mB_to_gain((effect->retail.reflections = src.ParseInt()), REFLECTIONS_GAIN));
 		} else if ( token == "reflections delay" ) {
-			efxf(AL_EAXREVERB_REFLECTIONS_DELAY, src.ParseFloat());
+			efxf(AL_EAXREVERB_REFLECTIONS_DELAY, (effect->retail.reflectionsDelay = src.ParseFloat()));
 		} else if ( token == "reflections pan" ) {
-			efxfv(AL_EAXREVERB_REFLECTIONS_PAN, src.ParseFloat(), src.ParseFloat(), src.ParseFloat());
+			for ( int i = 0; i < 3; ++i ) { effect->retail.reflectionsPan[i] = src.ParseFloat(); }
+			efxfv(AL_EAXREVERB_REFLECTIONS_PAN, effect->retail.reflectionsPan[0], effect->retail.reflectionsPan[1], effect->retail.reflectionsPan[2]);
 		} else if ( token == "reverb" ) {
-			efxf(AL_EAXREVERB_LATE_REVERB_GAIN, mB_to_gain(src.ParseInt(), LATE_REVERB_GAIN));
+			efxf(AL_EAXREVERB_LATE_REVERB_GAIN, mB_to_gain((effect->retail.reverb = src.ParseInt()), LATE_REVERB_GAIN));
 		} else if ( token == "reverb delay" ) {
-			efxf(AL_EAXREVERB_LATE_REVERB_DELAY, src.ParseFloat());
+			efxf(AL_EAXREVERB_LATE_REVERB_DELAY, (effect->retail.reverbDelay = src.ParseFloat()));
 		} else if ( token == "reverb pan" ) {
-			efxfv(AL_EAXREVERB_LATE_REVERB_PAN, src.ParseFloat(), src.ParseFloat(), src.ParseFloat());
+			for ( int i = 0; i < 3; ++i ) { effect->retail.reverbPan[i] = src.ParseFloat(); }
+			efxfv(AL_EAXREVERB_LATE_REVERB_PAN, effect->retail.reverbPan[0], effect->retail.reverbPan[1], effect->retail.reverbPan[2]);
 		} else if ( token == "echo time" ) {
-			efxf(AL_EAXREVERB_ECHO_TIME, src.ParseFloat());
+			efxf(AL_EAXREVERB_ECHO_TIME, (effect->retail.echoTime = src.ParseFloat()));
 		} else if ( token == "echo depth" ) {
-			efxf(AL_EAXREVERB_ECHO_DEPTH, src.ParseFloat());
+			efxf(AL_EAXREVERB_ECHO_DEPTH, (effect->retail.echoDepth = src.ParseFloat()));
 		} else if ( token == "modulation time" ) {
-			efxf(AL_EAXREVERB_MODULATION_TIME, src.ParseFloat());
+			efxf(AL_EAXREVERB_MODULATION_TIME, (effect->retail.modulationTime = src.ParseFloat()));
 		} else if ( token == "modulation depth" ) {
-			efxf(AL_EAXREVERB_MODULATION_DEPTH, src.ParseFloat());
+			efxf(AL_EAXREVERB_MODULATION_DEPTH, (effect->retail.modulationDepth = src.ParseFloat()));
 		} else if ( token == "air absorption hf" ) {
-			efxf(AL_EAXREVERB_AIR_ABSORPTION_GAINHF, mB_to_gain(src.ParseFloat(), AIR_ABSORPTION_GAINHF));
+			efxf(AL_EAXREVERB_AIR_ABSORPTION_GAINHF, mB_to_gain((effect->retail.airAbsorptionHF = src.ParseFloat()), AIR_ABSORPTION_GAINHF));
 		} else if ( token == "hf reference" ) {
-			efxf(AL_EAXREVERB_HFREFERENCE, src.ParseFloat());
+			efxf(AL_EAXREVERB_HFREFERENCE, (effect->retail.hfReference = src.ParseFloat()));
 		} else if ( token == "lf reference" ) {
-			efxf(AL_EAXREVERB_LFREFERENCE, src.ParseFloat());
+			efxf(AL_EAXREVERB_LFREFERENCE, (effect->retail.lfReference = src.ParseFloat()));
 		} else if ( token == "room rolloff factor" ) {
-			efxf(AL_EAXREVERB_ROOM_ROLLOFF_FACTOR, src.ParseFloat());
+			efxf(AL_EAXREVERB_ROOM_ROLLOFF_FACTOR, (effect->retail.rolloff = src.ParseFloat()));
 		} else if ( token == "flags" ) {
 			src.ReadTokenOnLine( &token );
-			unsigned int flags = token.GetUnsignedIntValue();
+			unsigned int flags = effect->retail.flags = token.GetUnsignedIntValue();
 
 			efxi(AL_EAXREVERB_DECAY_HFLIMIT, (flags & 0x20) ? AL_TRUE : AL_FALSE);
 			// the other SCALE flags have no equivalent in efx
@@ -302,4 +304,11 @@ bool idEFXFile::LoadFile( const char *filename, bool OSPath ) {
 	};
 
 	return true;
+}
+
+const idSoundEffect *idEFXFile::FindRetailEffect( const char *name ) const {
+	for ( int i = 0; i < effects.Num(); ++i ) {
+		if ( !effects[i]->name.Icmp( name ) ) { return effects[i]; }
+	}
+	return NULL;
 }

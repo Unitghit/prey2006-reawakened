@@ -49,6 +49,8 @@ extern idCVar r_customHeight;
 
 extern bool R_GetModeInfo( int *width, int *height, int mode );
 
+extern bool ApplyAudioMenuSettings( bool changeDevice );
+
 namespace {
 
 /*************************
@@ -2061,7 +2063,7 @@ static void DrawAudioOptionsMenu()
 		return;
 	}
 
-	ImGui::SeparatorText( "Settings that require restarting the game" );
+	ImGui::SeparatorText( "Audio output" );
 
 	if ( ImGui::Combo( "Sound Device", &selAlDevice, [](void* data, int idx) -> const char* {
 			const idStrList& devs = *static_cast< const idStrList* >(data);
@@ -2073,11 +2075,11 @@ static void DrawAudioOptionsMenu()
 		} else {
 			idSoundSystemLocal::s_device.SetString( alDevices[selAlDevice] );
 		}
-		D3::ImGuiHooks::ShowWarningOverlay( "Changing the sound device only takes effect after restarting!" );
+		if (!ApplyAudioMenuSettings(true)) D3::ImGuiHooks::ShowWarningOverlay( "Could not switch audio device." );
 	}
 	D3::ImGuiHooks::AddTooltip( "s_device" );
 
-	if ( !idSoundSystemLocal::EFXAvailable ) {
+	if ( soundSystemLocal.IsEFXAvailable() != 1 ) {
 		ImGui::BeginDisabled();
 		bool b = false;
 		ImGui::Checkbox( "Use EAX/EFX Reverb Effects", &b );
@@ -2088,7 +2090,7 @@ static void DrawAudioOptionsMenu()
 		if ( ImGui::Checkbox( "Use EAX/EFX Reverb Effects", &useReverb ) ) {
 			idSoundSystemLocal::s_useEAXReverb.SetBool( useReverb );
 			if ( useReverb != idSoundSystemLocal::useEFXReverb ) {
-				D3::ImGuiHooks::ShowWarningOverlay( "Enabling/disabling EFX only takes effect after restarting!" );
+				if (!ApplyAudioMenuSettings(false)) D3::ImGuiHooks::ShowWarningOverlay( "Could not apply EAX setting." );
 			}
 		}
 		D3::ImGuiHooks::AddTooltip( "s_useEAXReverb" );
@@ -2140,26 +2142,9 @@ static void DrawAudioOptionsMenu()
 		ImGui::EndDisabled();
 	}
 
-	if ( idSoundSystemLocal::useEFXReverb ) {
-		float reverbGain = idSoundSystemLocal::s_alReverbGain.GetFloat();
-		if ( ImGui::SliderFloat( "Strength of EFX Reverb Effects", &reverbGain, 0, 1,
-				"%.2f", ImGuiSliderFlags_AlwaysClamp ) )
-		{
-			idSoundSystemLocal::s_alReverbGain.SetFloat( reverbGain );
-		}
-		D3::ImGuiHooks::AddTooltip( "s_alReverbGain" );
-		D3::ImGuiHooks::AddDescrTooltip( "the default value is 0.5" );
-	} else {
-		ImGui::BeginDisabled();
-		float f = 0.0f;
-		ImGui::SliderFloat( "Strength of EFX Reverb Effects", &f, 0, 1, "Disabled" );
-		if ( !idSoundSystemLocal::EFXAvailable ) {
-			D3::ImGuiHooks::AddTooltip( "Your OpenAL version doesn't support EFX" );
-		} else {
-			D3::ImGuiHooks::AddTooltip( "EFX reverb effects are currently disabled" );
-		}
-		ImGui::EndDisabled();
-	}
+	ImGui::TextUnformatted( idSoundSystemLocal::useEFXReverb
+		? "Environmental audio: Retail-style EAX" : "Environmental audio: Off" );
+	D3::ImGuiHooks::AddTooltip( "Choose environmental audio in the game's Audio menu or the launcher. Applies on next launch." );
 
 	bool playDefaultSound = idSoundSystemLocal::s_playDefaultSound.GetBool();
 	if ( ImGui::Checkbox( "Play default beep for missing sounds", &playDefaultSound ) ) {

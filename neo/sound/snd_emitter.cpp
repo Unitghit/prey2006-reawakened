@@ -535,6 +535,7 @@ Called once each sound frame by the main thread from idSoundWorldLocal::PlaceOri
 ===================
 */
 void idSoundEmitterLocal::Spatialize( idVec3 listenerPos, int listenerArea, idRenderWorld *rw ) {
+	retailPortalCount = 0;
 	int			i;
 
 	//

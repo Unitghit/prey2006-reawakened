@@ -1,5 +1,10 @@
 # Changelog
 
+## 1.0.5
+
+- Restored retail-style EAX audio and the original audio menu.
+- Fixed ammo gauges staying full when saves contain excess ammo.
+
 ## 1.0.4
 
 - Fixed weapon audio panning incorrectly while moving.
