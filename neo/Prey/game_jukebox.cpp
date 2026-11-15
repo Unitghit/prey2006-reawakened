@@ -93,24 +93,11 @@ void hhJukeBox::SetTrack(int newTrack) {
 }
 
 void hhJukeBox::PlayCurrentTrack() {
-	const char *shaderName = spawnArgs.GetString(va("snd_song%d", track), NULL);
-	const idSoundShader *shader = declManager->FindSound(shaderName);
 	int time = 0;
-
-	// Clear up any previous state, even if using another mixer at the time
+	// This port always uses OpenAL. Stop legacy target-speaker copies before
+	// starting one emitter, so virtualized speakers cannot drift out of sync.
 	StopCurrentTrack();
-
-	// In OpenAL, samples that are out of range pause instead of mute so the targetted speakers can get out of sync.
-	if (shader && targets.Num() && !cvarSystem->GetCVarBool("s_useOpenAL")) {
-		for (int ix=0; ix<targets.Num(); ix++) {
-			if (targets[ix].IsValid()) {
-				targets[ix]->StartSoundShader(shader, SND_CHANNEL_VOICE, 0, true, &time);
-			}
-		}
-	}
-	else {
-		StartSound(va("snd_song%d", track), SND_CHANNEL_VOICE, 0, true, &time);
-	}
+	StartSound(va("snd_song%d", track), SND_CHANNEL_VOICE, 0, true, &time);
 	UpdateVolume();
 	CancelEvents(&EV_TrackOver);
 	PostEventMS(&EV_TrackOver, time + 500);
@@ -186,16 +173,7 @@ void hhJukeBox::UpdateEntityVolume(idEntity *ent) {
 }
 
 void hhJukeBox::UpdateVolume() {
-	if (targets.Num() && !cvarSystem->GetCVarBool("s_useOpenAL")) {
-		for (int ix=0; ix<targets.Num(); ix++) {
-			if (targets[ix].IsValid()) {
-				UpdateEntityVolume(targets[ix].GetEntity());
-			}
-		}
-	}
-	else {
-		UpdateEntityVolume(this);
-	}
+	UpdateEntityVolume(this);
 }
 
 void hhJukeBox::Think() {

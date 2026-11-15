@@ -3754,8 +3754,9 @@
 								shadow		1
 								forecolor	EDITABLE_FORECOLOR_COMMA
 								hovercolor	EDITABLE_HOVERCOLOR_COMMA
-								choices		"#str_20313"
-								values		"0;1"
+								choices		"OpenAL"
+								values		"1"
+								noevents 1
 								cvar		"s_useOpenAL"
 								choiceType	1
 								onActionRelease {
@@ -3945,7 +3946,7 @@
 
 								windowDef OAT_EAX {
 									rect		0, 0, 200, 25
-									text		"#str_20322"
+									text		"Environmental reverb"
 									textalign	1
 									textaligny	0
 									textscale	0.33

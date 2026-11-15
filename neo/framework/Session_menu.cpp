@@ -297,6 +297,11 @@ idSessionLocal::SetMainMenuGuiVars
 ===============
 */
 void idSessionLocal::SetMainMenuGuiVars( void ) {
+	guiMainMenu->SetStateInt("openAL", 1);
+	guiMainMenu->SetStateInt("mixeroption", 0);
+	guiMainMenu->SetStateInt("supportsEax", soundSystem->IsEFXAvailable() == 1);
+	guiMainMenu->SetStateInt("eax", 0); // Do not advertise legacy hardware EAX.
+
 	idHitchScope hitch("menu_setup", "main_menu");
 
 	guiMainMenu->SetStateString( "serverlist_sel_0", "-1" );
