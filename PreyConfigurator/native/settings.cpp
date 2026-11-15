@@ -162,7 +162,7 @@ std::vector<std::pair<std::wstring,std::wstring>> Variables(const Values& v) {
     const std::vector<std::pair<std::wstring,std::wstring>> fixed = {
         {L"fs_game",L""},{L"g_doom3Shotgun",v.at(L"weaponPack")==L"doom3shotgun"?L"1":L"0"},
         {L"r_mode",L"-1"},{L"r_customWidth",size.substr(0,x)},{L"r_customHeight",size.substr(x+1)},
-        {L"gui_translateAlienFont",L"fonts"},{L"g_stopTime",L"0"},
+        {L"gui_translateAlienFont",L"fonts"},{L"g_stopTime",L"0"},{L"s_useEAXReverb",L"0"},
         {L"r_fullscreen",v.at(L"r_fullscreen")==L"0"?L"0":L"1"},{L"r_fullscreenDesktop",v.at(L"r_fullscreen")==L"desktop"?L"1":L"0"},
         {L"com_unlockedFPS",L"1"},{L"r_glowMode",L"2"},{L"r_skipGlowOverlay",v.at(L"bloom")==L"off"?L"1":L"0"},{L"r_glowResolution",v.at(L"bloom")==L"original"?L"256":L"0"},
         {L"r_glowStrength",L"0.5"},{L"r_glowAlpha",L"0.55"},{L"r_glowAlphaChange",L"0.85"},{L"r_glowSteps",L"8"},
@@ -271,6 +271,7 @@ void VerifyConfiguration(const fs::path& output) {
     for (const auto& s : Options()) for (const auto& c : s.choices) {
         auto v = defaults; v[s.key]=c.value; Validate(v); require(Migrate(ParseJson(Json(v)))==v);
         auto pairs = Variables(v); Values vars(pairs.begin(),pairs.end());
+        require(vars.at(L"s_useEAXReverb")==L"0");
         require(vars.at(L"fs_game").empty() && vars.at(L"g_doom3Shotgun")==(v[L"weaponPack"]==L"doom3shotgun"?L"1":L"0"));
         require(vars.at(L"g_portalGun")==v[L"g_portalGun"] && vars.at(L"g_portalGunReticle")==v[L"g_portalGunReticle"]);
         require(vars.at(L"g_bunnyHop")==v[L"g_bunnyHop"] && vars.at(L"g_halfLifeAutoHop")==v[L"g_halfLifeAutoHop"]);

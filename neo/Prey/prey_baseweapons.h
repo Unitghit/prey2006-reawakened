@@ -38,6 +38,7 @@ class hhWeapon: public hhAnimatedEntity {
 		virtual void		GetWeaponDef( const char *objectname, int ammoinclip ) { GetWeaponDef(objectname); }
 		virtual void		GetWeaponDef( const char *objectname );
 		virtual void		SetOwner( idPlayer *_owner );
+		virtual void		UpdateSound( void ) override;
 
 		virtual void		RestoreGUI( const char* guiKey, idUserInterface** gui );
 

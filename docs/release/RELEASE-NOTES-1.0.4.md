@@ -1,0 +1,1 @@
+- Fixed weapon audio panning incorrectly while moving.

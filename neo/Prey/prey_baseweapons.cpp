@@ -187,6 +187,19 @@ void hhWeapon::SetOwner( idPlayer *_owner ) {
 	}
 }
 
+// A weapon is spawned before it receives its owner. Entity::Spawn assigns its
+// own listener ID, and old saves preserve that ID. Resolve ownership whenever
+// the emitter updates, including sounds started through the base entity API.
+// Other listeners still hear this weapon at its actual world position.
+void hhWeapon::UpdateSound( void ) {
+	const int listenerId = owner.IsValid() ? owner->GetListenerId() : entityNumber + 1;
+	if ( g_debugWeapon.GetBool() && refSound.listenerId != listenerId ) {
+		gameLocal.Printf( "WEAPON_SOUND_OWNER %s listener %d -> %d\n", name.c_str(), refSound.listenerId, listenerId );
+	}
+	refSound.listenerId = listenerId;
+	idEntity::UpdateSound();
+}
+
 /*
 ================
 hhWeapon::Save

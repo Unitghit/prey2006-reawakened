@@ -1,5 +1,9 @@
 # Changelog
 
+## 1.0.4
+
+- Fixed weapon audio panning incorrectly while moving.
+
 ## 1.0.3
 
 - Fixed duplicate jukebox audio from the bar speakers.

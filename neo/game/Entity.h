@@ -466,7 +466,7 @@ public:
 	virtual//HUMANHEAD: aob
 	void					StopSound( const s_channelType channel, bool broadcast = false);	// pass SND_CHANNEL_ANY to stop all sounds
 	void					SetSoundVolume( float volume );
-	void					UpdateSound( void );
+	virtual void			UpdateSound( void );
 	int						GetListenerId( void ) const;
 	idSoundEmitter *		GetSoundEmitter( void ) const;
 	void					FreeSoundEmitter( bool immediate );
