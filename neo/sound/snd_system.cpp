@@ -107,6 +107,10 @@ idCVar idSoundSystemLocal::s_decompressionLimit( "s_decompressionLimit", "6", CV
 
 idCVar idSoundSystemLocal::s_eaxVoiceReverb( "s_eaxVoiceReverb", "5", CVAR_SOUND | CVAR_INTEGER | CVAR_ARCHIVE,
 	"EAX voice reverb amount: 0 off, 5 retail, 10 double; direct dialogue volume is unchanged", 0, 10 );
+idCVar idSoundSystemLocal::s_eaxWeaponReverb( "s_eaxWeaponReverb", "5", CVAR_SOUND | CVAR_INTEGER | CVAR_ARCHIVE,
+	"EAX weapon reverb: 0 off, 5 original, 10 double; direct volume is unchanged", 0, 10 );
+idCVar idSoundSystemLocal::s_eaxEnvironmentReverb( "s_eaxEnvironmentReverb", "5", CVAR_SOUND | CVAR_INTEGER | CVAR_ARCHIVE,
+	"EAX world reverb: 0 off, 5 original, 10 double; direct volume is unchanged", 0, 10 );
 idCVar idSoundSystemLocal::s_alReverbGain( "s_alReverbGain", "0.5", CVAR_SOUND | CVAR_FLOAT | CVAR_ARCHIVE | CVAR_NEW, "reduce reverb strength (0.0 to 1.0)", 0.0f, 1.0f );
 
 idCVar idSoundSystemLocal::s_scaleDownAndClamp( "s_scaleDownAndClamp", "1", CVAR_SOUND | CVAR_BOOL | CVAR_ARCHIVE | CVAR_NEW, "Clamp and reduce volume of all sounds to prevent clipping or temporary downscaling by OpenAL. When disabling this, you probably want to explicitly disable s_alOutputLimiter" );
@@ -543,6 +547,10 @@ static void RetailAudioTest_f( const idCmdArgs &args ) {
 	const bool oldSpirit = world->spiritWalkActive;
 	const bool oldSuit = world->enviroSuitActive;
 	const int oldVoiceReverb = idSoundSystemLocal::s_eaxVoiceReverb.GetInteger();
+	const int oldWeaponReverb = idSoundSystemLocal::s_eaxWeaponReverb.GetInteger();
+	const int oldEnvironmentReverb = idSoundSystemLocal::s_eaxEnvironmentReverb.GetInteger();
+	idSoundSystemLocal::s_eaxWeaponReverb.SetInteger( 5 );
+	idSoundSystemLocal::s_eaxEnvironmentReverb.SetInteger( 5 );
 	idSoundSystemLocal::s_eaxVoiceReverb.SetInteger( 5 );
 	{
 		idSoundSample sample;
@@ -596,9 +604,46 @@ static void RetailAudioTest_f( const idCmdArgs &args ) {
 				}
 			}
 		}
+		// Check authored weapon declarations, enemy gun samples and world sounds.
+		const struct { const char *name; bool weapon; } groups[] = {
+			{ "weapon_rifle_raisescope", true }, { "projectile_rifle_impact_metal", true },
+			{ "monster_hunter_altmissileattack", true }, { "vehicle_shuttle_cannon", true },
+			{ "monster_hunter_missileattack", true }, { "monster_hunter_jump_land", false },
+			{ "d3_player_machinegun_fire", true }, { "rw_portalgun_blue", true }
+		};
+		idCVar *controls[] = { &idSoundSystemLocal::s_eaxVoiceReverb, &idSoundSystemLocal::s_eaxWeaponReverb, &idSoundSystemLocal::s_eaxEnvironmentReverb };
+		for ( const auto &group : groups ) {
+			channel.soundShader = declManager->FindSound( group.name, false );
+			if ( !channel.soundShader && ( !idStr::Icmpn(group.name,"d3_",3) || !idStr::Icmpn(group.name,"rw_",3) ) ) {
+				common->Printf("REVERB_GROUP_TEST %s SKIP optional content not installed\n",group.name); continue;
+			}
+			const bool classified = channel.soundShader && channel.soundShader->GetNumSounds() > 0 && channel.soundShader->UsesWeaponReverb() == group.weapon;
+			common->Printf("REVERB_GROUP_TEST %s %s\n",group.name,classified?"PASS":"FAIL");
+			ok = ok && classified;
+			for ( int control=0; control<3; ++control ) for ( int amount : {0,1,5,10} ) {
+				for ( int i=0; i<3; ++i ) controls[i]->SetInteger(i==control?amount:5);
+				for ( int cls : {SOUNDCLASS_NORMAL,SOUNDCLASS_VOICE,SOUNDCLASS_VOICEDUCKER,SOUNDCLASS_SPIRITWALK,SOUNDCLASS_MUSIC} ) for ( int excluded=0; excluded<2; ++excluded ) {
+					channel.parms.soundClass=cls; channel.parms.soundShaderFlags=excluded?SSF_NOREVERB:0;
+					const bool voice=cls==SOUNDCLASS_VOICE || cls==SOUNDCLASS_VOICEDUCKER;
+					const int selected=voice?0:group.weapon?1:2;
+					int expected=voice?-600:0;
+					if(excluded) expected=-10000;
+					else if(cls!=SOUNDCLASS_MUSIC && selected==control) expected=amount==0?-10000:expected+(amount==1?-1397:amount==10?602:0);
+					alSourcef(source,AL_GAIN,0.25f);
+					world->ApplyRetailSource(&emitter,&channel,false);
+					int room=12345;float gain=0;
+					bool pass=get(&retailEaxSource[idSoundSystemLocal::retailEaxVersion],7,source,&room,sizeof(room))==AL_NO_ERROR && room==expected;
+					alGetSourcef(source,AL_GAIN,&gain);pass=pass && gain==0.25f;ok=ok && pass;
+					if(!pass) common->Printf("REVERB_GROUP_MIX FAIL shader=%s control=%d amount=%d class=%d excluded=%d room=%d expected=%d gain=%g\n",group.name,control,amount,cls,excluded,room,expected,gain);
+				}
+			}
+		}
+		channel.soundShader=NULL;
 		channel.openalSource=0; channel.leadinSample=NULL;
 	}
 	idSoundSystemLocal::s_eaxVoiceReverb.SetInteger( oldVoiceReverb );
+	idSoundSystemLocal::s_eaxWeaponReverb.SetInteger( oldWeaponReverb );
+	idSoundSystemLocal::s_eaxEnvironmentReverb.SetInteger( oldEnvironmentReverb );
 	world->spiritWalkActive=oldSpirit; world->enviroSuitActive=oldSuit;
 	// No buffers were attached and no playback was started on the borrowed source.
 	common->Printf("RETAIL_AUDIO_TEST %s errors=%d\n",ok?"PASS":"FAIL",idSoundSystemLocal::retailEaxErrors);

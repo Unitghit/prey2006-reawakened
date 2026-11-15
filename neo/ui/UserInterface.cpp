@@ -679,9 +679,15 @@ void idUserInterfaceLocal::Redraw( int _time, float offsetX, float offsetY ) {
 			desktop->Translate( translateFont );
 		}
 
+        // Menu material animations use the GUI clock, not the last world view's
+        // frozen time. Scope this around the draw so HUDs and in-world screens
+        // continue using their own game's time, including while paused.
+        const bool menuClock = (desktop->GetFlags() & WIN_MENUGUI) != 0;
+        const float oldShaderTime = menuClock ? renderSystem->SetGuiShaderTime( _time * 0.001f ) : 0.0f;
 		uiManagerLocal.dc.PushClipRect( uiManagerLocal.screenRect );
 		desktop->Redraw( offsetX, offsetY );
 		uiManagerLocal.dc.PopClipRect();
+        if ( menuClock ) renderSystem->SetGuiShaderTime( oldShaderTime );
 
 		if ( translateFont >= 0 ) {
 			translateFont = -1;

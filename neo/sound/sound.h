@@ -199,6 +199,8 @@ public:
 	virtual const char *	GetSound( int index ) const;
 	// Prepare an existing shader without playing it or changing sound-world state.
 	void PreloadSamples() const;
+	bool UsesWeaponReverb() const { return weaponReverb; }
+	static bool IsWeaponReverbAsset( const char *file, const char *sample );
 
 	virtual bool			CheckShakesAndOgg( void ) const;
 
@@ -222,6 +224,8 @@ private:
 	int						numLeadins;
 	idSoundSample *	entries[SOUND_MAX_LIST_WAVS];
 	int						numEntries;
+	// Derived declaration metadata only: never changes saved sound parameters.
+	bool weaponReverb;
 
 private:
 	void					Init( void );

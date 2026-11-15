@@ -1,0 +1,2 @@
+- Added weapon and environment reverb sliders to the audio menu and launcher.
+- Fixed stars and mothership effects freezing in the pause menu.

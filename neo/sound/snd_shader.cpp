@@ -38,6 +38,7 @@ idSoundShader::Init
 ===============
 */
 void idSoundShader::Init( void ) {
+	weaponReverb = false;
 	desc = "<no description>";
 	errorDuringParse = false;
 	onDemand = false;
@@ -151,10 +152,35 @@ bool idSoundShader::Parse( const char *text, const int textLength ) {
 idSoundShader::ParseShader
 ===============
 */
+// Authored asset families, independent of soundClass (which also controls fades).
+// Sample paths cover enemy guns defined in monster declarations. Explicit shader
+// overrides below let future content opt out when reusing a weapon sample.
+bool idSoundShader::IsWeaponReverbAsset( const char *file, const char *sample ) {
+	idStr path = file ? file : "";
+	path.BackSlashesToSlashes();
+	if ( !path.Icmpn( "sound/weapon", 12 ) || !path.Icmpn( "sound/projectile", 16 ) ) return true;
+	const char *files[] = { "sound/guns.sndshd", "sound/objectmountedgun.sndshd",
+		"sound/objectmine.sndshd", "sound/doom3_shotgun.sndshd", "sound/doom3_machinegun.sndshd",
+		"sound/doom3_chaingun.sndshd", "sound/doom3_plasmagun.sndshd", "sound/doom3_rocketlauncher.sndshd",
+		"sound/doom3_supershotgun.sndshd", "sound/doom3_bfg.sndshd", "sound/portalgun_view.sndshd" };
+	for ( const char *name : files ) if ( !path.Icmp( name ) ) return true;
+    // Gun sounds in mixed monster/vehicle files need individual classification;
+    // their dialogue, engine loops and movement sounds must remain independent.
+    const char *shots[] = { "monster_hunter_altmissileattack", "monsters_droid_missileattack",
+        "monsters_indoor_droid_missileattack", "monster_possessedchild_pri_fire",
+        "vehicle_shuttle_cannon", "vehicle_dockedgun_cannon", "vehicle_railshuttle_cannon" };
+    for ( const char *name : shots ) if ( sample && !idStr::Icmp(sample,name) ) return true;
+	path = sample ? sample : "";
+	path.BackSlashesToSlashes();
+	return !path.Icmpn( "sound/weapons/", 14 );
+}
+
 bool idSoundShader::ParseShader( idLexer &src ) {
 	int			i;
 	idToken		token;
 
+	weaponReverb = IsWeaponReverbAsset( GetFileName(), GetName() );
+	int explicitReverb = -1;
 	parms.minDistance = 1;
 	parms.maxDistance = 10;
 	parms.volume = 1;
@@ -182,8 +208,9 @@ bool idSoundShader::ParseShader( idLexer &src ) {
 		if ( !src.ExpectAnyToken( &token ) ) {
 			return false;
 		}
+		if ( explicitReverb < 0 && IsWeaponReverbAsset( "", token.c_str() ) ) weaponReverb = true;
 		// end of definition
-		else if ( token == "}" ) {
+		if ( token == "}" ) {
 			break;
 		}
 		// minimum number of sounds
@@ -254,6 +281,14 @@ bool idSoundShader::ParseShader( idLexer &src ) {
 		// speaker mask
 		else if ( !token.Icmp( "mask_lfe" ) ) {
 			speakerMask |= 1<<SPEAKER_LFE;
+		}
+		else if ( !token.Icmp( "reverbGroup" ) ) {
+			idToken group;
+			if ( !src.ExpectAnyToken( &group ) ) return false;
+			if ( !group.Icmp( "weapon" ) ) explicitReverb = 1;
+			else if ( !group.Icmp( "environment" ) ) explicitReverb = 0;
+			else { src.Warning( "Unknown reverbGroup %s", group.c_str() ); return false; }
+			weaponReverb = explicitReverb == 1;
 		}
 		// soundClass
 		else if ( !token.Icmp( "soundClass" ) ) {

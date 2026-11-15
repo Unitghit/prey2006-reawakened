@@ -228,6 +228,9 @@ public:
 	virtual bool			RegisterFont( const char *fontName, fontInfoEx_t &font ) = 0;
 
 	// GUI drawing just involves shader parameter setting and axial image subsections
+	// Engine GUI only. Flush queued 2D surfaces before changing their clock.
+	// Nonvirtual: does not alter the game DLL interface or saved data.
+	float SetGuiShaderTime( float seconds );
 	virtual void			SetColor( const idVec4 &rgba ) = 0;
 	virtual void			SetColor4( float r, float g, float b, float a ) = 0;
 

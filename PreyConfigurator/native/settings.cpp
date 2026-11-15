@@ -176,7 +176,7 @@ Values Load(const fs::path& root) {
             if (command=="seta" || command=="set") game[Wide(key)]=Wide(value);
         }
         for (const auto& option: Options()) {
-            if (option.key!=L"s_useEAXReverb" && option.key!=L"s_eaxVoiceReverb" && option.key!=L"gui_hudWidescreen" && option.key!=L"r_swapInterval" && option.key!=L"r_multiSamples") continue;
+            if (option.key!=L"s_useEAXReverb" && option.key!=L"s_eaxVoiceReverb" && option.key!=L"s_eaxWeaponReverb" && option.key!=L"s_eaxEnvironmentReverb" && option.key!=L"gui_hudWidescreen" && option.key!=L"r_swapInterval" && option.key!=L"r_multiSamples") continue;
             auto it=game.find(option.key);
             if(it!=game.end() && std::any_of(option.choices.begin(),option.choices.end(),[&](const Choice& c){return c.value==it->second;})) values[option.key]=it->second;
         }
@@ -306,16 +306,16 @@ void Launch(const fs::path& exe, const std::vector<std::wstring>& args) {
 void VerifyConfiguration(const fs::path& output) {
     fs::create_directories(output);
     int checkIndex=0; auto require = [&](bool ok) { ++checkIndex; if (!ok) throw std::runtime_error("Configuration verification failed at check " + std::to_string(checkIndex)); };
-    auto defaults = Defaults(); require(defaults.size()==27 && defaults.at(L"s_eaxVoiceReverb")==L"5" && defaults.at(L"gui_hudWidescreen")==L"1" && !defaults.count(L"padConfig") && defaults.at(L"gui_controllerNavigation")==L"1" && defaults.at(L"g_noFallDamage")==L"0" && defaults.at(L"g_weaponUnlockTips")==L"1" && defaults.at(L"muzzleShadows")==L"all" && defaults.at(L"g_noSpiritResurrections")==L"0" && defaults.at(L"g_portalGun")==L"0" && defaults.at(L"g_portalGunReticle")==L"1" && defaults.at(L"g_bunnyHop")==L"0" && defaults.at(L"g_halfLifeAutoHop")==L"0" && defaults.at(L"com_maxFPS")==L"-1");
+    auto defaults = Defaults(); require(defaults.size()==29 && defaults.at(L"s_eaxVoiceReverb")==L"5" && defaults.at(L"s_eaxWeaponReverb")==L"5" && defaults.at(L"s_eaxEnvironmentReverb")==L"5" && defaults.at(L"gui_hudWidescreen")==L"1" && !defaults.count(L"padConfig") && defaults.at(L"gui_controllerNavigation")==L"1" && defaults.at(L"g_noFallDamage")==L"0" && defaults.at(L"g_weaponUnlockTips")==L"1" && defaults.at(L"muzzleShadows")==L"all" && defaults.at(L"g_noSpiritResurrections")==L"0" && defaults.at(L"g_portalGun")==L"0" && defaults.at(L"g_portalGunReticle")==L"1" && defaults.at(L"g_bunnyHop")==L"0" && defaults.at(L"g_halfLifeAutoHop")==L"0" && defaults.at(L"com_maxFPS")==L"-1");
     Save(output,defaults); require(Load(output)==defaults);
     const auto syncRoot=output/L"audio-sync";
     fs::create_directories(syncRoot/L"userdata/base");
     Save(syncRoot,defaults);
     const auto syncConfig=syncRoot/L"userdata/base/prey06.cfg";
-    Atomic(syncConfig,"seta s_useEAXReverb \"1\"\nseta s_eaxVoiceReverb \"2\"\n");
+    Atomic(syncConfig,"seta s_useEAXReverb \"1\"\nseta s_eaxVoiceReverb \"2\"\nseta s_eaxWeaponReverb \"3\"\nseta s_eaxEnvironmentReverb \"7\"\n");
     const auto stamp=fs::last_write_time(syncRoot/L"Prey-settings.json");
     fs::last_write_time(syncConfig,stamp+std::chrono::seconds(2));
-    require(Load(syncRoot).at(L"s_useEAXReverb")==L"1" && Load(syncRoot).at(L"s_eaxVoiceReverb")==L"2");
+    require(Load(syncRoot).at(L"s_useEAXReverb")==L"1" && Load(syncRoot).at(L"s_eaxVoiceReverb")==L"2" && Load(syncRoot).at(L"s_eaxWeaponReverb")==L"3" && Load(syncRoot).at(L"s_eaxEnvironmentReverb")==L"7");
     fs::last_write_time(syncConfig,stamp-std::chrono::seconds(2));
     require(Load(syncRoot).at(L"s_useEAXReverb")==L"0");
 

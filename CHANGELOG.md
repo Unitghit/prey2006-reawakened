@@ -1,5 +1,10 @@
 # Changelog
 
+## 1.0.7
+
+- Added weapon and environment reverb sliders to the audio menu and launcher.
+- Fixed stars and mothership effects freezing in the pause menu.
+
 ## 1.0.6
 
 - Added widescreen HUD options to the launcher and in-game menu.

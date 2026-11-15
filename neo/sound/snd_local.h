@@ -916,6 +916,8 @@ public:
 	static idCVar			s_realTimeDecoding;
 	static idCVar			s_useEAXReverb;
 	static idCVar			s_eaxVoiceReverb;
+	static idCVar s_eaxWeaponReverb;
+	static idCVar s_eaxEnvironmentReverb;
 	static idCVar			s_decompressionLimit;
 
 	static idCVar			s_alReverbGain;

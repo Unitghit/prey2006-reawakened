@@ -30,6 +30,7 @@ static RECT WorkArea(HWND window) {
     GetMonitorInfoW(MonitorFromWindow(window,MONITOR_DEFAULTTONEAREST),&info);
     return info.rcWork;
 }
+static bool ReverbSlider(const std::wstring& key) { return key==L"s_eaxVoiceReverb" || key==L"s_eaxWeaponReverb" || key==L"s_eaxEnvironmentReverb"; }
 struct Row { HWND label{},combo{}; RECT labelRect{},comboRect{}; };
 struct Group { std::wstring name; HWND title{}; RECT rect{}; };
 struct App {
@@ -102,24 +103,31 @@ struct App {
         for (auto& g:groups) ShowWindow(g.title,GroupVisible(g)?SW_SHOWNA:SW_HIDE);
         Layout();
     }
+    std::wstring RowLabel(size_t i) const {
+        auto text=Options()[i].label;
+        if(ReverbSlider(Options()[i].key)) text+=L" ("+std::to_wstring(SendMessageW(rows[i].combo,TBM_GETPOS,0,0)*20)+L"%)";
+        return text;
+    }
+    void ReverbLabels() { for(size_t i=0;i<rows.size();++i) if(ReverbSlider(Options()[i].key)) SetWindowTextW(rows[i].label,RowLabel(i).c_str()); }
     void SetValues(const Values& v) {
         auto shown=v.find(L"showAdvanced");ShowAdvanced(shown!=v.end() && shown->second==L"1");
         for (size_t i=0;i<rows.size();++i) {
             const auto& s=Options()[i];
             if(s.action) continue;
             auto it=std::find_if(s.choices.begin(),s.choices.end(),[&](const Choice& c){return c.value==v.at(s.key);});
+            if(ReverbSlider(s.key)) {SendMessageW(rows[i].combo,TBM_SETPOS,TRUE,it-s.choices.begin());continue;}
             // A resized window can have a valid size absent from the presets.
             while(SendMessageW(rows[i].combo,CB_GETCOUNT,0,0)>(LRESULT)s.choices.size()) SendMessageW(rows[i].combo,CB_DELETESTRING,s.choices.size(),0);
             if(it==s.choices.end() && s.key==L"resolution") SendMessageW(rows[i].combo,CB_ADDSTRING,0,(LPARAM)v.at(s.key).c_str());
             SendMessageW(rows[i].combo,CB_SETCURSEL,it-s.choices.begin(),0);
         }
-        Dependencies();
+        ReverbLabels();Dependencies();
     }
     Values Read() const {
         Values v;
         for (size_t i=0;i<rows.size();++i) {
             if(Options()[i].action) continue;
-            int selection=(int)SendMessageW(rows[i].combo,CB_GETCURSEL,0,0);
+            int selection=(int)SendMessageW(rows[i].combo,ReverbSlider(Options()[i].key)?TBM_GETPOS:CB_GETCURSEL,0,0);
             if(Options()[i].key==L"resolution" && selection==(int)Options()[i].choices.size()) {
                 wchar_t size[32]={};
                 if(SendMessageW(rows[i].combo,CB_GETLBTEXTLEN,selection,0)>=32) throw std::runtime_error("Invalid resolution");
@@ -136,7 +144,7 @@ struct App {
         Values v=Read();
         for (size_t i=0;i<rows.size();++i) {
             const auto& key=Options()[i].key; bool enabled=true;
-            if(key==L"s_eaxVoiceReverb") enabled=v[L"s_useEAXReverb"]==L"1";
+            if(key==L"s_eaxVoiceReverb" || key==L"s_eaxWeaponReverb" || key==L"s_eaxEnvironmentReverb") enabled=v[L"s_useEAXReverb"]==L"1";
             if(key==L"resolution") enabled=v[L"r_fullscreen"]!=L"desktop";
             if(key==L"joy_invertLook" || key==L"joy_deadZone" || key==L"padConfig" || key==L"gui_controllerNavigation") enabled=v[L"in_useGamepad"]==L"1";
             if(key==L"g_portalGunReticle") enabled=v[L"g_portalGun"]==L"1";
@@ -167,7 +175,7 @@ struct App {
                 if(!Visible(i)) {++i;continue;}
                 auto& row=rows[i];
                 int leftWidth=(int)(inner*.46),labelWidth=std::max(1,leftWidth-D(15));
-                int labelHeight=Measure(Options()[i].label,font,labelWidth).cy;
+                int labelHeight=Measure(ReverbSlider(Options()[i].key)?Options()[i].label+L" (200%)":Options()[i].label,font,labelWidth).cy;
                 int comboHeight=Measure(L"Ag",font).cy+D(8);
                 int rowHeight=std::max(labelHeight+D(16),comboHeight+D(8));
                 row.labelRect={D(15),y+(rowHeight-labelHeight)/2,D(15)+labelWidth,y+(rowHeight+labelHeight)/2};
@@ -175,7 +183,7 @@ struct App {
                 if(place) {
                     const auto& a=row.labelRect; const auto& b=row.comboRect;
                     MoveWindow(row.label,a.left,a.top-scroll,a.right-a.left,a.bottom-a.top,TRUE);
-                    MoveWindow(row.combo,b.left,b.top-scroll,std::max<int>(1,b.right-b.left),Options()[i].action?b.bottom-b.top:D(260),TRUE);
+                    MoveWindow(row.combo,b.left,b.top-scroll,std::max<int>(1,b.right-b.left),(Options()[i].action || ReverbSlider(Options()[i].key))?b.bottom-b.top:D(260),TRUE);
                 }
                 y+=rowHeight; ++i;
             }
@@ -290,7 +298,8 @@ struct App {
 static void Report(HWND owner,const std::exception& e) {MessageBoxW(owner,ErrorText(e.what()).c_str(),L"Prey2006 Reawakened Launcher",MB_OK|MB_ICONERROR);}
 static LRESULT CALLBACK ComboProc(HWND h,UINT msg,WPARAM wp,LPARAM lp,UINT_PTR,DWORD_PTR data) {
     auto app=reinterpret_cast<App*>(data);
-    if(msg==WM_MOUSEWHEEL) {SendMessageW(h,CB_SHOWDROPDOWN,FALSE,0);app->Wheel(wp);return 0;}
+    if(msg==WM_SETFOCUS) {int i=GetDlgCtrlID(h)-100;if(i>=0 && i<(int)app->rows.size()) app->Reveal(i);}
+    if(msg==WM_MOUSEWHEEL) {if(!ReverbSlider(Options()[GetDlgCtrlID(h)-100].key)) SendMessageW(h,CB_SHOWDROPDOWN,FALSE,0);app->Wheel(wp);return 0;}
     if(msg==WM_NCDESTROY) RemoveWindowSubclass(h,ComboProc,1);
     return DefSubclassProc(h,msg,wp,lp);
 }
@@ -299,6 +308,7 @@ static LRESULT CALLBACK PageProc(HWND h,UINT msg,WPARAM wp,LPARAM lp) {
     if(msg==WM_NCCREATE) {app=(App*)((CREATESTRUCTW*)lp)->lpCreateParams;SetWindowLongPtrW(h,GWLP_USERDATA,(LONG_PTR)app);}
     if(!app) return DefWindowProcW(h,msg,wp,lp);
     switch(msg) {
+        case WM_HSCROLL:
         case WM_COMMAND: return SendMessageW(app->window,msg,wp,lp);
         case WM_MOUSEWHEEL: app->Wheel(wp);return 0;
         case WM_VSCROLL: {
@@ -325,6 +335,7 @@ static LRESULT CALLBACK MainProc(HWND h,UINT msg,WPARAM wp,LPARAM lp) {
         switch(msg) {
             case WM_SIZE:app->Layout();return 0;
             case WM_MOUSEWHEEL:app->Wheel(wp);return 0;
+            case WM_HSCROLL: app->ReverbLabels();app->Status(L"Unsaved changes");return 0;
             case WM_COMMAND: {
                 int id=LOWORD(wp),event=HIWORD(wp);
                 if(id>=100 && id<100+(int)app->rows.size() && Options()[id-100].action) {
@@ -368,6 +379,12 @@ void App::Create() {
         if(groups.empty() || groups.back().name!=s.group) groups.push_back({s.group,Control(L"STATIC",s.group,SS_NOPREFIX,page),{}});
         Row row;row.label=Control(L"STATIC",s.label,SS_NOPREFIX,page);
         if(s.action) row.combo=Control(L"BUTTON",s.initial,WS_TABSTOP|BS_PUSHBUTTON,page,100+(int)i);
+        else if(ReverbSlider(s.key)) {
+            row.combo=Control(TRACKBAR_CLASSW,L"",WS_TABSTOP|TBS_HORZ|TBS_AUTOTICKS,page,100+(int)i);
+            SendMessageW(row.combo,TBM_SETRANGE,TRUE,MAKELPARAM(0,10));
+            SendMessageW(row.combo,TBM_SETPAGESIZE,0,1);
+            SetWindowSubclass(row.combo,ComboProc,1,(DWORD_PTR)this);
+        }
         else {
             row.combo=Control(L"COMBOBOX",L"",WS_TABSTOP|CBS_DROPDOWNLIST|CBS_HASSTRINGS|WS_VSCROLL,page,100+(int)i);
             for(const auto& choice:s.choices) SendMessageW(row.combo,CB_ADDSTRING,0,(LPARAM)choice.label.c_str());
@@ -447,6 +464,21 @@ void App::Verify(const fs::path& output) {
         const auto& key=Options()[i].key;
         if (key==L"g_portalGunReticle" || key==L"g_halfLifeAutoHop") require(IsWindowEnabled(rows[i].combo),"Dependency enable failed");
     }
+    v[L"s_useEAXReverb"]=L"1";SetValues(v);
+    for(size_t i=0;i<rows.size();++i) if(ReverbSlider(Options()[i].key)) {
+        require(IsWindowEnabled(rows[i].combo),"EAX slider disabled");
+        for(int position:{0,5,10}) {
+            SendMessageW(rows[i].combo,TBM_SETPOS,TRUE,position);
+            require(Read().at(Options()[i].key)==std::to_wstring(position),"Reverb slider read failed");
+        }
+        auto state=Read();SendMessageW(rows[i].combo,WM_MOUSEWHEEL,MAKEWPARAM(0,(WORD)-WHEEL_DELTA),0);
+        require(Read()==state,"Scrolling changed reverb");
+    }
+    ReverbLabels();Fit(work);
+    for(const auto& group:groups) if(group.name==L"Audio") ScrollTo(group.rect.top);
+    Snapshot(window,output/L"reverb-sliders.bmp");
+    v=Read();v[L"s_useEAXReverb"]=L"0";SetValues(v);
+    for(size_t i=0;i<rows.size();++i) if(ReverbSlider(Options()[i].key)) require(!IsWindowEnabled(rows[i].combo),"EAX-off slider enabled");
     auto before=Read();SendMessageW(rows[0].combo,WM_MOUSEWHEEL,MAKEWPARAM(0,(WORD)-WHEEL_DELTA),0);require(Read()==before,"Mouse wheel changed a choice");
     SetValues(initial);Fit(work);Snapshot(window,output/L"settings.bmp");
     Atomic(output/L"layout-pass.txt","PASS: all controls with advanced options hidden and shown, row/group containment, small-screen scrolling, 96/120/144/192 DPI at 640/850/1100 widths, wheel forwarding and dependency state.\n");

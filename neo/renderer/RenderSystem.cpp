@@ -841,9 +841,23 @@ void	idRenderSystemLocal::CropRenderSize( int width, int height, bool makePowerO
 
 /*
 ================
-UnCrop
+SetGuiShaderTime
 ================
 */
+float idRenderSystem::SetGuiShaderTime( float seconds ) {
+	const float previous = tr.frameShaderTime;
+	if ( !glConfig.isInitialized || !tr.guiModel || tr.guiRecursionLevel ) {
+		return previous;
+	}
+	// Preserve the old clock on already queued HUD/game effects. Likewise the
+	// caller restores it only after the menu's geometry has been emitted.
+	tr.guiModel->EmitFullScreen();
+	tr.guiModel->Clear();
+	tr.frameShaderTime = seconds;
+	return previous;
+}
+
+// Restore the previous render crop.
 void idRenderSystemLocal::UnCrop() {
 	if ( !glConfig.isInitialized ) {
 		return;

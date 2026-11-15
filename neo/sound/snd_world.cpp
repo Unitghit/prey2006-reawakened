@@ -2290,14 +2290,19 @@ void idSoundWorldLocal::ApplyRetailSource( idSoundEmitterLocal *sound, idSoundCh
 	}
 	// Always overwrite state: OpenAL source handles are recycled between sounds.
 	soundSystemLocal.SetRetailEax( retailEaxSource[version], 27, chan->openalSource, sends, sizeof(sends) );
-	int room = (chan->parms.soundShaderFlags & SSF_NOREVERB) ? -10000 :
-		((chan->parms.soundClass == SOUNDCLASS_VOICE || chan->parms.soundClass == SOUNDCLASS_VOICEDUCKER) ? -600 : 0);
-	if ( room == -600 ) {
-		// EAX room is in millibels. Scale only the wet dialogue send; keep the
-		// direct voice, authored no-reverb exclusions and other sound classes intact.
-		const int amount = idMath::ClampInt( 0, 10, idSoundSystemLocal::s_eaxVoiceReverb.GetInteger() );
+	const bool voice = chan->parms.soundClass == SOUNDCLASS_VOICE || chan->parms.soundClass == SOUNDCLASS_VOICEDUCKER;
+	int room = voice ? -600 : 0;
+	if ( chan->parms.soundShaderFlags & SSF_NOREVERB ) {
+		room = -10000;
+	} else if ( chan->parms.soundClass != SOUNDCLASS_MUSIC ) {
+		const idCVar &control = voice ? idSoundSystemLocal::s_eaxVoiceReverb :
+			(chan->soundShader && chan->soundShader->UsesWeaponReverb()) ? idSoundSystemLocal::s_eaxWeaponReverb :
+			idSoundSystemLocal::s_eaxEnvironmentReverb;
+		const int amount = idMath::ClampInt( 0, 10, control.GetInteger() );
+		// Scale only the wet send. Never touch AL_GAIN, distance/occlusion,
+		// soundClass fades, the dry path, or authored no-reverb exclusions.
 		room = amount == 0 ? -10000 : idMath::ClampInt( -10000, 1000,
-			-600 + static_cast<int>( 2000.0f * log10f( amount / 5.0f ) ) );
+			room + static_cast<int>( 2000.0f * log10f( amount / 5.0f ) ) );
 	}
 	soundSystemLocal.SetRetailEax( retailEaxSource[version], 7, chan->openalSource, &room, sizeof(room) );
 	struct { int level; float lf, room, direct; } occlusion = {0,0,1.5f,1.0f};

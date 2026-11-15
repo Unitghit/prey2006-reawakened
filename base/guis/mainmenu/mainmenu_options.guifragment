@@ -3879,7 +3879,7 @@
 						}
 
 						windowDef OA_Suboptions_OpenAL {
-							rect		0, 190, 420, 200
+							rect		0, 165, 420, 185
 							visible		("gui::openal" != 0)
 
 							buttonDef OA_SubHeading_OpenAL {
@@ -3897,7 +3897,7 @@
 							}
 
 							buttonDef OA_Device {
-								rect			10, 40, 400, 25
+								rect			10, 30, 400, 25
 								leftMat			"guis/assets/menu/textbar_corner.tga"
 								middleMat		"guis/assets/menu/textbarstrip.tga"
 								rightMat		"guis/assets/menu/textbar_invcorner.tga"
@@ -3932,7 +3932,7 @@
 							}
 
 							buttonDef OA_EAX {
-								rect			10, 70, 400, 25
+								rect			10, 55, 400, 25
 								leftMat			"guis/assets/menu/textbar_corner.tga"
 								middleMat		"guis/assets/menu/textbarstrip.tga"
 								rightMat		"guis/assets/menu/textbar_invcorner.tga"
@@ -3968,7 +3968,7 @@
 
 						buttonDef OA_VoiceReverb {
 							visible "gui::eax"
-							rect			10, 100, 400, 25
+							rect			10, 80, 400, 25
 							leftMat			"guis/assets/menu/textbar_corner.tga"
 							middleMat		"guis/assets/menu/textbarstrip.tga"
 							rightMat		"guis/assets/menu/textbar_invcorner.tga"
@@ -3998,9 +3998,73 @@
 
 							}
 						}
+						buttonDef OA_WeaponReverb {
+							visible "gui::eax"
+							rect			10, 105, 400, 25
+							leftMat			"guis/assets/menu/textbar_corner.tga"
+							middleMat		"guis/assets/menu/textbarstrip.tga"
+							rightMat		"guis/assets/menu/textbar_invcorner.tga"
+
+							windowDef OAT_WeaponReverb {
+								rect		0, 0, 200, 25
+								text		"Weapon Reverb"
+								textalign	1
+								textaligny	0
+								textscale	0.33
+								shadow		1
+								forecolor	STATIC_FORECOLOR_COMMA
+							}
+							windowDef OA_WeaponReverbBG {
+								rect		250, 4, 100, 16
+								background	"guis/assets/sliderbackground.tga"
+							}
+							sliderDef OA_WeaponReverbSlider {
+								rect		250, 4, 100, 16
+								forecolor	EDITABLE_FORECOLOR_COMMA
+								hovercolor	EDITABLE_HOVERCOLOR_COMMA
+								low			0
+								high		10
+								step		1
+								thumbShader	"guis/assets/sliderbutton.tga"
+								cvar		"s_eaxWeaponReverb"
+
+							}
+						}
+						buttonDef OA_EnvironmentReverb {
+							visible "gui::eax"
+							rect			10, 130, 400, 25
+							leftMat			"guis/assets/menu/textbar_corner.tga"
+							middleMat		"guis/assets/menu/textbarstrip.tga"
+							rightMat		"guis/assets/menu/textbar_invcorner.tga"
+
+							windowDef OAT_EnvironmentReverb {
+								rect		0, 0, 200, 25
+								text		"Environment Reverb"
+								textalign	1
+								textaligny	0
+								textscale	0.33
+								shadow		1
+								forecolor	STATIC_FORECOLOR_COMMA
+							}
+							windowDef OA_EnvironmentReverbBG {
+								rect		250, 4, 100, 16
+								background	"guis/assets/sliderbackground.tga"
+							}
+							sliderDef OA_EnvironmentReverbSlider {
+								rect		250, 4, 100, 16
+								forecolor	EDITABLE_FORECOLOR_COMMA
+								hovercolor	EDITABLE_HOVERCOLOR_COMMA
+								low			0
+								high		10
+								step		1
+								thumbShader	"guis/assets/sliderbutton.tga"
+								cvar		"s_eaxEnvironmentReverb"
+
+							}
+						}
 
 							windowDef EAXLogo {
-								rect		175, 130, 64, 28
+								rect		175, 155, 64, 28
 								background	"guis/assets/menu/eax.tga"
 								forecolor	STATIC_FORECOLOR_COMMA
 								visible		"gui::eax"
