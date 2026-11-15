@@ -256,6 +256,7 @@ idUserInterfaceLocal::idUserInterfaceLocal() {
 }
 
 idUserInterfaceLocal::~idUserInterfaceLocal() {
+	Sys_SetInteractiveIngameGuiActive( false, this );
 	delete desktop;
 	desktop = NULL;
 }

@@ -1104,6 +1104,24 @@ Call with ui = NULL to clear the state.
 I hope this won't explode in my face :-p
 ===============
 */
+// Remember the destination of each press until its matching release. Focus can
+// change while a button is held (for example when a screen closes a gate).
+static int guiButtonRoute[2] = { 0, 0 }; // 0: released, 1: gameplay, 2: GUI
+static int RouteGuiButton( int index, bool down, bool guiActive ) {
+	const bool wasClicking = guiButtonRoute[0] == 2 || guiButtonRoute[1] == 2;
+	const int route = guiButtonRoute[index];
+	if ( down ) {
+		if ( route != 0 ) { return -1; } // duplicate press
+		guiButtonRoute[index] = guiActive ? 2 : 1;
+	} else {
+		guiButtonRoute[index] = 0;
+	}
+	const bool clicking = guiButtonRoute[0] == 2 || guiButtonRoute[1] == 2;
+	if ( ( down ? guiButtonRoute[index] : route ) != 2 ) { return 0; }
+	if ( wasClicking == clicking ) { return -1; }
+	return clicking ? 1 : 2;
+}
+
 bool D3_IN_interactiveIngameGuiActive = false;
 void Sys_SetInteractiveIngameGuiActive( bool active, idUserInterface* ui )
 {
@@ -1535,15 +1553,17 @@ sysEvent_t Sys_GetEvent() {
 			if ( ev.cbutton.button == SDL_CONTROLLER_BUTTON_START ) {
 				res.evValue = K_ESCAPE;
 				return res;
-			} else if( (ev.cbutton.button == SDL_CONTROLLER_BUTTON_A || ev.cbutton.button == SDL_CONTROLLER_BUTTON_Y)
-					   && D3_IN_interactiveIngameGuiActive && sessLocal.GetActiveMenu() == NULL )
-			{
-				// ugly hack: currently an interactive ingame GUI (with a cursor) is active/focused
-				// so pretend that the gamepads A (south) or Y (north, used by D3BFG to click ingame GUIs) button
-				// is the left mouse button so it can be used for "clicking"..
-				mouse_polls.Append( mouse_poll_t(M_ACTION1, res.evValue2) );
-				res.evValue = K_MOUSE1;
-				return res;
+			}
+			if ( ev.cbutton.button == SDL_CONTROLLER_BUTTON_A || ev.cbutton.button == SDL_CONTROLLER_BUTTON_Y ) {
+				const int route = RouteGuiButton( ev.cbutton.button == SDL_CONTROLLER_BUTTON_A ? 0 : 1,
+					isDown, D3_IN_interactiveIngameGuiActive && sessLocal.GetActiveMenu() == NULL );
+				if ( route < 0 ) { continue; }
+				if ( route > 0 ) {
+					res.evValue2 = route == 1;
+					mouse_polls.Append( mouse_poll_t( M_ACTION1, res.evValue2 ) );
+					res.evValue = K_MOUSE1;
+					return res;
+				}
 			}
 
 			sys_jEvents jEvent =  mapjoybutton( (SDL_GameControllerButton)ev.cbutton.button );
@@ -1687,6 +1707,7 @@ Sys_ClearEvents
 */
 void Sys_ClearEvents() {
 	SDL_Event ev;
+	memset( guiButtonRoute, 0, sizeof( guiButtonRoute ) );
 
 	while (SDL_PollEvent(&ev))
 		;

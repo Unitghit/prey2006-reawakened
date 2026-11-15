@@ -2259,7 +2259,14 @@ void hhPlayer::UpdateFocus( void ) {
 	sysEvent_t	ev;
 	idUserInterface *ui;
 
-	if ( gameLocal.inCinematic ) {
+	if ( gameLocal.inCinematic || spectating ) {
+		oldFocus = focusGUIent;
+		oldUI = focusUI;
+		ClearFocus();
+		if ( oldFocus && oldUI ) {
+			command = oldUI->Activate( false, gameLocal.time );
+			HandleGuiCommands( oldFocus, command );
+		}
 		return;
 	}
 
@@ -2270,10 +2277,6 @@ void hhPlayer::UpdateFocus( void ) {
 		ClearFocus();
 	}
 
-	// don't let spectators interact with GUIs
-	if ( spectating ) {
-		return;
-	}
 
 	start = GetEyePosition();
 
@@ -2426,16 +2429,16 @@ void hhPlayer::UpdateFocus( void ) {
 		}
 	}
 
-	if ( focusGUIent && focusUI ) {
-		if ( !oldFocus || oldFocus != focusGUIent ) {
+	// Balance activation when moving directly between entities or GUI surfaces.
+	if ( oldFocus != focusGUIent || oldUI != focusUI ) {
+		if ( oldFocus && oldUI ) {
+			command = oldUI->Activate( false, gameLocal.time );
+			HandleGuiCommands( oldFocus, command );
+		}
+		if ( focusGUIent && focusUI ) {
 			command = focusUI->Activate( true, gameLocal.time );
 			HandleGuiCommands( focusGUIent, command );
-			//StartSound( "snd_guienter", SND_CHANNEL_ANY, 0, false, NULL );
 		}
-	} else if ( oldFocus && oldUI ) {
-		command = oldUI->Activate( false, gameLocal.time );
-		HandleGuiCommands( oldFocus, command );
-		//StartSound( "snd_guiexit", SND_CHANNEL_ANY, 0, false, NULL );
 	}
 }
 

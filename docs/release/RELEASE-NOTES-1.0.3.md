@@ -1,0 +1,4 @@
+- Fixed duplicate jukebox audio from the bar speakers.
+- Updated outdated OpenAL and environmental reverb settings.
+- Fixed controller buttons incorrectly firing after using interactive screens.
+- Fixed stuck inputs when leaving a screen while holding a controller button.
